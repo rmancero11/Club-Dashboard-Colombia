@@ -2,18 +2,23 @@ import { NextResponse } from "next/server";
 import bcrypt from "bcrypt";
 import prisma from "../../lib/prisma";
 
-// Configuración de CORS
-const allowedOrigin = "https://clubdeviajerossolteros.com";
-
-function corsHeaders() {
-  return {
-    "Access-Control-Allow-Origin": allowedOrigin,
-    "Access-Control-Allow-Methods": "POST, OPTIONS",
-    "Access-Control-Allow-Headers": "Content-Type",
-  };
+// Función para añadir headers CORS
+function corsResponse(data: any, status = 200) {
+  return NextResponse.json(data, {
+    status,
+    headers: {
+      "Access-Control-Allow-Origin": "https://clubdeviajerossolteros.com", // 👈 tu dominio
+      "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+      "Access-Control-Allow-Headers": "Content-Type, Authorization",
+    },
+  });
 }
 
-// Manejo de POST
+// Manejo del preflight OPTIONS
+export async function OPTIONS() {
+  return corsResponse({}, 200);
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -29,21 +34,22 @@ export async function POST(req: Request) {
     } = body;
 
     if (!email || !password) {
-      return NextResponse.json(
+      return corsResponse(
         { success: false, message: "Email y contraseña son obligatorios" },
-        { status: 400, headers: corsHeaders() }
+        400
       );
     }
 
     const existing = await prisma.user.findUnique({ where: { email } });
     if (existing) {
-      return NextResponse.json(
+      return corsResponse(
         { success: false, message: "El correo ya está registrado" },
-        { status: 400, headers: corsHeaders() }
+        400
       );
     }
 
     const [firstName, lastName] = (name || "").split(/\s+/, 2);
+
     const hashed = await bcrypt.hash(password, 10);
 
     const user = await prisma.user.create({
@@ -59,20 +65,12 @@ export async function POST(req: Request) {
       },
     });
 
-    return NextResponse.json(
-      { success: true, userId: user.id },
-      { status: 201, headers: corsHeaders() }
-    );
+    return corsResponse({ success: true, userId: user.id }, 201);
   } catch (err) {
     console.error("Register error:", err);
-    return NextResponse.json(
+    return corsResponse(
       { success: false, message: "Error al registrar" },
-      { status: 500, headers: corsHeaders() }
+      500
     );
   }
-}
-
-// Manejo de OPTIONS (preflight request)
-export async function OPTIONS() {
-  return NextResponse.json({}, { status: 200, headers: corsHeaders() });
 }
