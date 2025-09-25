@@ -1,0 +1,15 @@
+// No auth
+export const ROUTE_LOGIN = '/login'
+export const ROUTE_HOME = '/'
+// Authenticated
+export const ROUTE_ONBOARDING = '/onboarding'
+export const ROUTE_DASHBOARD = '/dashboard'
+export const ROUTE_DASHBOARD_HOME = 'home'
+export const ROUTE_CLIENTS = 'clients'
+export const ROUTE_INSPECTIONS = 'inspections'
+export const ROUTE_WAITERS = 'waiters'
+export const ROUTE_STADISTICS = 'statistics'
+export const ROUTE_ROI = 'roi'
+export const ROUTE_QRS = 'qrs'
+export const ROUTE_QIK_CONNECT = 'qik-connect'
+export const ROUTE_LOYALTY = 'loyalty'
