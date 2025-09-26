@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
+import bcrypt from "bcrypt";
 
 const allowedOrigin = "https://clubdeviajerossolteros.com";
 
@@ -26,26 +27,45 @@ export async function POST(req: Request) {
       preferencia,
       destino,
       password,
-    } = body; 
+    } = body;
 
+    if (!email || !password) {
+      return NextResponse.json(
+        { success: false, message: "Email y Contraseña son obligatorios" },
+        { status: 400 }
+      );
+    }
+
+    const existingUser = await prisma.user.findUnique({ where: { email } });
+    if (existingUser) {
+      return NextResponse.json(
+        {
+          success: false,
+          message: "El correo ya está registrado",
+        },
+        { status: 400 }
+      );
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
 
     const newUser = await prisma.user.create({
       data: {
         email,
-        name,         
+        name,
         phone: whatsapp,
         country,
         budget: presupuesto,
         preference: preferencia,
         destino,
-        password,                
+        password: hashedPassword,
       },
     });
 
     return new NextResponse(
       JSON.stringify({ success: true, usuario: newUser }),
       {
-        status: 200,
+        status: 201,
         headers: {
           "Access-Control-Allow-Origin": allowedOrigin,
           "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
