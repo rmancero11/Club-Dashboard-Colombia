@@ -24,6 +24,7 @@ export async function POST(req: Request) {
       whatsapp,
       presupuesto,
       preferencia,
+      destino,
       password,
     } = body; 
 
@@ -31,11 +32,12 @@ export async function POST(req: Request) {
     const newUser = await prisma.user.create({
       data: {
         email,
-        firstName: name,         
+        name,         
         phone: whatsapp,
         country,
         budget: presupuesto,
         preference: preferencia,
+        destino,
         password,                
       },
     });

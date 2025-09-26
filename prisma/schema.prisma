@@ -14,14 +14,14 @@ datasource db {
 }
 
 model User {
-  id         Int  @id @default(autoincrement())
+  id         String  @id @default(uuid())
   email      String   @unique
-  firstName  String?
-  lastName   String?
+  name       String?
   phone      String? 
   country    String?
   budget     String?
   preference String?
+  destino    String?
   password   String
   createdAt  DateTime @default(now())
 }
