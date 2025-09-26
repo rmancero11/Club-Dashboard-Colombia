@@ -32,7 +32,7 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: "Email y Contraseña son obligatorios" },
-        { status: 400 }
+        { status: 200 }
       );
     }
 
@@ -43,7 +43,7 @@ export async function POST(req: Request) {
           success: false,
           message: "El correo ya está registrado",
         },
-        { status: 400 }
+        { status: 200 }
       );
     }
 
