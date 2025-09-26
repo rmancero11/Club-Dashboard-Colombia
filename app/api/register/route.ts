@@ -15,6 +15,14 @@ export async function OPTIONS() {
   });
 }
 
+function cordHeaders() {
+  return {
+    "Access-Control-Allow-Origin": "https://clubdeviajerossolteros.com",
+    "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+    "Access-Control-Allow-Headers": "Content-Type, Authorization",
+  };
+}
+
 export async function POST(req: Request) {
   try {
     const body = await req.json();
@@ -32,7 +40,7 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: "Email y Contraseña son obligatorios" },
-        { status: 200 }
+        { status: 200, headers: cordHeaders() }
       );
     }
 
@@ -43,7 +51,7 @@ export async function POST(req: Request) {
           success: false,
           message: "El correo ya está registrado",
         },
-        { status: 200 }
+        { status: 200, headers: cordHeaders() }
       );
     }
 
@@ -66,11 +74,7 @@ export async function POST(req: Request) {
       JSON.stringify({ success: true, usuario: newUser }),
       {
         status: 201,
-        headers: {
-          "Access-Control-Allow-Origin": allowedOrigin,
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
+        headers: cordHeaders(),
       }
     );
   } catch (error) {
@@ -80,11 +84,7 @@ export async function POST(req: Request) {
       JSON.stringify({ success: false, error: "Error al registrar" }),
       {
         status: 500,
-        headers: {
-          "Access-Control-Allow-Origin": allowedOrigin,
-          "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-          "Access-Control-Allow-Headers": "Content-Type, Authorization",
-        },
+        headers: cordHeaders(),
       }
     );
   }
