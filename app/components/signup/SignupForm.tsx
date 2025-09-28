@@ -98,7 +98,7 @@ const SignupFormAdmin = () => {
         </div>
 
         <Button
-          type="submit" // 👈 IMPORTANTE
+          type="submit"
           className={cn('w-full text-base text-white bg-blue-700 py-3', {
             'cursor-not-allowed opacity-50': strength <= 2,
           })}
