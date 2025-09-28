@@ -2,25 +2,12 @@
 
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-
-import { User } from 'firebase/auth';
-
 import { useForm, SubmitHandler } from 'react-hook-form';
-
-import { useAuth } from '@/app/hooks/useAuth';
-
 import { setCookie } from 'cookies-next';
-
 import { useToast } from '@/app/hooks/useToast';
 import { Button } from '@/app/components/ui/ButtonLogin';
 import { Input } from '@/app/components/ui/InputLogin';
 import Image from 'next/image';
-
-import {
-  ROUTE_DASHBOARD,
-  ROUTE_DASHBOARD_HOME,
-  ROUTE_STADISTICS,
-} from '@/app/constants/routes';
 import Link from 'next/link';
 
 type Inputs = {
@@ -30,7 +17,6 @@ type Inputs = {
 
 const LoginPage = () => {
   const { toast } = useToast();
-  const { user, signIn } = useAuth();
   const router = useRouter();
 
   const searchParams = useSearchParams();
@@ -39,48 +25,50 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit } = useForm<Inputs>();
 
-  const onSubmit: SubmitHandler<Inputs> = async ({ email, password }) => {
-    setLoading(true);
-    try {
-      await signIn(email, password);
-      const userData: User = user as User;
-      const idToken = await userData?.getIdToken();
-      if (idToken) {
-        setCookie('user', idToken, { path: ROUTE_DASHBOARD });
-      }
-      router.push(`${ROUTE_DASHBOARD_HOME}`);
-    } catch (error) {
-      console.error(error);
+const onSubmit: SubmitHandler<Inputs> = async ({ email, password }) => {
+  setLoading(true);
+  try {
+    const response = await fetch('/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
       toast({
-        title: 'Error al iniciar sesión. Verifica tu correo y contraseña.',
+        title: 'Error al iniciar sesión',
+        description: data.error || 'Verifica tu correo y contraseña.',
         variant: 'destructive',
       });
+      setLoading(false);
+      return;
     }
-    setLoading(false);
-  };
 
-  const loginDemo = async () => {
-    setLoading(true);
-    const email = process.env.NEXT_PUBLIC_VITE_APP_DEMO_EMAIL;
-    const password = process.env.NEXT_PUBLIC_VITE_APP_DEMO_PASSWORD;
+    // guardar token y rol en cookies/localStorage
+    setCookie('token', data.token);
+    setCookie('role', data.user.role);
 
-    try {
-      await signIn(email || '', password || '');
-      const userData: User = user as User;
-      const idToken = await userData?.getIdToken();
-      if (idToken) {
-        setCookie('user', idToken, { path: ROUTE_DASHBOARD });
-      }
-      router.push(`${ROUTE_STADISTICS}`);
-    } catch (error) {
-      console.error(error);
-      toast({
-        title: 'Error al iniciar sesión. Verifica tu correo y contraseña.',
-        variant: 'destructive',
-      });
+    // redirección según rol
+    if (data.user.role === 'ADMIN') {
+      router.push('/dashboard/admin');
+    } else {
+      router.push('/dashboard/user');
     }
-    setLoading(false);
-  };
+  } catch (error) {
+    toast({
+      title: 'Error de conexión',
+      description: 'No se pudo conectar con el servidor.',
+      variant: 'destructive',
+    });
+  }
+  setLoading(false);
+};
+
+  function loginDemo(): void {
+    throw new Error('Function not implemented.');
+  }
 
   return (
     <>
