@@ -23,5 +23,11 @@ model User {
   preference String?
   destino    String?
   password   String
+  role       Role   @default(USER)
   createdAt  DateTime @default(now())
+}
+
+enum Role {
+  USER
+  ADMIN
 }
