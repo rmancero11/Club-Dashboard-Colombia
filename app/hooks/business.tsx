@@ -1,11 +1,8 @@
 import useSWR from 'swr';
-// firebase
 import { User } from 'firebase/auth';
 
-// services
 import { businessService } from '../services/businessServices';
 
-// auth
 import { useAuth } from './useAuth';
 import { useSearchParams } from 'next/navigation';
 import { getBusinessDataFromUser, getFeedbackData } from '../services/business';

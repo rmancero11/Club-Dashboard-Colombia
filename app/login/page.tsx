@@ -3,7 +3,6 @@
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useForm, SubmitHandler } from 'react-hook-form';
-import { setCookie } from 'cookies-next';
 import { useToast } from '@/app/hooks/useToast';
 import { Button } from '@/app/components/ui/ButtonLogin';
 import { Input } from '@/app/components/ui/InputLogin';
@@ -25,46 +24,45 @@ const LoginPage = () => {
   const [loading, setLoading] = useState(false);
   const { register, handleSubmit } = useForm<Inputs>();
 
-const onSubmit: SubmitHandler<Inputs> = async ({ email, password }) => {
-  setLoading(true);
-  try {
-    const response = await fetch('/api/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    });
+  const onSubmit: SubmitHandler<Inputs> = async ({ email, password }) => {
+    setLoading(true);
+    try {
+      const response = await fetch('/api/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
 
-    const data = await response.json();
+      const data = await response.json();
 
-    if (!response.ok) {
+      if (!response.ok) {
+        toast({
+          title: 'Error al iniciar sesión',
+          description: data.error || 'Verifica tu correo y contraseña.',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      console.log("ROL DEL USUARIO:", data.user.role);
+
+      const role = (data.user.role || '').toUpperCase();
+
+      if (role === 'ADMIN') {
+        router.replace('/home'); 
+      } else {
+        router.replace('/unauthorized');
+      }
+    } catch (error) {
       toast({
-        title: 'Error al iniciar sesión',
-        description: data.error || 'Verifica tu correo y contraseña.',
+        title: 'Error de conexión',
+        description: 'No se pudo conectar con el servidor.',
         variant: 'destructive',
       });
-      setLoading(false);
-      return;
     }
-
-    // guardar token y rol en cookies/localStorage
-    setCookie('token', data.token);
-    setCookie('role', data.user.role);
-
-    // redirección según rol
-    if (data.user.role === 'ADMIN') {
-      router.push('/dashboard/admin');
-    } else {
-      router.push('/dashboard/user');
-    }
-  } catch (error) {
-    toast({
-      title: 'Error de conexión',
-      description: 'No se pudo conectar con el servidor.',
-      variant: 'destructive',
-    });
-  }
-  setLoading(false);
-};
+    setLoading(false);
+  };
 
   function loginDemo(): void {
     throw new Error('Function not implemented.');

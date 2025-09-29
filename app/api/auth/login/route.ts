@@ -14,7 +14,7 @@ export async function POST(req: Request) {
 
     const validPassword = await bcrypt.compare(password, user.password);
     if (!validPassword) {
-      return NextResponse.json({ error: 'Contraseña incorrecta' }, { status: 401 });
+      return NextResponse.json({ error: 'Correo o contraseña incorrectas' }, { status: 401 });
     }
 
     const token = jwt.sign(
@@ -23,15 +23,25 @@ export async function POST(req: Request) {
       { expiresIn: '1d' }
     );
 
-    return NextResponse.json({
+    const response = NextResponse.json({
       user: {
         id: user.id,
         name: user.name,
         email: user.email,
         role: user.role,
       },
-      token,
     });
+
+    response.cookies.set({
+      name: 'token',
+      value: token,
+      httpOnly: true,       // 🔒 seguridad
+      secure: process.env.NODE_ENV === 'production',
+      path: '/',
+      maxAge: 60 * 60 * 24, // 1 día
+    });
+
+    return response;
   } catch (err) {
     return NextResponse.json(
       { error: err instanceof Error ? err.message : 'Error interno' },
