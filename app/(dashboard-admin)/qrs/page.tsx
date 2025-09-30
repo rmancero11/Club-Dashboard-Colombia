@@ -30,7 +30,6 @@ function QRs() {
   const debouncedQRSizeWaiters = useDebounce(QRSizeWaiters, 500);
   const [loading, setLoading] = useState(false);
   const [isBranch, setIsBranch] = useState(false);
-  // eslint-disable-next-line no-undef
   const [waitersSucursalesFixed, setWaitersSucursalesFixed] = useState<
     Waiter[] | undefined
   >([]);
@@ -44,26 +43,26 @@ function QRs() {
     [businessDataContext?.filteredBusinessData]
   );
 
-  const businessId = businessData?.Id as string;
+  const businessId = businessData?.id as string;
   const parentId = businessData?.parentId;
   const isDsc = businessData?.parentId === 'dsc-solutions';
 
   const waiters = businessData?.meseros;
-  const waitersSucursales = businessData?.sucursales?.flatMap(
-    (branch) => branch?.meseros
-  );
   const sucursales = businessData?.sucursales;
+  const waitersSucursales = sucursales?.flatMap(
+    (branch) => branch?.meseros ?? []
+  );
 
   const RESTAURANS_ZIPNAME = `${cleanString(
-    businessData?.Name as string
+    businessData?.name as string
   )}-restaurant-qrs.zip`;
   const WAITERS_ZIPNAME = `${cleanString(
-    businessData?.Name as string
-  )}-restaurant-qrs.zip`;
+    businessData?.name as string
+  )}-waiters-qrs.zip`;
 
   useEffect(() => {
     setBusinessData(filteredBusinessData);
-  }, [businessData, businessDataContext, filteredBusinessData]);
+  }, [filteredBusinessData]);
 
   useEffect(() => {
     const branch = searchParams.get('sucursal');
@@ -171,18 +170,18 @@ function QRs() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6 place-items-center qr-restaurants">
                 <div className="flex flex-col items-center gap-3 w-full text-primary">
                   <QRCode
-                    id={`${cleanString(`${businessData?.Name}-main-qr`)}`}
+                    id={`${cleanString(`${businessData?.name}-main-qr`)}`}
                     value={
                       isBranch
                         ? generateRestaurantSucursalURL(
                             businessData?.parentId as string,
-                            businessData?.Id as string
+                            businessData?.id as string
                           )
-                        : generateRestaurantURL(businessData?.Id as string)
+                        : generateRestaurantURL(businessData?.id as string)
                     }
                     size={debouncedQRSizeRestaurants}
                   />
-                  <p className="font-bold">{businessData?.Name}</p>
+                  <p className="font-bold">{businessData?.name}</p>
                 </div>
 
                 {sucursales?.map((sucursal, index) => (
@@ -190,14 +189,14 @@ function QRs() {
                     className="flex flex-col items-center gap-3 text-primary"
                     key={`qr-sucursal-${index}`}>
                     <QRCode
-                      id={`${cleanString(`${sucursal?.Name}-sucursal-qr`)}`}
+                      id={`${cleanString(`${sucursal?.name}-sucursal-qr`)}`}
                       value={generateRestaurantSucursalURL(
                         businessId,
-                        sucursal?.Id
+                        sucursal?.id
                       )}
                       size={debouncedQRSizeRestaurants}
                     />
-                    <p className="font-bold">{sucursal?.Name}</p>
+                    <p className="font-bold">{sucursal?.name}</p>
                   </div>
                 ))}
               </div>
@@ -240,7 +239,7 @@ function QRs() {
               </div>
             </div>
             <div className="mt-8 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 place-items-center gap-8">
-              {!waitersSucursales &&
+              {!waitersSucursales?.length &&
                 waiters?.map((waiter, index) => (
                   <div
                     className="flex flex-col items-center gap-4 qr-waiters"
@@ -263,7 +262,7 @@ function QRs() {
                   key={`qr-waiter-sucursal-${index}`}>
                   <QRCode
                     id={`${cleanString(
-                      `${waiter?.name}-sucursal-qr-${waiter?.sucursal?.Name}`
+                      `${waiter?.name}-sucursal-qr-${waiter?.sucursal?.name}`
                     )}`}
                     value={generateWaiterBySucursalURL(
                       businessId,

@@ -4,10 +4,10 @@ import type {
   FeedbackHooters,
 } from '@/app/types/business';
 
-export const adaptedAverageTicket = (AverageTicket: string) => {
+export const adaptedAverageTicket = (averageTicket: string) => {
   const regex = /(\d+[.,]?\d*)/g;
-  if (!AverageTicket) return 0;
-  const value = AverageTicket.match(regex);
+  if (!averageTicket) return 0;
+  const value = averageTicket.match(regex);
   if (!value) return 0;
   let lastValue = value[value.length - 1];
   if (lastValue.includes('.')) {
@@ -19,14 +19,14 @@ export const adaptedAverageTicket = (AverageTicket: string) => {
 
 const getGreaterAverageTickets = (
   data: (Feedback | FeedbackHooters | FeedbackGus)[]
-) => {
+): number[] => {
   if (!data) return [];
   return data.map((item) => {
-    if ('AverageTicket' in item) {
-      const { AverageTicket } = item;
-      const value = adaptedAverageTicket(AverageTicket);
+    if ('averageTicket' in item && typeof item.averageTicket === 'string') {
+      const value = adaptedAverageTicket(item.averageTicket);
       return value;
     }
+    return 0; 
   });
 };
 

@@ -14,14 +14,10 @@ import getClientsTableData from "@/app/helpers/clients.helpers";
 import { Business, Client, Feedback } from "@/app/types/business";
 import { Card } from "../../components/ui/Card";
 import { Pagination } from "../../components/ui/Pagination";
-
 import { isEmpty } from "@/app/helpers/strings.helpers";
 import { IconChevronDown, IconChevronUp, IconClock } from "@tabler/icons-react";
 import { useSearchParams } from "next/navigation";
-import { Timestamp } from "firebase/firestore";
-
-import { convertToTimestamp, formatTime } from "@/app/helpers";
-
+import { formatTime } from "@/app/helpers";
 import Image from "next/image";
 import CommentDialog from "../../components/clients/CommentSideOver";
 import { PRESETS, PRESETS_EN, formatDate } from "@/app/constants/dates";
@@ -42,41 +38,19 @@ const ratingEmojis: { [key: number]: string } = {
 };
 
 enum ActiveFilter {
-  "byName",
-  "byMail",
-  "byRate",
+  "byRating",
   "byComments",
-  "byVisits",
-  "byBusinessName",
   "byDate",
-  "byFeedbackTime",
-  "byAttendBy",
   "none",
 }
 
 const columns = [
   {
-    id: "Nombre",
-    isVisible: true,
-    getIsVisible: () => true,
-    toggleVisibility: (value: boolean) => {
-      columns[0].isVisible = value;
-    },
-  },
-  {
     id: "Rating",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
-      columns[2].isVisible = value;
-    },
-  },
-  {
-    id: "Visitas",
-    isVisible: true,
-    getIsVisible: () => true,
-    toggleVisibility: (value: boolean) => {
-      columns[3].isVisible = value;
+      columns[0].isVisible = value;
     },
   },
   {
@@ -84,15 +58,7 @@ const columns = [
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
-      columns[0].isVisible = value;
-    },
-  },
-  {
-    id: "Sucursal",
-    isVisible: true,
-    getIsVisible: () => true,
-    toggleVisibility: (value: boolean) => {
-      columns[0].isVisible = value;
+      columns[1].isVisible = value;
     },
   },
   {
@@ -100,15 +66,7 @@ const columns = [
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
-      columns[0].isVisible = value;
-    },
-  },
-  {
-    id: "Tiempo de feedback",
-    isVisible: true,
-    getIsVisible: () => true,
-    toggleVisibility: (value: boolean) => {
-      columns[0].isVisible = value;
+      columns[2].isVisible = value;
     },
   },
 ];
@@ -137,9 +95,7 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
 
   useEffect(() => {
     const clients = getClientsTableData(
-      businessData?.feedbacks?.filter(
-        (feedback) => feedback.FeedbackType === "inspection"
-      ) || [],
+      businessData?.feedbacks || [],
       dateRange
     );
     sortTableByColumn(clients as Client[]);
@@ -160,75 +116,13 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
     setClientsList(pagedClientsList);
   };
 
-  function sortTableByColumn(clients: Client[]) {
-    const sortingFunctions = {
-      [ActiveFilter.none]: () => clients,
-      [ActiveFilter.byName]: () =>
-        sortByStringField(clients, "FullName", ascendingFilter),
-      [ActiveFilter.byRate]: () =>
-        sortByNumberField(clients, "Rating", ascendingFilter),
-      [ActiveFilter.byVisits]: () =>
-        sortVistis(clients, "Visits", ascendingFilter),
-      [ActiveFilter.byComments]: () =>
-        sortByStringField(clients, "ImproveText", ascendingFilter),
-      [ActiveFilter.byBusinessName]: () =>
-        sortByStringField(clients, "BusinessName", ascendingFilter),
-      [ActiveFilter.byDate]: () =>
-        sortByDateField(
-          clients,
-          "CreationDate" as keyof Feedback,
-          ascendingFilter
-        ),
-      [ActiveFilter.byFeedbackTime]: () =>
-        sortByFeedbackTimeField(
-          clients,
-          "CreationDate" as keyof Feedback,
-          "StartTime" as keyof Feedback,
-          ascendingFilter
-        ),
-      [ActiveFilter.byAttendBy]: () =>
-        sortByStringField(clients, "AttendedBy", ascendingFilter),
-      [ActiveFilter.byMail]: () =>
-        sortByStringField(clients, "Email", ascendingFilter),
-    };
-
-    const sortedClients = sortingFunctions[activeFilter]();
-    setTotalClientsList(sortedClients);
-  }
-
-  function hasProperty(obj: any, prop: string): boolean {
-    return obj && obj.hasOwnProperty(prop);
-  }
-
-  function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
-    return obj[key];
-  }
-
   function getFeedbackProperty(
     feedback: Feedback | undefined,
     field: keyof Feedback
   ): any {
     if (feedback) {
-      return hasProperty(feedback, field) ? getProperty(feedback, field) : null;
+      return feedback[field];
     } else return null;
-  }
-
-  function sortByStringField(
-    clients: Client[],
-    field: keyof Feedback,
-    ascending: boolean
-  ) {
-    return clients.sort((a, b) => {
-      const aValue = (
-        getFeedbackProperty(a.feedback, field) || ""
-      ).toLowerCase();
-      const bValue = (
-        getFeedbackProperty(b.feedback, field) || ""
-      ).toLowerCase();
-      return ascending
-        ? aValue.localeCompare(bValue)
-        : bValue.localeCompare(aValue);
-    });
   }
 
   function sortByNumberField(
@@ -243,62 +137,48 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
     });
   }
 
+  function sortByStringField(
+    clients: Client[],
+    field: keyof Feedback,
+    ascending: boolean
+  ) {
+    return clients.sort((a, b) => {
+      const aValue = (getFeedbackProperty(a.feedback, field) || "").toLowerCase();
+      const bValue = (getFeedbackProperty(b.feedback, field) || "").toLowerCase();
+      return ascending
+        ? aValue.localeCompare(bValue)
+        : bValue.localeCompare(aValue);
+    });
+  }
+
   function sortByDateField(
     clients: Client[],
     field: keyof Feedback,
     ascending: boolean
   ) {
     return clients.sort((a, b) => {
-      const aValue = getFeedbackProperty(a.feedback, field) || 0;
-      const bValue = getFeedbackProperty(b.feedback, field) || 0;
+      const aValue = getFeedbackProperty(a.feedback, field)
+        ? new Date(getFeedbackProperty(a.feedback, field)).getTime()
+        : 0;
+      const bValue = getFeedbackProperty(b.feedback, field)
+        ? new Date(getFeedbackProperty(b.feedback, field)).getTime()
+        : 0;
       return ascending ? aValue - bValue : bValue - aValue;
     });
   }
 
-  function sortByFeedbackTimeField(
-    clients: Client[],
-    fieldCreationDate: keyof Feedback,
-    fieldStartDate: keyof Feedback,
-    ascending: boolean
-  ) {
-    return clients.sort((a, b) => {
-      const aCreationDate: Timestamp =
-        getFeedbackProperty(a.feedback, fieldCreationDate) || 0;
-      const aStartDate: Timestamp =
-        getFeedbackProperty(a.feedback, fieldStartDate) || 0;
-
-      const bCreationDate: Timestamp =
-        getFeedbackProperty(b.feedback, fieldCreationDate) || 0;
-      const bStartDate: Timestamp =
-        getFeedbackProperty(b.feedback, fieldStartDate) || 0;
-
-      const aTimestampCreationDate = convertToTimestamp(
-        aCreationDate
-      ) as Timestamp;
-      const aTimestampStartDate = convertToTimestamp(aStartDate);
-
-      const bTimestampCreationDate = convertToTimestamp(bCreationDate);
-      const bTimestampStartDate = convertToTimestamp(bStartDate);
-
-      const aValue =
-        aTimestampCreationDate.seconds - aTimestampStartDate.seconds;
-      const bValue =
-        bTimestampCreationDate.seconds - bTimestampStartDate.seconds;
-
-      return ascending ? aValue - bValue : bValue - aValue;
-    });
-  }
-
-  function sortVistis(
-    clients: Client[],
-    field: keyof Feedback,
-    ascending: boolean
-  ) {
-    return clients.sort((a, b) => {
-      const aValue = getFeedbackProperty(a.feedback, field) || 0;
-      const bValue = getFeedbackProperty(b.feedback, field) || 0;
-      return ascending ? aValue - bValue : bValue - aValue;
-    });
+  function sortTableByColumn(clients: Client[]) {
+    const sortingFunctions = {
+      [ActiveFilter.none]: () => clients,
+      [ActiveFilter.byRating]: () =>
+        sortByNumberField(clients, "rating", ascendingFilter),
+      [ActiveFilter.byComments]: () =>
+        sortByStringField(clients, "comment", ascendingFilter),
+      [ActiveFilter.byDate]: () =>
+        sortByDateField(clients, "createdAt", ascendingFilter),
+    };
+    const sortedClients = sortingFunctions[activeFilter]();
+    setTotalClientsList(sortedClients);
   }
 
   const toggleFilterByColumn = (filter: ActiveFilter) => {
@@ -325,32 +205,15 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
     );
   };
 
-  const averageFeedbackTime = useMemo(() => {
+  // Demo: average rating as "average feedback time" (adjust as needed)
+  const averageFeedback = useMemo(() => {
     if (!totalClientsList || totalClientsList.length === 0) {
       return 0;
     }
 
     return (
       totalClientsList.reduce((acc, client) => {
-        const creationDate: Timestamp | undefined =
-          client?.feedback?.CreationDate;
-        const startTime: Timestamp | undefined = client?.feedback?.StartTime;
-
-        if (!creationDate || !startTime) {
-          return acc;
-        }
-
-        const timestampCreationDate = convertToTimestamp(creationDate);
-        const timestampStartDate = convertToTimestamp(startTime);
-
-        if (!timestampCreationDate || !timestampStartDate) {
-          return acc;
-        }
-
-        const feedbackTime =
-          timestampCreationDate.seconds - timestampStartDate.seconds;
-
-        return acc + feedbackTime;
+        return acc + (client.feedback.rating || 0);
       }, 0) / totalClientsList.length
     );
   }, [totalClientsList]);
@@ -367,12 +230,10 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
           />
           <div className="flex items-center space-x-1">
             <h2 className="md:flex md:mr-14 items-center space-x-1">
-              {isDsc
-                ? "Total Average Feedback Time:"
-                : "Total Average Feedback Time:"}
+              {"Average Rating:"}
               <IconClock className="text-primary ml-1 inline-block" />{" "}
               <span className="text-primary">
-                {formatTime(averageFeedbackTime)}
+                {averageFeedback.toFixed(2)}
               </span>
             </h2>
           </div>
@@ -387,41 +248,13 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
         <Table>
           <TableHeader>
             <TableRow className="bg-zinc-100 ">
-              {/* <TableHead className='w-[80px] py-5' /> */}
-              <TableHead
-                className="lg:min-w-[120px] min-w-[20px] p-4 text-left cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byName)}
-              >
-                <span className="flex justify-center items-center">
-                  Name
-                  {showChevronInColumn(ActiveFilter.byName)}
-                </span>
-              </TableHead>
-              <TableHead
-                className="lg:min-w-[120px] min-w-[20px] p-4 text-left cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byName)}
-              >
-                <span className="flex justify-center items-center">
-                  Email
-                  {showChevronInColumn(ActiveFilter.byMail)}
-                </span>
-              </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byRate)}
+                onClick={() => toggleFilterByColumn(ActiveFilter.byRating)}
               >
                 <span className="flex justify-center items-center">
                   Rating
-                  {showChevronInColumn(ActiveFilter.byRate)}
-                </span>
-              </TableHead>
-              <TableHead
-                className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byVisits)}
-              >
-                <span className="flex justify-center items-center">
-                  Visits
-                  {showChevronInColumn(ActiveFilter.byVisits)}
+                  {showChevronInColumn(ActiveFilter.byRating)}
                 </span>
               </TableHead>
               <TableHead
@@ -433,19 +266,6 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
                   {showChevronInColumn(ActiveFilter.byComments)}
                 </span>
               </TableHead>
-              {sucursal === "todas" && (
-                <TableHead
-                  className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                  onClick={() =>
-                    toggleFilterByColumn(ActiveFilter.byBusinessName)
-                  }
-                >
-                  <span className="flex justify-center items-center">
-                    Points
-                    {showChevronInColumn(ActiveFilter.byBusinessName)}
-                  </span>
-                </TableHead>
-              )}
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                 onClick={() => toggleFilterByColumn(ActiveFilter.byDate)}
@@ -455,93 +275,36 @@ const InspectionsFeedbackTable = ({ businessData }: IRegularClientsProps) => {
                   {showChevronInColumn(ActiveFilter.byDate)}
                 </span>
               </TableHead>
-              <TableHead
-                className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byAttendBy)}
-              >
-                <span className="flex justify-center items-center">
-                  Tablet
-                  {showChevronInColumn(ActiveFilter.byAttendBy)}
-                </span>
-              </TableHead>
-              <TableHead
-                className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() =>
-                  toggleFilterByColumn(ActiveFilter.byFeedbackTime)
-                }
-              >
-                <span className="flex justify-center items-center">
-                  Feedback time
-                  {showChevronInColumn(ActiveFilter.byFeedbackTime)}
-                </span>
-              </TableHead>
             </TableRow>
           </TableHeader>
           <TableBody className="w-full">
             {clientsList?.map((client, index) => {
               const lastFeedback = client.feedback;
-              const creationDate: Timestamp = lastFeedback?.CreationDate;
-              const startTime: Timestamp = lastFeedback?.StartTime;
-
-              const timestampCreationDate = convertToTimestamp(creationDate);
-              const timestampStartDate = convertToTimestamp(startTime);
-
-              const feedbackDate = timestampCreationDate.toDate();
-              const feedbackTime = formatTime(
-                timestampCreationDate.seconds - timestampStartDate.seconds
-              );
-              const attendBy = lastFeedback?.AttendedBy || "-";
 
               return (
                 <TableRow key={`client_${index}_info`}>
-                  <TableCell className="font-normal p-4 text-center">
-                    {lastFeedback?.FullName || "-"}
-                  </TableCell>
-                  <TableCell className="font-normal p-4 text-center">
-                    {lastFeedback?.Email || "-"}
-                  </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
                     <Image
                       className="w-8 h-8"
-                      src={ratingEmojis[lastFeedback?.Rating]}
+                      src={ratingEmojis[lastFeedback?.rating]}
                       alt={"Rating"}
                       width={30}
                       height={30}
                     />
                   </TableCell>
-                  <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center">
-                    {lastFeedback.Visits || 1}
-                  </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {isEmpty(lastFeedback?.ImproveText ?? "") ? (
+                    {isEmpty(lastFeedback?.comment ?? "") ? (
                       "-"
                     ) : (
                       <CommentDialog
-                        clientFistName={lastFeedback?.FullName}
-                        comment={lastFeedback?.ImproveText}
+                        clientFistName={"" /* No hay FullName en Feedback ahora */}
+                        comment={lastFeedback?.comment}
                       />
                     )}
                   </TableCell>
-                  {sucursal === "todas" && (
-                    <TableCell className="font-normal p-4 text-center ">
-                      <div className="flex items-center justify-center">
-                        {client.businessName}
-                      </div>
-                    </TableCell>
-                  )}
                   <TableCell className="font-normal p-4 text-center ">
                     <div className="flex items-center justify-center">
-                      {formatDate(feedbackDate, "dd/MM/yy hh:mm a")}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-normal p-4 text-center ">
-                    <div className="flex items-center justify-center">
-                      {attendBy}
-                    </div>
-                  </TableCell>
-                  <TableCell className="font-normal p-4 text-center ">
-                    <div className="flex items-center justify-center">
-                      {feedbackTime}
+                      {formatDate(lastFeedback.createdAt, "dd/MM/yy hh:mm a")}
                     </div>
                   </TableCell>
                 </TableRow>

@@ -30,7 +30,7 @@ function Waiters() {
   const searchParams = useSearchParams()
   const branch = searchParams.get('sucursal')
   const isMatriz = branch === 'todas'
-  const businessName = businessData?.Name || ''
+  const businessName = businessData?.name || ''
 
   const [orderBy, setOrderBy] = useState<keyof Waiter>(DEFAULT_SORT_CRITERION)
   const [query, setQuery] = useState<string>('')

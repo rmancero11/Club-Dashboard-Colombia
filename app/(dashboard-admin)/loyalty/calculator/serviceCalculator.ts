@@ -487,11 +487,11 @@ function fillPossibleStarValues() {
 }
 
 const submitStarValue = async (value: number, businessData: Business | undefined | null) => {
-    await setDoc( doc(getFirebase().db, DASHBOARD_COLLECTION_NAME, businessData?.Id || '', CALCULATOR_SUBCOLLECTION_NAME, 'starValue'), {starValue: value});
+    await setDoc( doc(getFirebase().db, DASHBOARD_COLLECTION_NAME, businessData?.id || '', CALCULATOR_SUBCOLLECTION_NAME, 'starValue'), {starValue: value});
 }
 
 const getStarValue = async (businessData: Business | undefined | null) => {
-    return await getDoc(doc(getFirebase().db, DASHBOARD_COLLECTION_NAME, businessData?.Id || '-', CALCULATOR_SUBCOLLECTION_NAME, 'starValue'));
+    return await getDoc(doc(getFirebase().db, DASHBOARD_COLLECTION_NAME, businessData?.id || '-', CALCULATOR_SUBCOLLECTION_NAME, 'starValue'));
 }
 
 const calculatorService = {

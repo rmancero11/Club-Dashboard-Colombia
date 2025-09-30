@@ -42,6 +42,7 @@ model Business {
   PricePlan     Int?
   country       String?
   createdAt     DateTime   @default(now())
+  sessionId     String?
   // Relaciones
   users         User[]
   branches      Branch[]

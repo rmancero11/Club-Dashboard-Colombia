@@ -1,4 +1,4 @@
-import { Business, FeedbackHooters, OriginAdapted } from '@/app/types/business'
+import { Business, OriginAdapted } from '@/app/types/business'
 import { IFeedbackAdaptado } from '@/app/types/adapters'
 import { getFeedacksByPeriod } from '@/app/helpers'
 import { DateRange } from '@/app/types/general'

@@ -55,7 +55,7 @@ export default function CalculatorPage() {
     setInputValue(inputValue);
 
     setFinalResult(inputValue ? inputValue * totalStars : 0);
-  }, [rangeWithin30Days, selectedVisits, selectedOption]);
+  }, [rangeWithin30Days, selectedVisits, selectedOption, inputValue]);
 
   // Listens to changes in inputs (triggered when user manually enters a value)
   useEffect(() => {
@@ -169,7 +169,7 @@ export default function CalculatorPage() {
         <p className="bg-primary text-white rounded-full w-[5rem] h-[1.5rem] my-2">
           Negocio
         </p>
-        <h3 className="text-primary font-bold">{businessData?.Name}</h3>
+        <h3 className="text-primary font-bold">{businessData?.name}</h3>
       </div>
       <div className="flex flex-col items-center">
         <h2 className="text-stone-600 font-bold">

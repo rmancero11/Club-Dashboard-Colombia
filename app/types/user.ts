@@ -12,6 +12,7 @@ export interface User {
   password: string
   role: Role
   createdAt: Date
+  businessId: string | null
 }
 
-export type BusinessUserType = Pick<User, 'id' | 'email' | 'name' | 'role'>
+export type BusinessUserType = Pick<User, 'id' | 'email' | 'name' | 'role' | 'password'>;

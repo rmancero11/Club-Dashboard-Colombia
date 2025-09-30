@@ -3,7 +3,6 @@ import { IFeedbackAdaptado } from '@/app/types/adapters'
 import { getFeedacksByPeriod } from '@/app/helpers'
 import { DateRange } from '@/app/types/general'
 import { RATINGS } from '../constants/general'
-import { OBJECT } from 'swr/_internal';
 
 export const simpleRatingAdapter = (businessData: Business | null | undefined, dateRange: DateRange): ImproveAdapted[] | [] => {
   const feedbacksData = businessData?.feedbacks || []
@@ -12,11 +11,11 @@ export const simpleRatingAdapter = (businessData: Business | null | undefined, d
 
   const adapted: IFeedbackAdaptado = {}
   feedbacks?.forEach(item => {
-    if ('Rating' in item) {
-        if (adapted[RATINGS[item.Rating]]) {
-          adapted[RATINGS[item.Rating]]++
+    if ('rating' in item) {
+        if (adapted[RATINGS[item.rating]]) {
+          adapted[RATINGS[item.rating]]++
         } else {
-          adapted[RATINGS[item.Rating]] = 1
+          adapted[RATINGS[item.rating]] = 1
         }
     }
   })

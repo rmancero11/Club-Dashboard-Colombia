@@ -10,11 +10,11 @@ export const originDataAdapter = (business: Business | null | undefined, dateRan
 
   const adapted: IFeedbackAdaptado = {}
   feedbacks?.forEach(item => {
-    if (item.Origin) {
-      if (adapted[item.Origin]) {
-        adapted[item.Origin]++
+    if (item.origin) {
+      if (adapted[item.origin]) {
+        adapted[item.origin]++
       } else {
-        adapted[item.Origin] = 1
+        adapted[item.origin] = 1
       }
     }
   })

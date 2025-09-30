@@ -229,7 +229,7 @@ const GusClientsTable = ({ businessData }: IGusClientsProps) => {
     const sortingFunctions = {
       [ActiveFilter.none]: () => clients,
       [ActiveFilter.byName]: () =>
-        sortByStringField(clients, 'FullName', ascendingFilter),
+        sortByStringField(clients, 'name', ascendingFilter),
       [ActiveFilter.byEmail]: () =>
         sortByStringField(clients, 'Email', ascendingFilter),
       [ActiveFilter.byVisits]: () =>
@@ -458,8 +458,8 @@ const GusClientsTable = ({ businessData }: IGusClientsProps) => {
     return (
       totalClientsList.reduce((acc, client) => {
         const creationDate: Timestamp | undefined =
-          client?.feedback?.CreationDate;
-        const startTime: Timestamp | undefined = client?.feedback?.StartTime;
+          client?.feedback?.creationDate;
+        const startTime: Timestamp | undefined = client?.feedback?.startTime;
 
         if (!creationDate || !startTime) {
           return acc; // O manejar el caso en el que CreationDate o StartTime sean undefined

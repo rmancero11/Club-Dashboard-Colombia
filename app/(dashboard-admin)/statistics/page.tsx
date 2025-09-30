@@ -56,7 +56,7 @@ function Stadistics() {
     : PRESETS.find(({ name }) => name === presetName);
   const hasFeedbacks = businessFeedbacks.length > 0;
 
-  const isDemo = businessData?.Name === 'Hanami Tumbaco';
+  const isDemo = businessData?.name === 'Hanami Tumbaco';
 
   const {
     mostFrequentNumberOfDinnersOnTable,
