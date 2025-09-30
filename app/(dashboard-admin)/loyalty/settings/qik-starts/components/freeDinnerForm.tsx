@@ -6,7 +6,7 @@ import { useForm, SubmitHandler } from "react-hook-form";
 import { QikStartFormData } from '../typesQik-start'
 import { options } from "../../../calculator/components/optionComponent";
 import calculatorService from "../../../calculator/serviceCalculator";
-import qikstarsService, { Benefit } from "@/app/(dashboard)/loyalty/settings/qik-starts/serviceQik-start";
+import qikstarsService, { Benefit } from "@/app/(dashboard-admin)/loyalty/settings/qik-starts/serviceQik-start";
 import { Business } from "@/app/types/business";
 import {
   Dialog,
@@ -15,7 +15,7 @@ import {
   DialogDescription,
   DialogTrigger, DialogHeader, DialogFooter
 } from "@/app/components/ui/Dialog";
-import serviceQikStart from "@/app/(dashboard)/loyalty/settings/qik-starts/serviceQik-start";
+import serviceQikStart from "@/app/(dashboard-admin)/loyalty/settings/qik-starts/serviceQik-start";
 import {Button} from "@/app/components/ui/Button";
 
 

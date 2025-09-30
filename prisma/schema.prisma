@@ -25,6 +25,82 @@ model User {
   password   String
   role       Role   @default(USER)
   createdAt  DateTime @default(now())
+  business    Business? @relation(fields: [businessId], references: [id])
+  businessId  String?
+}
+
+model Business {
+  id            String     @id @default(cuid())
+  Name          String
+  slug          String     @unique
+  IconoWhite    String?
+  Cover         String?
+  SocialMedia   Json?
+  Plan          String?
+  BusinessProgram String?
+  Template      String?
+  PricePlan     Int?
+  country       String?
+  createdAt     DateTime   @default(now())
+  // Relaciones
+  users         User[]
+  branches      Branch[]
+  waiters       Waiter[]
+  customers     Customer[]
+}
+
+model Branch {
+  id        String   @id @default(cuid())
+  name      String
+  address   String
+  mapsUrl   String?
+  icon      String?
+  cover     String?
+  country   String?
+  createdAt DateTime @default(now())
+  // Relaciones
+  business   Business @relation(fields: [businessId], references: [id])
+  businessId String
+  waiters    Waiter[]
+  customers  Customer[]
+}
+
+model Waiter {
+  id        String   @id @default(cuid())
+  name      String
+  gender    String
+  createdAt DateTime @default(now())
+  // Relaciones
+  business   Business @relation(fields: [businessId], references: [id])
+  businessId String
+  branch     Branch?  @relation(fields: [branchId], references: [id])
+  branchId   String?
+  feedbacks  Feedback[]
+}
+
+model Customer {
+  id        String   @id @default(cuid())
+  name      String?
+  email     String?
+  createdAt DateTime @default(now())
+  // Relaciones
+  business   Business @relation(fields: [businessId], references: [id])
+  businessId String
+  branch     Branch?  @relation(fields: [branchId], references: [id])
+  branchId   String?
+  feedbacks  Feedback[]
+}
+
+model Feedback {
+  id         String   @id @default(cuid())
+  rating     Int
+  comment    String?
+  createdAt  DateTime @default(now())
+  // Relaciones
+  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId String
+  waiter     Waiter?  @relation(fields: [waiterId], references: [id])
+  waiterId   String?
 }
 
 enum Role {

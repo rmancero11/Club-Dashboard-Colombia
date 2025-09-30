@@ -1,39 +1,42 @@
-import { useEffect, useState } from 'react'
-import { Business } from '@/app/types/business'
-import { useAuth } from './useAuth'
-import { getBusinessDataFromUser } from '../services/business'
-import { User } from 'firebase/auth'
+import { useEffect, useState } from "react";
+import { Business } from "@/app/types/business";
+import { useAuth } from "./useAuth";
+import { getBusinessDataFromUser } from "../services/business";
+import { User } from "@prisma/client";
 
-function useBusinessData () {
-  const [isDemo, setIsDemo] = useState(false)
-  const [loading, setLoading] = useState(false)
-  const [businessData, setBusinessData] = useState<Business | null>(null)
-  const { user } = useAuth()
-  const userData: User = user as User
-  const { uid } = userData || { uid: null }
+function useBusinessData() {
+  const [isDemo, setIsDemo] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [businessData, setBusinessData] = useState<Business | null>(null);
+
+  const { user } = useAuth();
+  const userData = user as User;
+  const userId = userData?.id; 
 
   useEffect(() => {
-    if (!uid) return
+    if (!userId) return;
+
     const fetchData = async () => {
-      setLoading(true)
+      setLoading(true);
       try {
-        const res = (await getBusinessDataFromUser(uid)) as Business
-        setBusinessData(res)
-        setIsDemo(res?.Name === 'Hanami Tumbaco')
+        const res = (await getBusinessDataFromUser(userId)) as Business;
+        setBusinessData(res);
+        setIsDemo(res?.Name === "Hanami Tumbaco");
       } catch (error) {
-        console.error(error)
+        console.error(error);
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
-    fetchData()
-  }, [uid])
+    };
+
+    fetchData();
+  }, [userId]);
 
   return {
     loading,
     businessData,
-    isDemo
-  }
+    isDemo,
+  };
 }
 
-export default useBusinessData
+export default useBusinessData;

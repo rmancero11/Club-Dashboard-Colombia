@@ -1,98 +1,88 @@
 'use client';
 
-import React, { useEffect, useState, ReactNode } from 'react';
-import {
-  User,
-  UserCredential,
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-} from 'firebase/auth';
-import { getFirebase } from '@/app/lib/firebase';
-import { redirect, useRouter } from 'next/navigation';
+import React, { useState, ReactNode, useEffect } from 'react';
+import { useRouter } from 'next/navigation';
 import Loader from '@/app/components/Loader';
 import { ROUTE_LOGIN } from '../constants/routes';
-import { SignupInputs } from '../types/user';
-import { businessUserService } from '../services/businessUsers';
-import { DocumentData } from 'firebase/firestore';
+import prisma from '@/app/lib/prisma';
+import bcrypt from 'bcryptjs';
+import { User, Role } from '@prisma/client';
 
-export interface ExtendedSignupInputs extends SignupInputs {
-  phoneNumber: String | undefined;
+export interface ExtendedSignupInputs {
+  email: string;
+  password: string;
+  name: string;
+  phoneNumber?: string;
 }
 
 export interface AuthContextProps {
-  user: UserCredential | User | null;
-  signUp: ({
-    email,
-    firstName,
-    lastName,
-    phoneNumber,
-  }: ExtendedSignupInputs) => Promise<void>;
+  user: User | null;
+  signUp: (data: ExtendedSignupInputs) => Promise<void>;
   signIn: (email: string, password: string) => Promise<void>;
   signOut: () => Promise<void>;
-  getBusinessUser: (userId: string) => Promise<DocumentData | undefined>;
+  getBusinessUser: (userId: string) => Promise<User | null>;
 }
 
 export const AuthContext = React.createContext<AuthContextProps | undefined>(
   undefined
 );
 
-export const AuthProvider: React.FC<{ children: ReactNode }> = ({
-  children,
-}) => {
-  const [user, setUser] = useState<UserCredential | User | null>(null);
+export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [user, setUser] = useState<User | null>(null);
   const [pending, setPending] = useState(true);
   const router = useRouter();
 
   useEffect(() => {
-    const unsubscribe = getFirebase().auth.onAuthStateChanged((user) => {
-      setUser(user);
-      setPending(false);
-    });
-    return () => unsubscribe();
-  }, [user]);
+    // ⚡ Aquí podrías cargar sesión desde cookies o JWT si usas autenticación persistente
+    setPending(false);
+  }, []);
 
   if (pending) {
     return <Loader />;
   }
 
-  const signUp = async ({
-    email,
-    password,
-    firstName,
-    lastName,
-    phoneNumber,
-  }: ExtendedSignupInputs) => {
-    const userCredential = await createUserWithEmailAndPassword(
-      getFirebase().auth,
-      email,
-      password
-    );
-    setUser(userCredential);
-    businessUserService.createBusinessUser({
-      email: email,
-      firstName: firstName,
-      lastName: lastName,
-      phoneNumber: phoneNumber,
-      userId: userCredential.user.uid,
+  const signUp = async ({ email, password, name, phoneNumber }: ExtendedSignupInputs) => {
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        password: hashedPassword,
+        name,
+        phone: phoneNumber ?? null,
+        role: Role.USER,
+      },
     });
+
+    setUser(newUser);
   };
 
   const signIn = async (email: string, password: string) => {
-    const userCredential = await signInWithEmailAndPassword(
-      getFirebase().auth,
-      email,
-      password
-    );
-    setUser(userCredential);
+    const existingUser = await prisma.user.findUnique({
+      where: { email },
+    });
+
+    if (!existingUser) {
+      throw new Error('Usuario no encontrado');
+    }
+
+    const isPasswordValid = await bcrypt.compare(password, existingUser.password);
+    if (!isPasswordValid) {
+      throw new Error('Contraseña incorrecta');
+    }
+
+    setUser(existingUser);
   };
 
   const getBusinessUser = async (userId: string) => {
-    const userData = await businessUserService.getBusinessUser(userId);
-    return userData;
+    const businessUser = await prisma.user.findUnique({
+      where: { id: userId },
+    });
+
+    return businessUser;
   };
 
   const signOut = async () => {
-    await getFirebase().auth.signOut();
     setUser(null);
     router.push(ROUTE_LOGIN);
   };
@@ -111,7 +101,3 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({
     </AuthContext.Provider>
   );
 };
-
-
-
-

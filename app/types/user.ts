@@ -1,25 +1,17 @@
+import { Role } from '@prisma/client'
+
 export interface User {
+  id: string
   email: string
-  businessId: string
-}
-
-export type SignupInputs = {
-  email: string
-  firstName: string
-  lastName: string
+  name: string | null
+  phone: string | null
+  country: string | null
+  budget: string | null
+  preference: string | null
+  destino: string | null
   password: string
+  role: Role
+  createdAt: Date
 }
 
-export type BusinessUserType = {
-  email: string
-  firstName: string
-  lastName: string
-  phoneNumber: String | undefined;
-  userId: string;
-}
-
-export interface ExtendedSignupInputs extends SignupInputs {
-  phoneNumber: string;
-  userId: string;
-}
-
+export type BusinessUserType = Pick<User, 'id' | 'email' | 'name' | 'role'>

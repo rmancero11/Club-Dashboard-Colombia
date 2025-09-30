@@ -17,7 +17,7 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/app/components/ui/Dialog";
-import qikBirthdayService from "@/app/(dashboard)/loyalty/settings/qik-birthday/serviceQik-birthday";
+import qikBirthdayService from "@/app/(dashboard-admin)/loyalty/settings/qik-birthday/serviceQik-birthday";
 import { Business } from "@/app/types/business";
 import { useBusinessDataContext } from "@/app/context/BusinessContext";
 import { Button } from "@/app/components/ui/Button";

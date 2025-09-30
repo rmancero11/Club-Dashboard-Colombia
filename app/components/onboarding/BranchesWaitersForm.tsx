@@ -20,8 +20,8 @@ import { Button } from '@/app/components/ui/Button';
 import { IconCopy, IconTrash, IconPlus } from '@tabler/icons-react';
 
 import {
-  handleCreateBranchWaiter,
-  handleDeleteBranchWaiter,
+  handleCreateWaiter,
+  handleDeleteWaiter,
 } from '@/app/services/business';
 import {
   Accordion,
@@ -187,10 +187,9 @@ function BranchWaitersForm({
                         type="button"
                         variant="default"
                         onClick={async () => {
-                          const waiterId = await handleCreateBranchWaiter({
+                          const waiterId = await handleCreateWaiter({
                             waiter: waiterData,
                             businessId,
-                            branchId,
                           });
                           // update the waiter id in the form state with the id returned from the server
 
@@ -214,9 +213,8 @@ function BranchWaitersForm({
                   )}
                   <Button
                     onClick={async () => {
-                      await handleDeleteBranchWaiter({
+                      await handleDeleteWaiter({
                         businessId,
-                        branchId,
                         waiterId,
                       });
                       removeBranchwaiters(index);

@@ -52,7 +52,7 @@ import { getFirebase } from '@/app/lib/firebase';
 function Sidebar() {
   
   const { data: business } = useGetFeedbackData();
-  const businessId = business?.Id as string
+  const businessId = business?.id as string
 
   const { signOut } = useAuth();
   const { businessData, isDemo } = useBusinessData();

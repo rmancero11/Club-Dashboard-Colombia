@@ -14,6 +14,8 @@ export async function GET(
         email: true,
         role: true,
         createdAt: true,
+        // 👇 agrega aquí relaciones si tienes tabla Business
+        // businessData: true,
       },
     })
 

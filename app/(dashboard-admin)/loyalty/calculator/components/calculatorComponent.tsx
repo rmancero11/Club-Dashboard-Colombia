@@ -1,6 +1,6 @@
 import React, { useRef } from "react";
 import Button from "./buttonComponent";
-import calculatorService from "@/app/(dashboard)/loyalty/calculator/serviceCalculator";
+import calculatorService from "@/app/(dashboard-admin)/loyalty/calculator/serviceCalculator";
 
 interface CalculatorComponentProps {
   inputValueQikstarts: number | null;

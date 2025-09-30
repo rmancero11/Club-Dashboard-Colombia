@@ -6,7 +6,7 @@ import ExampleMailButton from "./qikStartMailModal";
 import ExampleWSButton from "./qikStartWSModal";
 import { useForm, SubmitHandler } from "react-hook-form";
 import {Business} from "@/app/types/business";
-import qikstarsService, {Benefit} from "@/app/(dashboard)/loyalty/settings/qik-starts/serviceQik-start";
+import qikstarsService, {Benefit} from "@/app/(dashboard-admin)/loyalty/settings/qik-starts/serviceQik-start";
 import {
   Dialog,
   DialogContent,

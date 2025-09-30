@@ -20,7 +20,7 @@ import type { DateRange } from '@/app/types/general'
 import { PRESETS, PRESETS_EN } from '@/app/constants/dates'
 import { useAuth } from '@/app/hooks/useAuth';
 import { getBusinessCreationDate } from '@/app/helpers/dates.helpers';
-import { User } from 'firebase/auth';
+import { User } from '@/app/types/user';
 
 export interface DateRangePickerProps {
   /** Click handler for applying the updates from DateRangePicker. */
@@ -85,8 +85,11 @@ export const DateRangePicker: FC<DateRangePickerProps> & {
     const withoutToDate = range.to == null
 
     const { user } = useAuth();
-    const creationDate = getBusinessCreationDate(user as User)
 
+    
+    const creationDate = getBusinessCreationDate(user as User);
+
+  
     const PRESETS_TO_USE = isDsc ? PRESETS_EN : PRESETS
 
     // Refs to store the values of range and rangeCompare when the date picker is opened

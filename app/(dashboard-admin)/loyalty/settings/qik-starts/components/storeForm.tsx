@@ -7,7 +7,7 @@ import ExampleWSButton from "./qikStartWSModal";
 import { options } from '../../../calculator/components/optionComponent';
 import calculatorService from '../../../calculator/serviceCalculator';
 import {Business} from "@/app/types/business";
-import qikstarsService, {Benefit} from "@/app/(dashboard)/loyalty/settings/qik-starts/serviceQik-start";
+import qikstarsService, {Benefit} from "@/app/(dashboard-admin)/loyalty/settings/qik-starts/serviceQik-start";
 import {
   Dialog,
   DialogContent,

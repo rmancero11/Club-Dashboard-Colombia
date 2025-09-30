@@ -7,6 +7,7 @@ import { Business } from '@/app/types/business'
 import React, { ReactNode } from 'react'
 import { ROUTE_LOGIN } from '../constants/routes'
 import axios from 'axios'
+import { set } from 'date-fns'
 
 interface BusinessContextProps {
   filteredBusinessData: Business | undefined
@@ -17,6 +18,7 @@ interface BusinessContextProps {
     role: string
   } | null
   isLoading: boolean
+  isClientInitialized: boolean
 }
 
 export const BusinessContext = React.createContext<BusinessContextProps | undefined>(undefined)
@@ -26,6 +28,7 @@ export function useBusinessDataContext() {
 }
 
 export const BusinessProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [isClientInitialized, setIsClientInitialized] = useState(false);
   const [user, setUser] = useState<BusinessContextProps['user']>(null)
   const [filteredBusinessData, setFilteredBusinessData] = useState<Business | undefined>()
   const [isLoading, setIsLoading] = useState(true)
@@ -44,6 +47,7 @@ export const BusinessProvider: React.FC<{ children: ReactNode }> = ({ children }
         router.push(ROUTE_LOGIN) // ✅ redirección en cliente
       } finally {
         setIsLoading(false)
+        setIsClientInitialized(true)
       }
     }
 
@@ -53,7 +57,8 @@ export const BusinessProvider: React.FC<{ children: ReactNode }> = ({ children }
   const businessContextValue: BusinessContextProps = {
     filteredBusinessData,
     user,
-    isLoading
+    isLoading,
+    isClientInitialized
   }
 
   return isLoading ? (

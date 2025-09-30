@@ -1,13 +1,10 @@
-import useSWR from 'swr';
-import { User } from 'firebase/auth';
+import useSWR from "swr";
+import { User } from "@prisma/client";
 
-import { businessService } from '../services/businessServices';
-
-import { useAuth } from './useAuth';
-import { useSearchParams } from 'next/navigation';
-import { getBusinessDataFromUser, getFeedbackData } from '../services/business';
-import { useMemo } from 'react';
-import { Business } from '../types/business';
+import { businessService } from "../services/businessServices";
+import { useAuth } from "./useAuth";
+import { useSearchParams } from "next/navigation";
+import { getBusinessDataFromUser, getFeedbackData } from "../services/business";
 
 export const useGetBusinessByUser = ({ userId }: { userId: string }) => {
   const response = useSWR(userId ? `/business/${userId}` : null, () =>
@@ -18,8 +15,8 @@ export const useGetBusinessByUser = ({ userId }: { userId: string }) => {
 
 export const useGetBusinessByCurrentUser = () => {
   const { user } = useAuth();
-  const uid = (user as User)?.uid;
-  const response = useGetBusinessByUser({ userId: uid });
+  const userId = (user as User)?.id; 
+  const response = useGetBusinessByUser({ userId });
   return response;
 };
 
@@ -51,14 +48,14 @@ export const useGetAllBusinessByUser = (userId: string) => {
   return { data, isLoading, mutate };
 };
 
-export const useGetBusinessFeedbacks = (uid: string) => {
+export const useGetBusinessFeedbacks = (businessId: string) => {
   const searchParams = useSearchParams();
-  const branch = searchParams.get('sucursal');
-  const mainBusiness = searchParams.get('matriz');
+  const branch = searchParams.get("sucursal");
+  const mainBusiness = searchParams.get("matriz");
 
   const { data, mutate, isLoading } = useSWR(
-    uid ? `/business/${branch ? branch : uid}/feedbacks` : null,
-    () => getFeedbackData(uid, branch, mainBusiness),
+    businessId ? `/business/${branch ? branch : businessId}/feedbacks` : null,
+    () => getFeedbackData(businessId, branch, mainBusiness),
     {
       revalidateOnMount: true,
       initialData: {
@@ -73,7 +70,7 @@ export const useGetBusinessFeedbacks = (uid: string) => {
 
 export const useGetFeedbackData = () => {
   const { user } = useAuth();
-  const uid = (user as User)?.uid;
-  const { data, mutate, isLoading } = useGetBusinessFeedbacks(uid);
+  const userId = (user as User)?.id; 
+  const { data, mutate, isLoading } = useGetBusinessFeedbacks(userId);
   return { data, mutate, isLoading };
 };
