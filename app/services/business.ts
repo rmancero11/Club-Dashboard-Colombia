@@ -7,7 +7,6 @@ import { formatStringToSlug } from "../helpers/strings.helpers";
 import {
   Branch,
   Business,
-  Customer,
   Feedback,
   FeedbackHooters,
   Waiter,
@@ -30,14 +29,14 @@ const findBusiness = async (
     if (!branch) return null;
 
     return {
-      Id: branch.id,
-      Name: branch.name,
-      Address: branch.address,
-      Country: (branch.country as Branch["Country"]) || "CO",
-      Icono: branch.icon || "",
-      IconoWhite: "",
-      MapsUrl: branch.mapsUrl || "",
-      Cover: branch.cover || "",
+      id: branch.id,
+      name: branch.name,
+      address: branch.address,
+      country: (branch.country as Branch["country"]) || "CO",
+      icono: branch.icon || "",
+      iconoWhite: "",
+      mapsUrl: branch.mapsUrl || "",
+      cover: branch.cover || "",
       sucursales: [],
       meseros: branch.waiters.map((w) => ({
         id: w.id,
@@ -55,8 +54,8 @@ const findBusiness = async (
         : undefined,
       feedbacks: [],
       customers: [],
-      PricePlan: 0,
-      Geopoint: undefined,
+      pricePlan: 0,
+      geopoint: undefined,
     } as Business;
   }
 
@@ -96,15 +95,15 @@ const getBusinessDataFromUser = async (
 
   // Map branches
   const mappedBranches: Branch[] = biz.branches.map((b) => ({
-    Id: b.id,
-    Name: b.name,
-    Address: b.address,
-    Country: (b.country as Branch["Country"]) || "CO",
-    Icono: b.icon || "",
-    IconoWhite: "",
-    MapsUrl: b.mapsUrl || "",
-    Cover: b.cover || "",
-    Waiters: b.waiters.map((w) => ({
+    id: b.id,
+    name: b.name,
+    address: b.address,
+    country: (b.country as Branch["country"]) || "CO",
+    icono: b.icon || "",
+    iconoWhite: "",
+    mapsUrl: b.mapsUrl || "",
+    cover: b.cover || "",
+    waiters: b.waiters.map((w) => ({
       id: w.id,
       name: w.name,
       gender: w.gender,
@@ -115,9 +114,9 @@ const getBusinessDataFromUser = async (
     })),
     feedbacks: [],
     customers: [],
-    PricePlan: 0,
+    pricePlan: 0,
     meseros: [],
-    Geopoint: undefined,
+    geopoint: undefined,
   }));
 
   // Map business waiters
@@ -130,26 +129,31 @@ const getBusinessDataFromUser = async (
     numberOfFeedbackPerRating: {},
     feedbacks: [],
     customers: [],
+    businessName: biz.Name,
+    ratingAverage: 0,
+    createdAt: w.createdAt,
+    businessId: w.businessId
+
   }));
 
   const response: Business = {
-    Id: biz.id,
+    id: biz.id,
     parentId: formatStringToSlug(biz.id),
-    Name: biz.Name,
-    Address: "", // Puedes agregar dirección principal
-    Country: (biz.country as Business["Country"]) || "CO",
-    Icono: "",
-    IconoWhite: biz.IconoWhite || "",
-    Cover: biz.Cover || "",
-    MapsUrl: "",
-    PricePlan: biz.PricePlan || 0,
-    SocialMedia: (biz.SocialMedia as Record<string, string>[]) || [],
+    name: biz.Name,
+    address: "", 
+    country: (biz.country as Business["country"]) || "CO",
+    icono: "",
+    iconoWhite: biz.IconoWhite || "",
+    cover: biz.Cover || "",
+    mapsUrl: "",
+    pricePlan: biz.PricePlan || 0,
+    socialMedia: (biz.SocialMedia as Record<string, string>[]) || [],
     sucursales: mappedBranches,
     meseros: mappedWaiters,
-    Waiter: undefined,
+    waiters: undefined,
     feedbacks: [],
     customers: [],
-    Geopoint: undefined,
+    geopoint: undefined,
   };
 
   return response;
@@ -285,7 +289,7 @@ async function getFeedbackData(
 
   if (!branchId) {
     return await prisma.business.findUnique({
-      where: { id: businessData.Id },
+      where: { id: businessData.id },
       include: {
         customers: {
           include: { feedbacks: true },
@@ -295,7 +299,7 @@ async function getFeedbackData(
     });
   } else if (branchId === "todas") {
     return await prisma.business.findUnique({
-      where: { id: businessData.Id },
+      where: { id: businessData.id },
       include: {
         branches: {
           include: {

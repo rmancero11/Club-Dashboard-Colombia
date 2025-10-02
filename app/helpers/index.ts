@@ -6,25 +6,56 @@ import {
   FeedbackGus,
   FeedbackPerRating,
   Waiter,
-} from '@/app/types/business';
-import { DateRange } from '@/app/types/general';
-import { isWithinInterval } from 'date-fns';
-import { Timestamp } from 'firebase/firestore';
+} from "@/app/types/business";
+import { DateRange } from "@/app/types/general";
+import { isWithinInterval } from "date-fns";
 
 type ITypesOfConsume = {
   [key: string]: number;
 };
 
+/** Utils de lectura robusta (acepta camelCase y PascalCase) */
+const getDateSafe = (obj: any): Date | null => {
+  const raw =
+    obj?.creationDate ?? obj?.createdAt ?? obj?.CreationDate ?? obj?.CreatedAt;
+  if (!raw) return null;
+  const d = new Date(raw);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
+
+const getNumberSafe = (obj: any, ...keys: string[]): number | undefined => {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (typeof v === "number") return v;
+  }
+  return undefined;
+};
+
+const getBoolSafe = (obj: any, ...keys: string[]): boolean | undefined => {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (typeof v === "boolean") return v;
+  }
+  return undefined;
+};
+
+const getStringSafe = (obj: any, ...keys: string[]): string | undefined => {
+  for (const k of keys) {
+    const v = obj?.[k];
+    if (typeof v === "string") return v;
+  }
+  return undefined;
+};
+
+/** Periodo previo con mismo tamaño que el actual */
 const getPreviousPeriod = (currentPeriod: DateRange) => {
   const millisecondsInADay = 24 * 60 * 60 * 1000;
-
-  if (currentPeriod.to === undefined) {
-    return undefined;
-  }
+  if (currentPeriod.to === undefined) return undefined;
 
   const timeDifference =
     currentPeriod.to.getTime() - currentPeriod.from.getTime();
   const daysInCurrentPeriod = timeDifference / millisecondsInADay;
+
   const previousPeriodFrom = new Date(
     currentPeriod.from.getTime() - daysInCurrentPeriod * millisecondsInADay
   );
@@ -51,18 +82,18 @@ export const getFeedacksByPeriod = (
   period: DateRange
 ) => {
   if (!feedbacks) return [];
-  const feedbacksByMonth = feedbacks.filter((feedback) => {
-    const { CreationDate } = feedback;
-    // using isWithinInterval from date-fns to check if the feedback date is within the period
-    const feedbackDate = new Date(CreationDate.seconds * 1000);
-    const { from, to = new Date() } = period;
-    const interval = { start: from, end: to };
-    return isWithinInterval(feedbackDate, interval);
+  const { from, to = new Date() } = period;
+  const interval = { start: from, end: to };
+
+  const filtered = feedbacks.filter((feedback) => {
+    const feedbackDate = getDateSafe(feedback);
+    return feedbackDate ? isWithinInterval(feedbackDate, interval) : false;
   });
-  return feedbacksByMonth.sort((a, b) => {
-    const dateA = new Date(a.CreationDate.seconds * 1000).getTime();
-    const dateB = new Date(b.CreationDate.seconds * 1000).getTime();
-    return dateA - dateB;
+
+  return filtered.sort((a, b) => {
+    const da = getDateSafe(a)?.getTime() ?? 0;
+    const db = getDateSafe(b)?.getTime() ?? 0;
+    return da - db;
   });
 };
 
@@ -70,11 +101,7 @@ const incrementRatingCount = (
   ratings: { [key: number]: number },
   rating: number
 ) => {
-  if (ratings[rating]) {
-    ratings[rating] += 1;
-  } else {
-    ratings[rating] = 1;
-  }
+  ratings[rating] = (ratings[rating] ?? 0) + 1;
 };
 
 const processFeedbacks = (
@@ -82,26 +109,33 @@ const processFeedbacks = (
   ratings: { [key: number]: number }
 ) => {
   feedbacks.forEach((feedback) => {
-    if ('Rating' in feedback) {
-      incrementRatingCount(ratings, feedback.Rating);
+    const rating =
+      getNumberSafe(feedback, "rating", "Rating") ??
+      getNumberSafe(feedback, "experience");
+
+    if (typeof rating === "number") {
+      incrementRatingCount(ratings, rating);
     }
   });
 };
 
 const calculateNumberOfFeedbackPerRating = (waiters: Waiter[]) => {
   waiters.forEach((waiter) => {
-    waiter.numberOfFeedbackPerRating = { ...{} };
+    waiter.numberOfFeedbackPerRating = {};
 
     if (waiter.feedbacks) {
-      processFeedbacks(waiter.feedbacks, waiter.numberOfFeedbackPerRating);
+      processFeedbacks(
+        waiter.feedbacks as any[],
+        waiter.numberOfFeedbackPerRating
+      );
     }
 
     if (waiter.customers) {
       waiter.customers.forEach((customer) => {
         if (customer.feedbacks) {
           processFeedbacks(
-            customer.feedbacks,
-            waiter.numberOfFeedbackPerRating
+            customer.feedbacks as any[],
+            waiter.numberOfFeedbackPerRating!
           );
         }
       });
@@ -112,12 +146,10 @@ const calculateNumberOfFeedbackPerRating = (waiters: Waiter[]) => {
 };
 
 export const getAllWaitersData = (business: Business | null | undefined) => {
-  const mainWaitersData = business?.meseros || [];
+  const mainWaitersData = (business as any)?.meseros || [];
   const mainWaitersStatsData =
     calculateNumberOfFeedbackPerRating(mainWaitersData);
-
   const waitersData: Waiter[] = [...mainWaitersStatsData];
-
   return waitersData;
 };
 
@@ -130,34 +162,31 @@ const calculateNumberOfFeedbackPerRatingPerPeriod = (
     const waiter = { ...originalWaiter };
 
     const numberOfFeedbackPerRating: FeedbackPerRating = {};
-
     let feedbackSum = 0;
-    const customerWaiterFeedbacks =
-      waiter.customers?.flatMap((customer) => customer.feedbacks) || [];
+
     const waiterFeedbacksCurrentPeriod = getFeedacksByPeriod(
-      waiter.feedbacks || [],
+      (waiter.feedbacks as any[]) || [],
       dateRange
     );
 
     waiterFeedbacksCurrentPeriod.forEach((feedback) => {
-      if ('Rating' in feedback) {
-        if (numberOfFeedbackPerRating[feedback.Rating]) {
-          numberOfFeedbackPerRating[feedback.Rating] += 1;
-        } else {
-          numberOfFeedbackPerRating[feedback.Rating] = 1;
-        }
-        feedbackSum += feedback.Rating;
+      const rating = getNumberSafe(feedback, "rating", "Rating");
+      if (typeof rating === "number") {
+        numberOfFeedbackPerRating[rating] =
+          (numberOfFeedbackPerRating[rating] ?? 0) + 1;
+        feedbackSum += rating;
       }
     });
 
+    const count = waiterFeedbacksCurrentPeriod.length;
     const newAverageRating = Number(
-      (feedbackSum / waiterFeedbacksCurrentPeriod.length).toFixed(1)
+      (count ? feedbackSum / count : 0).toFixed(1)
     );
 
-    waiter.numberOfSurveys = waiterFeedbacksCurrentPeriod.length;
-    waiter.ratingAverage = newAverageRating || 0;
+    waiter.numberOfSurveys = count;
+    (waiter as any).ratingAverage = newAverageRating || 0; // si tu Waiter lo incluye
     waiter.numberOfFeedbackPerRating = { ...numberOfFeedbackPerRating };
-    waiter.businessName = businessName;
+    (waiter as any).businessName = businessName;
 
     return waiter;
   });
@@ -169,8 +198,8 @@ export const getAllWaitersDataPerPeriod = (
   business: Business | null | undefined,
   dateRange: DateRange
 ) => {
-  const mainWaitersData = business?.meseros || [];
-  const businessName = business?.Name || '';
+  const mainWaitersData = (business as any)?.meseros || [];
+  const businessName = (business as any)?.name ?? (business as any)?.Name ?? "";
   const mainWaitersStatsData = calculateNumberOfFeedbackPerRatingPerPeriod(
     mainWaitersData,
     dateRange,
@@ -178,7 +207,7 @@ export const getAllWaitersDataPerPeriod = (
   );
 
   const waitersData = mainWaitersStatsData.filter(
-    (waiter) => waiter.numberOfSurveys > 0
+    (waiter) => (waiter.numberOfSurveys ?? 0) > 0
   );
   return waitersData;
 };
@@ -187,8 +216,8 @@ export const getTotalWaitersDataPerPeriod = (
   business: Business | null | undefined,
   dateRange: DateRange
 ) => {
-  const mainWaitersData = business?.meseros || [];
-  const businessName = business?.Name || '';
+  const mainWaitersData = (business as any)?.meseros || [];
+  const businessName = (business as any)?.name ?? (business as any)?.Name ?? "";
   const mainWaitersStatsData = calculateNumberOfFeedbackPerRatingPerPeriod(
     mainWaitersData,
     dateRange,
@@ -196,9 +225,15 @@ export const getTotalWaitersDataPerPeriod = (
   );
   const branchWaitersData: Waiter[] = [];
 
-  if (business?.sucursales) {
-    business.sucursales.forEach((branch) => {
-      const branchWaiters = getTotalWaitersDataPerPeriod(branch, dateRange);
+  const branches: Branch[] =
+    ((business as any)?.sucursales ?? (business as any)?.branches) || [];
+
+  if (branches?.length) {
+    branches.forEach((branch) => {
+      const branchWaiters = getTotalWaitersDataPerPeriod(
+        branch as any,
+        dateRange
+      );
       branchWaitersData.push(...branchWaiters);
     });
   }
@@ -208,7 +243,7 @@ export const getTotalWaitersDataPerPeriod = (
     ...branchWaitersData,
   ];
   const waitersData = allWaitersData.filter(
-    (waiter) => waiter.numberOfSurveys > 0
+    (waiter) => (waiter.numberOfSurveys ?? 0) > 0
   );
 
   return waitersData;
@@ -224,23 +259,23 @@ export const groupWaitersByBusinessName = (
   const groupedData: GroupedWaitersData = {};
 
   waitersData.forEach((waiter) => {
-    const businessName = waiter.businessName || 'UnknownBusiness';
+    const businessName = (waiter as any).businessName || "UnknownBusiness";
 
     if (!groupedData[businessName]) {
       groupedData[businessName] = [];
     }
 
     groupedData[businessName].push({
-      latestSum: waiter.latestSum,
-      ratingAverage: waiter.ratingAverage,
+      latestSum: (waiter as any).latestSum,
+      ratingAverage: (waiter as any).ratingAverage,
       gender: waiter.gender,
       name: waiter.name,
       numberOfSurveys: waiter.numberOfSurveys,
       feedbacks: waiter.feedbacks,
       numberOfFeedbackPerRating: waiter.numberOfFeedbackPerRating,
-      id: '',
-      sucursalId: '',
-    });
+      id: waiter.id ?? "",
+      sucursalId: (waiter as any).sucursalId ?? "",
+    } as any);
   });
 
   return groupedData;
@@ -249,31 +284,42 @@ export const groupWaitersByBusinessName = (
 export const getFeedbacksFromBranch = (
   branch: Branch | null
 ): (Feedback | FeedbackHooters | FeedbackGus)[] => {
+  const branchName = (branch as any)?.name ?? (branch as any)?.Name;
+
   const customerBranchFeedbackData =
     branch?.customers?.flatMap((customer) =>
-      customer.feedbacks.map((feedback) => ({
+      (
+        ((customer as any)?.feedbacks ?? []) as (
+          | Feedback
+          | FeedbackHooters
+          | FeedbackGus
+        )[]
+      ).map((feedback: Feedback | FeedbackHooters | FeedbackGus) => ({
         ...feedback,
-        BusinessName: branch.Name,
+        businessName: branchName,
       }))
     ) || [];
+
   const branchFeedbackData =
-    branch?.feedbacks?.map((feedback) => ({
+    (branch as any)?.feedbacks?.map((feedback: any) => ({
       ...feedback,
-      BusinessName: branch.Name,
+      businessName: branchName,
     })) || [];
+
   const customerWaitersFeedbackData =
-    getAllWaitersData(branch)
-      ?.flatMap((waiter) => waiter.customers)
+    getAllWaitersData(branch as any)
+      ?.flatMap((waiter) => waiter.customers || [])
       .flatMap((customer) =>
-        customer?.feedbacks.map((feedback) => ({
+        (customer?.feedbacks || []).map((feedback) => ({
           ...feedback,
-          BusinessName: branch?.Name,
+          businessName: branchName,
         }))
       ) || [];
+
   const waitersFeedbackData =
-    getAllWaitersData(branch)
-      ?.flatMap((waiter) => waiter.feedbacks)
-      .map((feedback) => ({ ...feedback, BusinessName: branch?.Name })) || [];
+    getAllWaitersData(branch as any)
+      ?.flatMap((waiter) => waiter.feedbacks || [])
+      .map((feedback) => ({ ...feedback, businessName: branchName })) || [];
 
   const totalBranchFeedback: (Feedback | FeedbackHooters | FeedbackGus)[] = [
     ...customerBranchFeedbackData,
@@ -288,19 +334,26 @@ export const getFeedbacksFromBranch = (
 export const getTotalFeedbacksFromBusiness = (
   business: Business | null
 ): (Feedback | FeedbackHooters | FeedbackGus)[] => {
+  const businessName = (business as any)?.name ?? (business as any)?.Name;
+
   const businessFeedbackData =
-    getAllFeedbacksFromBusiness(business).map((feedback) => ({
+    getAllFeedbacksFromBusiness(business)?.map((feedback) => ({
       ...feedback,
-      BusinessName: business?.Name,
+      businessName,
     })) || [];
+
   const branchFeedbacks: (Feedback | FeedbackHooters | FeedbackGus)[] = [];
 
-  if (business?.sucursales) {
-    business.sucursales.forEach((branch) => {
+  const branches: Branch[] =
+    ((business as any)?.sucursales ?? (business as any)?.branches) || [];
+
+  if (branches?.length) {
+    branches.forEach((branch) => {
       const branchFeedbackData = getFeedbacksFromBranch(branch);
       branchFeedbacks.push(...branchFeedbackData);
     });
   }
+
   const allFeedbacks: (Feedback | FeedbackHooters | FeedbackGus)[] = [
     ...businessFeedbackData,
     ...branchFeedbacks,
@@ -311,22 +364,33 @@ export const getTotalFeedbacksFromBusiness = (
 export const getAllFeedbacksFromBusiness = (
   business: Business | null | undefined
 ) => {
-  const customerFeedbackData =
-    business?.customers?.flatMap((customer) => customer.feedbacks || []) || [];
-  const businessFeedbackData = business?.feedbacks || [];
+  const customerFeedbackData = (business?.customers || []).flatMap(
+    (customer) =>
+      ((customer as any).feedbacks ?? []) as (
+        | Feedback
+        | FeedbackHooters
+        | FeedbackGus
+      )[]
+  );
+
+  const businessFeedbackData = (business as any)?.feedbacks || [];
+
   const customerWaitersFeedbackData =
-    getAllWaitersData(business).flatMap((waiter) =>
-      waiter?.customers?.flatMap((customer) => customer.feedbacks)
+    getAllWaitersData(business as any).flatMap((waiter) =>
+      (waiter?.customers || [])?.flatMap((customer) => customer.feedbacks || [])
     ) || [];
+
   const waitersFeedbackData =
-    getAllWaitersData(business).flatMap((waiter) => waiter.feedbacks) || [];
+    getAllWaitersData(business as any).flatMap(
+      (waiter) => waiter.feedbacks || []
+    ) || [];
 
   const allFeedbacks: (Feedback | FeedbackHooters | FeedbackGus)[] = [
     ...customerFeedbackData,
     ...businessFeedbackData,
     ...customerWaitersFeedbackData,
     ...waitersFeedbackData,
-  ] as Feedback[];
+  ] as any[];
 
   return allFeedbacks;
 };
@@ -334,53 +398,7 @@ export const getAllFeedbacksFromBusiness = (
 export const getDateFromFeedback = (
   feedback: Feedback | FeedbackHooters | FeedbackGus
 ) => {
-  const creationDate: Timestamp = feedback.CreationDate;
-  const timestamp = Timestamp.fromMillis(
-    creationDate.seconds * 1000 + creationDate.nanoseconds / 1000000
-  );
-  const date = timestamp.toDate();
-  return date;
-};
-
-export const getStartAndEndOfWeek = () => {
-  const now = new Date();
-  const startOfWeek = new Date(now);
-  startOfWeek.setHours(0, 0, 0, 0 - now.getDay() * 24 * 60 * 60 * 1000);
-
-  const endOfWeek = new Date(now);
-  endOfWeek.setHours(
-    23,
-    59,
-    59,
-    999 + (6 - now.getDay()) * 24 * 60 * 60 * 1000
-  );
-
-  return { startOfWeek, endOfWeek };
-};
-
-// const getFeedbackOfTheCurrentWeek = (feedbacks: Feedback[]) => {
-//   const { startOfWeek, endOfWeek } = getStartAndEndOfWeek()
-
-//   const feedbacksOfTheWeek = feedbacks.filter((feedback) => {
-//     const feedbackDate = getDateFromFeedback(feedback)
-//     return feedbackDate >= startOfWeek && feedbackDate <= endOfWeek
-//   })
-
-//   return feedbacksOfTheWeek
-// }
-
-const getMostFrequentNumberOfDinners = (typesOfConsume: ITypesOfConsume) => {
-  if (Object.keys(typesOfConsume).length === 0) return null;
-  const rangeOfDinnersFrequence: ITypesOfConsume = {};
-
-  rangeOfDinnersFrequence['1-2'] = typesOfConsume['1-2'];
-  rangeOfDinnersFrequence['2-4'] = typesOfConsume['2-4'];
-  rangeOfDinnersFrequence['+4'] = typesOfConsume['+4'];
-
-  const mostFrequent = Object.keys(rangeOfDinnersFrequence).reduce((a, b) =>
-    rangeOfDinnersFrequence[a] > rangeOfDinnersFrequence[b] ? b : a
-  );
-  return mostFrequent;
+  return getDateSafe(feedback) ?? new Date(0);
 };
 
 export const getMostFrequentTypeOfConsume = (
@@ -392,21 +410,25 @@ export const getMostFrequentTypeOfConsume = (
     getAllFeedbacksFromBusiness(business) || [],
     dateRange
   );
-  // const allFeedbacks = getAllFeedbacksFromBusiness(business)
 
   feedbacks.forEach((feedback) => {
-    if ('Dinners' in feedback) {
-      if (typesOfConsume[feedback.Dinners]) {
-        typesOfConsume[feedback.Dinners]++;
-      } else {
-        typesOfConsume[feedback.Dinners] = 1;
-      }
-    }
+    const dinners = getStringSafe(feedback, "dinners", "Dinners");
+    if (!dinners) return;
+    typesOfConsume[dinners] = (typesOfConsume[dinners] ?? 0) + 1;
   });
-  const mostFrequentNumberOfDinnersOnTable =
-    getMostFrequentNumberOfDinners(typesOfConsume);
-  const numberOfDeliveries = typesOfConsume.Domicilio;
-  const numberOfToGo = typesOfConsume['Para llevar'];
+
+  const mostFrequentNumberOfDinnersOnTable = (() => {
+    if (Object.keys(typesOfConsume).length === 0) return null;
+    const keys = ["1-2", "2-4", "+4"];
+    const subset: ITypesOfConsume = {};
+    keys.forEach((k) => (subset[k] = typesOfConsume[k] ?? 0));
+    return keys.reduce((a, b) => (subset[a] > subset[b] ? a : b));
+  })();
+
+  const numberOfDeliveries =
+    typesOfConsume["Domicilio"] ?? typesOfConsume["domicilio"] ?? 0;
+  const numberOfToGo =
+    typesOfConsume["Para llevar"] ?? typesOfConsume["toGo"] ?? 0;
 
   return {
     mostFrequentNumberOfDinnersOnTable,
@@ -418,48 +440,54 @@ export const getMostFrequentTypeOfConsume = (
 export const getAverageScore = (
   feedbacks: (Feedback | FeedbackHooters | FeedbackGus)[]
 ) => {
-  const totalScore: number = feedbacks.reduce(function (acc, feedback) {
-    return acc + Number('Rating' in feedback ? feedback.Rating : 0);
+  const totalScore: number = feedbacks.reduce((acc, feedback) => {
+    const rating = getNumberSafe(feedback, "rating", "Rating") ?? 0;
+    return acc + Number(rating);
   }, 0);
+
   const averageScore = feedbacks.length > 0 ? totalScore / feedbacks.length : 0;
   return averageScore;
 };
 
 export const getStarsAverageScore = (
   feedbacks: (Feedback | FeedbackHooters | FeedbackGus)[] | undefined,
-  source: 'hooters' | 'pollo-gus' | 'all'
+  source: "hooters" | "pollo-gus" | "all"
 ) => {
   if (feedbacks !== undefined && feedbacks.length == 0) return {};
   let properties: string[] = [];
 
-  if (source === 'hooters') {
+  if (source === "hooters") {
     properties = [
-      'Courtesy',
-      'PlaceCleanness',
-      'Quickness',
-      'FoodQuality',
-      'Climate',
-      'Experience',
+      "courtesy",
+      "placeCleanness",
+      "quickness",
+      "foodQuality",
+      "climate",
+      "experience",
     ];
   }
-  if (source === 'pollo-gus') {
+  if (source === "pollo-gus") {
     properties = [
-      'Treatment',
-      'ProductTaste',
-      'CashServiceSpeed',
-      'ProductDeliverySpeed',
-      'PlaceCleanness',
-      'Satisfaction',
+      "treatment",
+      "productTaste",
+      "cashServiceSpeed",
+      "productDeliverySpeed",
+      "placeCleanness",
+      "satisfaction",
     ];
   }
+
   const starsAverage: { [key: string]: number } = {};
   properties.forEach((property) => {
+    // acepta camelCase y PascalCase:
+    const alt = property[0].toUpperCase() + property.slice(1); // e.g. 'courtesy' -> 'Courtesy'
     const totalRating =
       feedbacks &&
-      feedbacks.reduce(
-        (acc, curr) => acc + Number((curr as any)[property] || 0),
-        0
-      );
+      feedbacks.reduce((acc, curr) => {
+        const v = getNumberSafe(curr as any, property, alt) ?? 0;
+        return acc + v;
+      }, 0);
+
     if (totalRating && feedbacks) {
       starsAverage[property] = totalRating / feedbacks.length;
     }
@@ -472,9 +500,8 @@ export const calculateTotalAverage = (averageQuestions: {
 }): number | null => {
   const keys = Object.keys(averageQuestions);
   const totalKeys = keys.length;
-  if (totalKeys === 0) {
-    return null;
-  }
+  if (totalKeys === 0) return null;
+
   const totalSum = keys.reduce((sum, key) => sum + averageQuestions[key], 0);
   const totalAverage = totalSum / totalKeys;
   return totalAverage;
@@ -540,9 +567,7 @@ export function first<T>(data: T[]): T {
 }
 
 export function last<T>(data: T[]): T | undefined {
-  if (data.length === 0) {
-    return undefined;
-  }
+  if (data.length === 0) return undefined;
   return data[data.length - 1];
 }
 
@@ -554,21 +579,26 @@ export function isNotEmpty<T>(data: T[]): boolean {
   return data.length !== 0;
 }
 
-export const convertToTimestamp = (date: Timestamp) => {
-  return Timestamp.fromMillis(date.seconds * 1000 + date.nanoseconds / 1000000);
+/** Compatibilidad: antes devolvías Timestamp; ahora devolvemos Date o null */
+export const convertToTimestamp = (
+  date: Date | string | number | null | undefined
+): Date | null => {
+  if (date === null || date === undefined) return null;
+  const d = new Date(date);
+  return Number.isNaN(d.getTime()) ? null : d;
 };
 
+/** Formatea segundos a mm:ss o "X s" */
 export const formatTime = (seconds: number) => {
+  if (!Number.isFinite(seconds) || seconds < 0) seconds = 0;
   if (seconds < 60) {
     return `${seconds.toFixed(0)} s`;
   } else {
     const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
+    const remainingSeconds = Math.floor(seconds % 60);
     if (remainingSeconds === 0) {
       return `${minutes} min`;
     }
-    return `${minutes}:${
-      remainingSeconds > 0 ? `${remainingSeconds.toFixed(0)} s` : ''
-    }`;
+    return `${minutes}:${remainingSeconds.toString().padStart(2, "0")} s`;
   }
 };

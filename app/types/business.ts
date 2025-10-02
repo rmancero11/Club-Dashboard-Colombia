@@ -1,6 +1,5 @@
 import { Customer } from "@prisma/client";
 
-
 export interface Feedback {
   businessName?: string;
   averageTicket: string;
@@ -58,6 +57,7 @@ export interface FeedbackGus {
   creationDate: Date;
   email: string;
   fullName: string;
+  phoneNumber?: string;
   origin: string;
   name: string;
   startTime: Date;
@@ -98,7 +98,7 @@ export interface Branch {
   feedbacks?: Feedback[];
   customers?: Customer[];
   pricePlan: number;
-  geopoint?: { lat: number; lng: number }; 
+  geopoint?: { lat: number; lng: number };
 }
 
 export interface Business {
@@ -154,6 +154,8 @@ export interface Waiter {
   sucursal?: Branch;
   numberOfSurveys?: number;
   numberOfFeedbackPerRating?: { [rating: number]: number };
+  feedbacks?: (Feedback | FeedbackHooters | FeedbackGus)[];
+  customers?: { feedbacks?: (Feedback | FeedbackHooters | FeedbackGus)[] }[];
 }
 
 export type ImproveAdapted = {
@@ -171,7 +173,6 @@ export type VisitsPerDate = {
   name: string;
 };
 
-
 export type GusClient = Client & {
   hasGoogleReview: boolean;
   name: string;
@@ -184,6 +185,10 @@ export type HootersClient = {
   businessName?: string;
 };
 
+export type FeedbackPerRating = Record<number, number>;
+
+export type PremiumBusinessClient = {};
+
 function formattedName(id: string): string {
   return id;
 }
@@ -191,11 +196,11 @@ export { formattedName };
 
 export const colorByFeedback = (feedback: string) => {
   switch (feedback) {
-    case 'Comida':
-      return '#FBF2EF';
-    case 'Servicio':
-      return '#D0D8EA';
+    case "Comida":
+      return "#FBF2EF";
+    case "Servicio":
+      return "#D0D8EA";
     default:
-      return '#CBEFD2';
+      return "#CBEFD2";
   }
 };

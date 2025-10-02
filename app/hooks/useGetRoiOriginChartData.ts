@@ -13,16 +13,16 @@ export const useGetRoiOriginChartData = (
   const feedbacks = getFeedacksByPeriod(feedbacksData || [], dateRange);
   const adapted: IFeedbackAdaptado = {};
   feedbacks?.forEach((item) => {
-    if (adapted[item.Origin]) {
+    if (adapted[item.origin]) {
       const value = adaptedAverageTicket(
-        'AverageTicket' in item ? item.AverageTicket : ''
+        'averageTicket' in item ? item.averageTicket : ''
       );
-      adapted[item.Origin] += value * 0.9;
+      adapted[item.origin] += value * 0.9;
     } else {
       const value = adaptedAverageTicket(
-        'AverageTicket' in item ? item.AverageTicket : ''
+        'averageTicket' in item ? item.averageTicket : ''
       );
-      adapted[item.Origin] = value * 0.9;
+      adapted[item.origin] = value * 0.9;
     }
   });
   const adaptedArray = Object.entries(adapted).sort((a, b) => b[1] - a[1]);

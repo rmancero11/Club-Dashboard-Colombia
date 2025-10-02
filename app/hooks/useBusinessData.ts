@@ -21,7 +21,7 @@ function useBusinessData() {
       try {
         const res = (await getBusinessDataFromUser(userId)) as Business;
         setBusinessData(res);
-        setIsDemo(res?.Name === "Hanami Tumbaco");
+        setIsDemo(res?.name === "Hanami Tumbaco");
       } catch (error) {
         console.error(error);
       } finally {

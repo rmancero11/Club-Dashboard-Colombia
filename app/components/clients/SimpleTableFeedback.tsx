@@ -269,29 +269,31 @@ const SimpleTableFeedback = ({ businessData }: IRegularClientsProps) => {
     fieldStartDate: keyof Feedback,
     ascending: boolean
   ) {
+    const toDate = (v: unknown): Date | null => {
+      if (!v) return null;
+      if (v instanceof Date) return isNaN(v.getTime()) ? null : v;
+      const d = new Date(v as any);
+      return isNaN(d.getTime()) ? null : d;
+    };
+
     return clients.sort((a, b) => {
-      const aCreationDate: Timestamp =
-        getFeedbackProperty(a.feedback, fieldCreationDate) || 0;
-      const aStartDate: Timestamp =
-        getFeedbackProperty(a.feedback, fieldStartDate) || 0;
-
-      const bCreationDate: Timestamp =
-        getFeedbackProperty(b.feedback, fieldCreationDate) || 0;
-      const bStartDate: Timestamp =
-        getFeedbackProperty(b.feedback, fieldStartDate) || 0;
-
-      const aTimestampCreationDate = convertToTimestamp(
-        aCreationDate
-      ) as Timestamp;
-      const aTimestampStartDate = convertToTimestamp(aStartDate);
-
-      const bTimestampCreationDate = convertToTimestamp(bCreationDate);
-      const bTimestampStartDate = convertToTimestamp(bStartDate);
+      const aCreation = toDate(
+        getFeedbackProperty(a.feedback, fieldCreationDate)
+      );
+      const aStart = toDate(getFeedbackProperty(a.feedback, fieldStartDate));
+      const bCreation = toDate(
+        getFeedbackProperty(b.feedback, fieldCreationDate)
+      );
+      const bStart = toDate(getFeedbackProperty(b.feedback, fieldStartDate));
 
       const aValue =
-        aTimestampCreationDate.seconds - aTimestampStartDate.seconds;
+        aCreation && aStart
+          ? (aCreation.getTime() - aStart.getTime()) / 1000
+          : 0;
       const bValue =
-        bTimestampCreationDate.seconds - bTimestampStartDate.seconds;
+        bCreation && bStart
+          ? (bCreation.getTime() - bStart.getTime()) / 1000
+          : 0;
 
       return ascending ? aValue - bValue : bValue - aValue;
     });

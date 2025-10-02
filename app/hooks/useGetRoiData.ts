@@ -1,16 +1,16 @@
-import { getFeedacksByPeriod } from '@/app/helpers';
-import { getGreaterAverageTickets } from '@/app/adapters/roi/getGreaterAverageTickets.adapter';
-import { getAverageTicketsReturn } from '@/app/adapters/roi/getAverageTicketsReturn.adapter';
-import { DateRange } from '@/app/types/general';
-import { RoiCalcSchemaProps } from '@/app/validators/roiCalculatorSchema';
-import { Business } from '@/app/types/business';
-import { BUSINESS_CURRENCIES } from '@/app/constants/prices';
-import { DEFAULT_INVESTMENT_VALUES } from '@/app/constants/roi';
+import { getFeedacksByPeriod } from "@/app/helpers";
+import { getGreaterAverageTickets } from "@/app/adapters/roi/getGreaterAverageTickets.adapter";
+import { getAverageTicketsReturn } from "@/app/adapters/roi/getAverageTicketsReturn.adapter";
+import { DateRange } from "@/app/types/general";
+import { RoiCalcSchemaProps } from "@/app/validators/roiCalculatorSchema";
+import { Business } from "@/app/types/business";
+import { BUSINESS_CURRENCIES } from "@/app/constants/prices";
+import { DEFAULT_INVESTMENT_VALUES } from "@/app/constants/roi";
 
 type BusinessRoiData = {
-  feedbacks: Business['feedbacks'];
-  country: Business['Country'] | undefined;
-  pricePlan: Business['PricePlan'];
+  feedbacks: Business["feedbacks"];
+  country: Business["country"] | undefined;
+  pricePlan: Business["pricePlan"];
 };
 
 type Props = {
@@ -41,9 +41,11 @@ function useGetRoiData({
   const roiPercentage = (roi / COST_OF_INVESTMENT) * 100;
   const isPositive = roiPercentage > 0;
 
-  const formattedAverageTicketsReturn = new Intl.NumberFormat('en', {
-    style: 'currency',
-    currency: BUSINESS_CURRENCIES[country || 'US'],
+  type CountryCode = keyof typeof BUSINESS_CURRENCIES;
+
+  const formattedAverageTicketsReturn = new Intl.NumberFormat("en", {
+    style: "currency",
+    currency: BUSINESS_CURRENCIES[(country as CountryCode) || "US"],
     maximumFractionDigits: 0,
   }).format(Number(roi));
 

@@ -1,4 +1,3 @@
-// /app/api/auth/me/route.ts
 import { NextResponse } from 'next/server'
 import jwt from 'jsonwebtoken'
 import { prisma } from '@/app/lib/prisma'
