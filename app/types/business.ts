@@ -59,6 +59,7 @@ export interface FeedbackGus {
   email: string;
   fullName: string;
   origin: string;
+  name: string;
   startTime: Date;
   acceptPromotions: boolean;
   birthdayDate?: Date;
@@ -143,6 +144,8 @@ export interface Feedback {
 export interface Waiter {
   id: string;
   name: string;
+  businessName: string;
+  ratingAverage: number;
   gender: string;
   createdAt: Date;
   businessId: string;
@@ -150,6 +153,7 @@ export interface Waiter {
   sucursalId?: string;
   sucursal?: Branch;
   numberOfSurveys?: number;
+  numberOfFeedbackPerRating?: { [rating: number]: number };
 }
 
 export type ImproveAdapted = {
@@ -167,9 +171,17 @@ export type VisitsPerDate = {
   name: string;
 };
 
+
 export type GusClient = Client & {
   hasGoogleReview: boolean;
   name: string;
+};
+
+export type HootersClient = {
+  feedback?: FeedbackHooters;
+  hasGoogleReview: boolean;
+  acceptPromotions?: boolean;
+  businessName?: string;
 };
 
 function formattedName(id: string): string {

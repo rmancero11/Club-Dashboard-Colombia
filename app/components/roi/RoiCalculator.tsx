@@ -26,8 +26,8 @@ function RoiCalculator({
 }: IRoiCalculatorhartProps & HTMLAttributes<HTMLDivElement>) {
   const {
     feedbacks = [],
-    Country: country,
-    PricePlan: pricePlan = 2750000,
+    country: country,
+    pricePlan: pricePlan = 2750000,
   } = businessData || {};
   const businessRoiData = {
     feedbacks: feedbacks,

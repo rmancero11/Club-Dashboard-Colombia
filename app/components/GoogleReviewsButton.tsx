@@ -35,7 +35,7 @@ function GoogleReviewsButton() {
   let Name = "";
   let MapsUrl = "";
   let sucursales: Branch[] = [];
-  let Geopoint: GeoPoint | undefined;
+  let Geopoint: { lat: number; lng: number } | undefined;
 
   if (data && "Name" in data && "sucursales" in data) {
     Name = (data as any).Name;
@@ -44,9 +44,9 @@ function GoogleReviewsButton() {
     Geopoint = (data as any).Geopoint;
   }
 
-  const reviewUrl = (url?: string, geopoint?: GeoPoint) => {
+  const reviewUrl = (url?: string, geopoint?: { lat: number; lng: number }) => {
     const locationString: string | null = geopoint
-      ? `${geopoint.latitude}%2C${geopoint.longitude}`
+      ? `${geopoint.lat},${geopoint.lng}`
       : null;
     const locationQuery = locationString ? `&query=${locationString}` : "";
     if (url?.includes("placeid=")) {
@@ -101,12 +101,12 @@ function GoogleReviewsButton() {
                   {sucursales.map((sucursal, index) => (
                     <DropdownMenuItem key={index}>
                       <a
-                        href={reviewUrl(MapsUrl, sucursal?.Geopoint)}
+                        href={reviewUrl(MapsUrl, sucursal?.geopoint)}
                         target="_blank"
                         rel="noreferrer"
                       >
                         <Building className="mr-2 h-4 w-4 inline-block" />
-                        <span>{sucursal.Name}</span>
+                        <span>{sucursal.name}</span>
                       </a>
                     </DropdownMenuItem>
                   ))}

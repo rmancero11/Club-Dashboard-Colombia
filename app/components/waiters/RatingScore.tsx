@@ -18,11 +18,10 @@ type RatingScoreProps = {
   waiter: Waiter
 }
 
-function RatingScore({ waiter, className }:RatingScoreProps & React.HTMLAttributes<HTMLUListElement>) {
+function RatingScore({ waiter, className }: RatingScoreProps & React.HTMLAttributes<HTMLUListElement>) {
   return (
     <ul className={cn(className)}>
-    {
-      [1, 2, 4, 5].map(idx => (
+      {[1, 2, 4, 5].map(idx => (
         <li key={idx} className='text-center'>
           <Image
             className='w-8 h-8 sm:w-10 sm:h-10'
@@ -32,14 +31,12 @@ function RatingScore({ waiter, className }:RatingScoreProps & React.HTMLAttribut
             height={40}
           />
           <span className='text-gray-500 font-normal'>
-            {waiter.numberOfFeedbackPerRating[idx] || 0}
+            {waiter.numberOfFeedbackPerRating?.[idx] ?? 0}
           </span>
         </li>
-      ))
-    }
-
-  </ul>
+      ))}
+    </ul>
   )
 }
 
-export default RatingScore
+export default RatingScore;

@@ -56,9 +56,9 @@ function Sidebar() {
 
   const { signOut } = useAuth();
   const { businessData, isDemo } = useBusinessData();
-  const isHooters = businessData?.Id === 'hooters';
-  const isGus = businessData?.Id === 'pollo-gus';
-  const isDsc = businessData?.Id === 'dsc-solutions';
+  const isHooters = businessData?.id === 'hooters';
+  const isGus = businessData?.id === 'pollo-gus';
+  const isDsc = businessData?.id === 'dsc-solutions';
   const sucursalesCount = businessData?.sucursales?.length;
 
   const isTabletMid = useMediaQuery({ query: '(max-width: 768px)' });
@@ -137,7 +137,7 @@ function Sidebar() {
         <div className="flex items-center justify-center relative">
           <div className="absolute inset-0 bg-gray-900 bg-opacity-75">
             <Image
-              src={businessData?.Cover || '/business_icon_cover.webp'}
+              src={businessData?.cover || '/business_icon_cover.webp'}
               alt="Business icon cover"
               className="w-full h-full object-cover blur-[2px]"
               width={256}
@@ -147,7 +147,7 @@ function Sidebar() {
           </div>
           <div className="relative flex justify-center items-center">
             <Image
-              src={businessData?.Icono || '/qik.svg'}
+              src={businessData?.icono || '/qik.svg'}
               alt="Qik"
               className="w-32 h-32 object-contain my-1"
               width={128}
@@ -316,7 +316,7 @@ function Sidebar() {
                 
                 <a
                   className=" md:flex items-end gap-2 stext-warning font-bold hover:scale-[1.02] duration-200"
-                  href={businessData?.MapsUrl || ""}
+                  href={businessData?.mapsUrl || ""}
                   target="_blank"
                   rel="noreferrer">
                   <ButtonSurvey variant="warning">

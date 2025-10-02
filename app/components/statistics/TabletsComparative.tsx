@@ -2,7 +2,7 @@ import { HTMLAttributes, useEffect, useState } from 'react'
 import { Card } from '../ui/Card'
 import { cn } from '@/app/lib/utils'
 import { DateRange, Preset } from '@/app/types/general'
-import { Business,  Waiter } from '@/app/types/business'
+import { Business, Waiter } from '@/app/types/business'
 
 import dynamic from 'next/dynamic'
 import { getAllWaitersDataPerPeriod, getTotalWaitersDataPerPeriod } from '@/app/helpers';
@@ -18,10 +18,11 @@ type IVisistsPerDateProps = {
 }
 
 function TabletsComparative({ businessData, dateRange, preset, className }: IVisistsPerDateProps & HTMLAttributes<HTMLDivElement>) {
-  const [waitersData, setWaitersData] = useState<Waiter[] | null>()
+  const [waitersData, setWaitersData] = useState<Waiter[] | null>(null)
   const isDsc = businessData?.parentId === 'dsc-solutions'
   const searchParams = useSearchParams()
   const branch = searchParams.get('sucursal')
+
   useEffect(() => {
     const waiters =
       branch !== 'todas'
@@ -31,19 +32,16 @@ function TabletsComparative({ businessData, dateRange, preset, className }: IVis
   }, [branch, businessData, dateRange])
 
   const uniquesTabletsArray = Array.from(new Set(waitersData?.map(waiter => waiter.name) || []))
-  let option;
 
+  // ✅ Maneja opcionalidad de numberOfFeedbackPerRating
   const formatData = (data: Waiter[] | null | undefined) => {
-    return data?.map(waiter => {
-      const formattedFeedbacks = Object.keys(RATINGS).map(key => {
-        return waiter.numberOfFeedbackPerRating[Number(key)] || 0;
-      });
-
-      return formattedFeedbacks
-    })
+    return data?.map((waiter) => {
+      const byRating = waiter?.numberOfFeedbackPerRating ?? {}
+      return Object.keys(RATINGS).map((key) => byRating[Number(key)] ?? 0)
+    }) ?? []
   }
 
-  const chartData = formatData(waitersData);
+  const chartData = formatData(waitersData)
 
   const sumFeedbacks = (feedbacks: number[]) => {
     return feedbacks.reduce((acc, num) => acc + num, 0);
@@ -71,7 +69,7 @@ function TabletsComparative({ businessData, dateRange, preset, className }: IVis
         normal: {
           borderWidth: 2,
           borderColor: 'rgba(0,0,0,0)',
-          borderRadius: [0, 0, 0, 0], // Ajusta el radio de los bordes de la barra si lo deseas
+          borderRadius: [0, 0, 0, 0],
         }
       },
       label: {
@@ -79,57 +77,39 @@ function TabletsComparative({ businessData, dateRange, preset, className }: IVis
         formatter: (params: { value: number; dataIndex: number }) => {
           const value = params.value;
           const dataIndex = params.dataIndex;
-          const totalFeedbacks = sumFeedbacks(chartData && chartData[dataIndex] || [0]);
-          if (value === 0) {
-            return '';
-          }
-          const percentage = Math.round(value * 100 / totalFeedbacks);
+          const totalFeedbacks = sumFeedbacks(chartData[dataIndex] || [0]);
+          if (value === 0 || totalFeedbacks === 0) return '';
+          const percentage = Math.round((value * 100) / totalFeedbacks);
           return percentage + '%';
         }
       },
-      emphasis: {
-        focus: 'series'
-      },
-      data: chartData?.map((arr) => arr[sid])
+      emphasis: { focus: 'series' },
+      data: chartData.map((arr) => arr[sid] ?? 0)
     };
   });
-  option = {
-    tooltip: {
-      trigger: 'axis',
-      axisPointer: {
-        type: 'shadow'
-      }
-    },
+
+  const option = {
+    tooltip: { trigger: 'axis', axisPointer: { type: 'shadow' } },
     title: {
       text: `${isDsc ? 'Comparatives' : 'Comparativas'} (${preset?.label})`,
       left: 'center',
-      textStyle: {
-        overflow: 'break'
-      }
+      textStyle: { overflow: 'break' }
     },
     color: ['#FF2442', '#FF7927', '#0CB852', '#8AC73E'],
-    legend: {
-      top: '12%',
-      selectedMode: false,
-    },
+    legend: { top: '12%', selectedMode: false },
     grid,
-    xAxis: {
-      type: 'value'
-    },
+    xAxis: { type: 'value' },
     yAxis: {
       type: 'category',
       data: uniquesTabletsArray,
-      nameTextStyle: {
-        fontSize: 8
-      }
+      nameTextStyle: { fontSize: 8 }
     },
     series,
   };
+
   return (
     <Card className={cn('pt-8', className)}>
-      <ReactEcharts
-        option={option}
-      />
+      <ReactEcharts option={option} />
     </Card>
   )
 }

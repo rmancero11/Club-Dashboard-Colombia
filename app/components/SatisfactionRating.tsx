@@ -30,7 +30,7 @@ function SatisfactionRating ({ businessData, className, preset, dateRange }: INe
   const searchParams = useSearchParams()
   const branch = searchParams.get('sucursal')
   const hasBranch = branch !== 'todas'
-  const branchName = hasBranch ? businessData?.Name : 'la marca'
+  const branchName = hasBranch ? businessData?.name : 'la marca'
 
   const hasPreset = preset !== undefined
   const { from, to = new Date() } = dateRange

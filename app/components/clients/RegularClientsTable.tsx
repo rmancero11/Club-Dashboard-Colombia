@@ -1,5 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-'use client';
+"use client";
 
 import {
   Table,
@@ -8,65 +8,64 @@ import {
   TableHead,
   TableHeader,
   TableRow,
-} from '../../components/clients/Table';
-import { useEffect, useMemo, useState } from 'react';
-import getClientsTableData from '@/app/helpers/clients.helpers';
+} from "../../components/clients/Table";
+import { useEffect, useMemo, useState } from "react";
+import getClientsTableData from "@/app/helpers/clients.helpers";
 import {
   Business,
   Client,
   Feedback,
   colorByFeedback,
-} from '@/app/types/business';
-import { Card } from '../../components/ui/Card';
-import { Pagination } from '../../components/ui/Pagination';
-import classNames from 'classnames';
+} from "@/app/types/business";
+import { Card } from "../../components/ui/Card";
+import { Pagination } from "../../components/ui/Pagination";
+import classNames from "classnames";
 
-import { isEmpty } from '@/app/helpers/strings.helpers';
-import { IconChevronDown, IconChevronUp, IconClock } from '@tabler/icons-react';
-import { useSearchParams } from 'next/navigation';
-import { Timestamp } from 'firebase/firestore';
+import { isEmpty } from "@/app/helpers/strings.helpers";
+import { IconChevronDown, IconChevronUp, IconClock } from "@tabler/icons-react";
+import { useSearchParams } from "next/navigation";
+import { Timestamp } from "firebase/firestore";
 
-import { convertToTimestamp, formatTime } from '@/app/helpers';
+import { convertToTimestamp, formatTime } from "@/app/helpers";
 
-import Image from 'next/image';
-import CommentDialog from '../../components/clients/CommentSideOver';
-import { PRESETS, formatDate } from '@/app/constants/dates';
-import useDateRangePicker from '@/app/hooks/useDateRangePicker';
-import RangeFeedbackSelector from '@/app/components/common/RangeFeedbackSelector';
-import { Button } from '../ui/Button';
-import Modal from 'react-modal';
-import { Input } from '../ui/Input';
-import axios from 'axios';
-import { File as BufferFile } from 'buffer';
+import Image from "next/image";
+import CommentDialog from "../../components/clients/CommentSideOver";
+import { PRESETS, formatDate } from "@/app/constants/dates";
+import useDateRangePicker from "@/app/hooks/useDateRangePicker";
+import RangeFeedbackSelector from "@/app/components/common/RangeFeedbackSelector";
+import { Button } from "../ui/Button";
+import Modal from "react-modal";
+import { Input } from "../ui/Input";
+import axios from "axios";
+import { File as BufferFile } from "buffer";
 
 type IRegularClientsProps = {
   businessData: Business | null | undefined;
   isClientInitialized: boolean;
 };
 
-
 enum ActiveFilter {
-  'byName',
-  'byMail',
-  'byRate',
-  'byPhoneNumber',
-  'byOrigin',
-  'byComments',
-  'byVisits',
-  'byGoogleReview',
-  'byBusinessName',
-  'byImprove',
-  'byDate',
-  'byFeedbackTime',
-  'byAcceptPromotions',
-  'byAverageTicket',
-  'byAttendBy',
-  'none',
+  "byName",
+  "byMail",
+  "byRate",
+  "byPhoneNumber",
+  "byOrigin",
+  "byComments",
+  "byVisits",
+  "byGoogleReview",
+  "byBusinessName",
+  "byImprove",
+  "byDate",
+  "byFeedbackTime",
+  "byAcceptPromotions",
+  "byAverageTicket",
+  "byAttendBy",
+  "none",
 }
 
 const columns = [
   {
-    id: 'Nombre',
+    id: "Nombre",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -74,7 +73,7 @@ const columns = [
     },
   },
   {
-    id: 'Teléfono',
+    id: "Teléfono",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -82,7 +81,7 @@ const columns = [
     },
   },
   {
-    id: 'Rating',
+    id: "Rating",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -90,7 +89,7 @@ const columns = [
     },
   },
   {
-    id: 'Visitas',
+    id: "Visitas",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -98,7 +97,7 @@ const columns = [
     },
   },
   {
-    id: 'Origen',
+    id: "Origen",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -106,7 +105,7 @@ const columns = [
     },
   },
   {
-    id: 'Feedback',
+    id: "Feedback",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -114,7 +113,7 @@ const columns = [
     },
   },
   {
-    id: 'Comentarios',
+    id: "Comentarios",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -122,7 +121,7 @@ const columns = [
     },
   },
   {
-    id: 'Google Review',
+    id: "Google Review",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -130,7 +129,7 @@ const columns = [
     },
   },
   {
-    id: 'Sucursal',
+    id: "Sucursal",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -138,7 +137,7 @@ const columns = [
     },
   },
   {
-    id: 'Fecha',
+    id: "Fecha",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -146,7 +145,7 @@ const columns = [
     },
   },
   {
-    id: 'Tiempo de feedback',
+    id: "Tiempo de feedback",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -154,7 +153,7 @@ const columns = [
     },
   },
   {
-    id: 'Promociones',
+    id: "Promociones",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -162,7 +161,7 @@ const columns = [
     },
   },
   {
-    id: 'Ticket Promedio',
+    id: "Ticket Promedio",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -170,7 +169,7 @@ const columns = [
     },
   },
   {
-    id: 'Personas en la mesa',
+    id: "Personas en la mesa",
     isVisible: true,
     getIsVisible: () => true,
     toggleVisibility: (value: boolean) => {
@@ -179,14 +178,17 @@ const columns = [
   },
 ];
 
-const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClientsProps) => {
+const RegularClientsTable = ({
+  businessData,
+  isClientInitialized,
+}: IRegularClientsProps) => {
   const [clientsList, setClientsList] = useState<Client[]>();
   const [totalClientsList, setTotalClientsList] = useState<Client[]>();
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
   const [maxPages, setMaxPages] = useState<number>(1);
-  const [selectedPhones, setSelectedPhones] = useState<(string)[]>([]);
+  const [selectedPhones, setSelectedPhones] = useState<string[]>([]);
   const [messageModalIsOpen, setMessageModalIsOpen] = useState<boolean>(false);
-  const [message, setMessage] = useState<string>('');
+  const [message, setMessage] = useState<string>("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(
     ActiveFilter.none
@@ -200,7 +202,7 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
   const hasPreset = preset !== undefined;
 
   const searchParams = useSearchParams();
-  const sucursal = searchParams.get('sucursal');
+  const sucursal = searchParams.get("sucursal");
 
   useEffect(() => {
     const clients = getClientsTableData(
@@ -215,7 +217,9 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [totalClientsList, currentPageIndex, maxClientsInTable]);
 
-  useEffect(() => { setCurrentPageIndex(0) }, [maxClientsInTable])
+  useEffect(() => {
+    setCurrentPageIndex(0);
+  }, [maxClientsInTable]);
 
   const setClientsListByPage = (pageNumber: number) => {
     const pagedClientsList = totalClientsList?.slice(
@@ -228,50 +232,50 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
 
   const hangleMaxClientsInTable = (maxItems: string) => {
     setMaxClientsInTable(parseInt(maxItems));
-  }
+  };
 
   function sortTableByColumn(clients: Client[]) {
     const sortingFunctions = {
       [ActiveFilter.none]: () => clients,
       [ActiveFilter.byName]: () =>
-        sortByStringField(clients, 'FullName', ascendingFilter),
+        sortByStringField(clients, "fullName", ascendingFilter),
       [ActiveFilter.byPhoneNumber]: () =>
-        sortByStringField(clients, 'PhoneNumber', ascendingFilter),
+        sortByStringField(clients, "phoneNumber", ascendingFilter),
       [ActiveFilter.byRate]: () =>
-        sortByNumberField(clients, 'Rating', ascendingFilter),
+        sortByNumberField(clients, "rating", ascendingFilter),
       [ActiveFilter.byOrigin]: () =>
-        sortByStringField(clients, 'Origin', ascendingFilter),
+        sortByStringField(clients, "origin", ascendingFilter),
       [ActiveFilter.byVisits]: () =>
-        sortVistis(clients, 'Visits', ascendingFilter),
+        sortVistis(clients, "visits", ascendingFilter),
       [ActiveFilter.byGoogleReview]: () =>
         sortByGoogleReview(clients, ascendingFilter),
       [ActiveFilter.byComments]: () =>
-        sortByStringField(clients, 'ImproveText', ascendingFilter),
+        sortByStringField(clients, "improveText", ascendingFilter),
       [ActiveFilter.byBusinessName]: () =>
-        sortByStringField(clients, 'BusinessName', ascendingFilter),
+        sortByStringField(clients, "businessName", ascendingFilter),
       [ActiveFilter.byImprove]: () =>
-        sortByArrayField(clients, 'Improve' as keyof Feedback, ascendingFilter),
+        sortByArrayField(clients, "Improve" as keyof Feedback, ascendingFilter),
       [ActiveFilter.byDate]: () =>
         sortByDateField(
           clients,
-          'CreationDate' as keyof Feedback,
+          "CreationDate" as keyof Feedback,
           ascendingFilter
         ),
       [ActiveFilter.byFeedbackTime]: () =>
         sortByFeedbackTimeField(
           clients,
-          'CreationDate' as keyof Feedback,
-          'StartTime' as keyof Feedback,
+          "CreationDate" as keyof Feedback,
+          "StartTime" as keyof Feedback,
           ascendingFilter
         ),
       [ActiveFilter.byAcceptPromotions]: () =>
-        sortByStringField(clients, 'AcceptPromotions', ascendingFilter),
+        sortByStringField(clients, "acceptPromotions", ascendingFilter),
       [ActiveFilter.byAverageTicket]: () =>
-        sortByStringField(clients, 'AverageTicket', ascendingFilter),
+        sortByStringField(clients, "averageTicket", ascendingFilter),
       [ActiveFilter.byAttendBy]: () =>
-        sortByStringField(clients, 'AttendedBy', ascendingFilter),
+        sortByStringField(clients, "attendedBy", ascendingFilter),
       [ActiveFilter.byMail]: () =>
-        sortByStringField(clients, 'Email', ascendingFilter),
+        sortByStringField(clients, "email", ascendingFilter),
     };
 
     const sortedClients = sortingFunctions[activeFilter]();
@@ -302,10 +306,10 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
   ) {
     return clients.sort((a, b) => {
       const aValue = (
-        getFeedbackProperty(a.feedback, field) || ''
+        getFeedbackProperty(a.feedback, field) || ""
       ).toLowerCase();
       const bValue = (
-        getFeedbackProperty(b.feedback, field) || ''
+        getFeedbackProperty(b.feedback, field) || ""
       ).toLowerCase();
       return ascending
         ? aValue.localeCompare(bValue)
@@ -432,23 +436,27 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
 
     return (
       totalClientsList.reduce((acc, client) => {
-        const creationDate: Timestamp | undefined =
-          client?.feedback?.CreationDate;
-        const startTime: Timestamp | undefined = client?.feedback?.StartTime;
+        const creationDate: Date | undefined = client?.feedback?.creationDate;
+        const startTime: Date | undefined = client?.feedback?.startTime;
 
         if (!creationDate || !startTime) {
           return acc;
         }
 
-        const timestampCreationDate = convertToTimestamp(creationDate);
-        const timestampStartDate = convertToTimestamp(startTime);
+        const timestampCreationDate = creationDate
+          ? new Date(creationDate)
+          : null;
+        const timestampStartDate = startTime ? new Date(startTime) : null;
 
         if (!timestampCreationDate || !timestampStartDate) {
           return acc;
         }
 
         const feedbackTime =
-          timestampCreationDate.seconds - timestampStartDate.seconds;
+          timestampCreationDate && timestampStartDate
+            ? (timestampCreationDate.getTime() - timestampStartDate.getTime()) /
+              100
+            : 0;
 
         return acc + feedbackTime;
       }, 0) / totalClientsList.length
@@ -457,30 +465,34 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
 
   const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files && event.target.files[0];
-    setImageFile(file)
+    setImageFile(file);
   };
 
   const handleSelectAllPhones = () => {
     const allPhones = ["593959971879"];
     setSelectedPhones(allPhones);
-    console.log('Selected Phones:', allPhones);
+    console.log("Selected Phones:", allPhones);
   };
 
   const sendWhatsAppMessage = async (event: React.FormEvent) => {
     event.preventDefault();
     try {
       const formData = {
-        "numbers": selectedPhones.map(phone => phone.replace('+', '')),
-        "message": message,
-        "image": imageFile
-      }
-      const response = await axios.post(`https://8d5f-2800-bf0-10b-f69-41d-a7ef-8a49-92cc.ngrok-free.app/api/send-message/${businessData?.sessionId}`, formData, {
-        headers: {
-          "Content-Type": "multipart/form-data",
-        },
-      });
+        numbers: selectedPhones.map((phone) => phone.replace("+", "")),
+        message: message,
+        image: imageFile,
+      };
+      const response = await axios.post(
+        `https://8d5f-2800-bf0-10b-f69-41d-a7ef-8a49-92cc.ngrok-free.app/api/send-message/${businessData?.sessionId}`,
+        formData,
+        {
+          headers: {
+            "Content-Type": "multipart/form-data",
+          },
+        }
+      );
       console.log(response.data);
-      alert(response.data)
+      alert(response.data);
     } catch (error) {
       console.error("Error sending message:", error);
     }
@@ -488,7 +500,9 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
 
   const handleSelectAll = (isChecked: boolean) => {
     if (isChecked) {
-      const allPhones = clientsList?.map(client => client?.phoneNumber).filter((phone): phone is string => phone !== undefined);
+      const allPhones = clientsList
+        ?.map((client) => client?.phoneNumber)
+        .filter((phone): phone is string => phone !== undefined);
       if (allPhones) {
         setSelectedPhones(allPhones);
       }
@@ -498,9 +512,9 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
   };
 
   const handleRowSelection = (phoneNumber: string) => {
-    setSelectedPhones(prev => {
+    setSelectedPhones((prev) => {
       if (prev?.includes(phoneNumber)) {
-        return prev.filter(rowId => rowId !== phoneNumber);
+        return prev.filter((rowId) => rowId !== phoneNumber);
       } else {
         return [...prev, phoneNumber];
       }
@@ -511,37 +525,40 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
     <section className="flex flex-col items-center">
       <div className="pb-8 space-y-2 w-full">
         <div className="mb-4 flex flex-col md:flex-row gap-8 items-center justify-between">
-          {
-            messageModalIsOpen && (
-              <Modal
-                isOpen={messageModalIsOpen}
-                onRequestClose={() => setMessageModalIsOpen(false)}
-                contentLabel="Eje mplo Modal"
-                className="bg-primary mx-auto w-1/2"
-                overlayClassName="fixed inset-0"
+          {messageModalIsOpen && (
+            <Modal
+              isOpen={messageModalIsOpen}
+              onRequestClose={() => setMessageModalIsOpen(false)}
+              contentLabel="Eje mplo Modal"
+              className="bg-primary mx-auto w-1/2"
+              overlayClassName="fixed inset-0"
+            >
+              <form
+                onSubmit={sendWhatsAppMessage}
+                className="text-white text-center"
               >
-                <form onSubmit={sendWhatsAppMessage} className="text-white text-center">
-                  <h3 className="text-xl font-bold mb-4">Escribe el mensaje para {selectedPhones.length} clientes</h3>
-                  <Input
-                    type="text"
-                    placeholder="Escribe tu mensaje"
-                    onChange={(event) => setMessage(event.target.value)}
-                  />
-                  <Input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleImageChange}
-                  />
-                  <Button
-                    type="submit"
-                    className="mb-4 bg-green-500 text-white py-2 px-4 rounded"
-                  >
-                    Enviar
-                  </Button>
-                </form>
-              </Modal>
-            )
-          }
+                <h3 className="text-xl font-bold mb-4">
+                  Escribe el mensaje para {selectedPhones.length} clientes
+                </h3>
+                <Input
+                  type="text"
+                  placeholder="Escribe tu mensaje"
+                  onChange={(event) => setMessage(event.target.value)}
+                />
+                <Input
+                  type="file"
+                  accept="image/*"
+                  onChange={handleImageChange}
+                />
+                <Button
+                  type="submit"
+                  className="mb-4 bg-green-500 text-white py-2 px-4 rounded"
+                >
+                  Enviar
+                </Button>
+              </form>
+            </Modal>
+          )}
           <RangeFeedbackSelector
             setDateRange={setDateRange}
             setPresetName={setPresetName}
@@ -550,7 +567,7 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
           <div className="flex items-center space-x-1">
             <h2 className="md:flex md:mr-14 items-center space-x-1">
               Tiempo de Feedback Promedio total:
-              <IconClock className="text-primary ml-1 inline-block" />{' '}
+              <IconClock className="text-primary ml-1 inline-block" />{" "}
               <span className="text-primary">
                 {formatTime(averageFeedbackTime)}
               </span>
@@ -558,20 +575,18 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
           </div>
         </div>
         <h1 className="text-3xl font-bold text-center ">
-          Clientes {hasPreset ? `${preset.label} ` : ''} ({' '}
+          Clientes {hasPreset ? `${preset.label} ` : ""} ({" "}
           {totalClientsList?.length ?? 0} )
         </h1>
       </div>
-      {
-        isClientInitialized && (
-          <Button
-            className="mb-4 bg-green-500 text-white py-2 px-4 rounded"
-            onClick={() => setMessageModalIsOpen(true)}
-          >
-            Enviar mensaje
-          </Button>
-        )
-      }
+      {isClientInitialized && (
+        <Button
+          className="mb-4 bg-green-500 text-white py-2 px-4 rounded"
+          onClick={() => setMessageModalIsOpen(true)}
+        >
+          Enviar mensaje
+        </Button>
+      )}
       <Card className="mb-5 w-full">
         <Table>
           <TableHeader>
@@ -585,7 +600,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-left cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byName)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byName)}
+              >
                 <span className="flex justify-center items-center">
                   Nombre
                   {showChevronInColumn(ActiveFilter.byName)}
@@ -593,7 +609,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-left cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byName)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byName)}
+              >
                 <span className="flex justify-center items-center">
                   Correo
                   {showChevronInColumn(ActiveFilter.byMail)}
@@ -601,9 +618,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-left cursor-pointer"
-                onClick={() =>
-                  toggleFilterByColumn(ActiveFilter.byPhoneNumber)
-                }>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byPhoneNumber)}
+              >
                 <span className="flex justify-center items-center">
                   Teléfono
                   {showChevronInColumn(ActiveFilter.byPhoneNumber)}
@@ -611,7 +627,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byRate)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byRate)}
+              >
                 <span className="flex justify-center items-center">
                   Rating
                   {showChevronInColumn(ActiveFilter.byRate)}
@@ -619,7 +636,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byVisits)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byVisits)}
+              >
                 <span className="flex justify-center items-center">
                   Visitas
                   {showChevronInColumn(ActiveFilter.byVisits)}
@@ -627,7 +645,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byOrigin)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byOrigin)}
+              >
                 <span className="flex justify-center items-center cursor-pointer">
                   Origen
                   {showChevronInColumn(ActiveFilter.byOrigin)}
@@ -635,7 +654,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byImprove)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byImprove)}
+              >
                 <span className="flex justify-center items-center">
                   Feedback
                   {showChevronInColumn(ActiveFilter.byImprove)}
@@ -643,7 +663,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byComments)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byComments)}
+              >
                 <span className="flex justify-center items-center">
                   Comentarios
                   {showChevronInColumn(ActiveFilter.byComments)}
@@ -653,18 +674,20 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                 onClick={() =>
                   toggleFilterByColumn(ActiveFilter.byGoogleReview)
-                }>
+                }
+              >
                 <span className="flex justify-center items-center">
                   Google Review
                   {showChevronInColumn(ActiveFilter.byGoogleReview)}
                 </span>
               </TableHead>
-              {sucursal === 'todas' && (
+              {sucursal === "todas" && (
                 <TableHead
                   className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                   onClick={() =>
                     toggleFilterByColumn(ActiveFilter.byBusinessName)
-                  }>
+                  }
+                >
                   <span className="flex justify-center items-center">
                     Sucursal
                     {showChevronInColumn(ActiveFilter.byBusinessName)}
@@ -673,7 +696,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               )}
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byDate)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byDate)}
+              >
                 <span className="flex justify-center items-center">
                   Fecha
                   {showChevronInColumn(ActiveFilter.byDate)}
@@ -681,7 +705,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byDate)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byDate)}
+              >
                 <span className="flex justify-center items-center">
                   Cumpleaños
                   {showChevronInColumn(ActiveFilter.byDate)}
@@ -689,7 +714,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
               </TableHead>
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
-                onClick={() => toggleFilterByColumn(ActiveFilter.byAttendBy)}>
+                onClick={() => toggleFilterByColumn(ActiveFilter.byAttendBy)}
+              >
                 <span className="flex justify-center items-center">
                   Atendido por
                   {showChevronInColumn(ActiveFilter.byAttendBy)}
@@ -699,7 +725,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                 onClick={() =>
                   toggleFilterByColumn(ActiveFilter.byFeedbackTime)
-                }>
+                }
+              >
                 <span className="flex justify-center items-center">
                   Tiempo de feedback
                   {showChevronInColumn(ActiveFilter.byFeedbackTime)}
@@ -709,7 +736,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                 onClick={() =>
                   toggleFilterByColumn(ActiveFilter.byGoogleReview)
-                }>
+                }
+              >
                 <span className="flex justify-center items-center">
                   Promociones
                   {showChevronInColumn(ActiveFilter.byGoogleReview)}
@@ -719,7 +747,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                 onClick={() =>
                   toggleFilterByColumn(ActiveFilter.byAverageTicket)
-                }>
+                }
+              >
                 <span className="flex justify-center items-center">
                   Ticket Promedio
                   {showChevronInColumn(ActiveFilter.byAverageTicket)}
@@ -729,7 +758,8 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                 onClick={() =>
                   toggleFilterByColumn(ActiveFilter.byAverageTicket)
-                }>
+                }
+              >
                 <span className="flex justify-center items-center">
                   Personas en la mesa
                   {showChevronInColumn(ActiveFilter.byAverageTicket)}
@@ -740,91 +770,103 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
           <TableBody className="w-full">
             {clientsList?.map((client, index) => {
               const lastFeedback = client.feedback;
-              const creationDate: Timestamp = lastFeedback?.CreationDate;
-              const startTime: Timestamp = lastFeedback?.StartTime;
-              const birthdayDate: Timestamp | undefined =
-                lastFeedback?.BirthdayDate;
+              const creationDate: Date = lastFeedback?.creationDate;
+              const startTime: Date = lastFeedback?.startTime;
+              const birthdayDate: Date | undefined = lastFeedback?.birthdayDate;
 
-              const timestampCreationDate = convertToTimestamp(creationDate);
-              const timestampStartDate = convertToTimestamp(startTime);
+              const timestampCreationDate = creationDate
+                ? new Date(creationDate)
+                : null;
+              const timestampStartDate = startTime ? new Date(startTime) : null;
+
               const clientBirthday = birthdayDate
-                ? convertToTimestamp(birthdayDate)
+                ? new Date(birthdayDate)
                 : null;
               const clientBirthdayDate = clientBirthday
-                ? formatDate(clientBirthday.toDate(), 'dd/MM/yy')
-                : '-';
+                ? formatDate(clientBirthday, "dd/MM/yy")
+                : "-";
 
-              const feedbackDate = timestampCreationDate.toDate();
+              const feedbackDate = timestampCreationDate ?? new Date(0); // un Date válido siempre
               const feedbackTime = formatTime(
-                timestampCreationDate.seconds - timestampStartDate.seconds
+                timestampCreationDate && timestampStartDate
+                  ? (timestampCreationDate.getTime() -
+                      timestampStartDate.getTime()) /
+                      1000
+                  : 0
               );
-              const attendBy = lastFeedback?.AttendedBy || '-';
+              const attendBy = lastFeedback?.attendedBy || "-";
 
               return (
                 <TableRow key={`client_${index}_info`}>
                   <TableCell className="w-[40px] text-center">
                     <input
                       type="checkbox"
-                      checked={selectedPhones.includes(client?.phoneNumber || '')}
-                      onChange={() => handleRowSelection(client?.phoneNumber || '')}
+                      checked={selectedPhones.includes(
+                        client?.phoneNumber || ""
+                      )}
+                      onChange={() =>
+                        handleRowSelection(client?.phoneNumber || "")
+                      }
                     />
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {lastFeedback?.FullName}
+                    {lastFeedback?.fullName}
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {lastFeedback?.Email}
+                    {lastFeedback?.email}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {isEmpty(lastFeedback?.PhoneNumber) ? (
-                      '-'
+                    {isEmpty(lastFeedback?.phoneNumber) ? (
+                      "-"
                     ) : (
                       <a
                         className="underline"
-                        href={`https://wa.me/${lastFeedback?.PhoneNumber?.replace(
-                          '+',
-                          ''
+                        href={`https://wa.me/${lastFeedback?.phoneNumber?.replace(
+                          "+",
+                          ""
                         )}`}
-                        target="_blank">
-                        {lastFeedback?.PhoneNumber}
+                        target="_blank"
+                      >
+                        {lastFeedback?.phoneNumber}
                       </a>
                     )}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.Rating}
+                    {lastFeedback?.rating}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center">
-                    {lastFeedback.Visits || 1}
+                    {lastFeedback.visits || 1}
                   </TableCell>
                   <TableCell className="p-4 text-blue-500 font-bold text-center">
-                    {lastFeedback?.Origin}
+                    {lastFeedback?.origin}
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center ">
                     <div className="flex flex-col place-content-center flex-wrap ">
-                      {lastFeedback?.Improve?.length === 0
-                        ? '-'
-                        : lastFeedback?.Improve?.map((improve, index) => (
-                          <span
-                            key={`improve_feedback_${improve}`}
-                            style={{
-                              backgroundColor: colorByFeedback(improve),
-                            }}
-                            className={classNames(
-                              'inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium place-content-center text-gray-600 ring-0',
-                              { 'mt-1': index !== 0 }
-                            )}>
-                            {improve}
-                          </span>
-                        ))}
+                      {lastFeedback?.improve?.length === 0
+                        ? "-"
+                        : lastFeedback?.improve?.map((improve, index) => (
+                            <span
+                              key={`improve_feedback_${improve}`}
+                              style={{
+                                backgroundColor: colorByFeedback(improve),
+                              }}
+                              className={classNames(
+                                "inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium place-content-center text-gray-600 ring-0",
+                                { "mt-1": index !== 0 }
+                              )}
+                            >
+                              {improve}
+                            </span>
+                          ))}
                     </div>
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {isEmpty(lastFeedback?.ImproveText ?? '') ? (
-                      '-'
+                    {isEmpty(lastFeedback?.improveText ?? "") ? (
+                      "-"
                     ) : (
                       <CommentDialog
-                        clientFistName={lastFeedback?.FullName}
-                        comment={lastFeedback?.ImproveText}
+                        clientFistName={lastFeedback?.fullName}
+                        comment={lastFeedback?.improveText}
                       />
                     )}
                   </TableCell>
@@ -849,7 +891,7 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                       )}
                     </div>
                   </TableCell>
-                  {sucursal === 'todas' && (
+                  {sucursal === "todas" && (
                     <TableCell className="font-normal p-4 text-center ">
                       <div className="flex items-center justify-center">
                         {client.businessName}
@@ -858,7 +900,7 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                   )}
                   <TableCell className="font-normal p-4 text-center ">
                     <div className="flex items-center justify-center">
-                      {formatDate(feedbackDate, 'dd/MM/yy hh:mm a')}
+                      {formatDate(feedbackDate, "dd/MM/yy hh:mm a")}
                     </div>
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center ">
@@ -899,12 +941,12 @@ const RegularClientsTable = ({ businessData, isClientInitialized }: IRegularClie
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center ">
                     <div className="flex items-center justify-center">
-                      {lastFeedback?.AverageTicket}
+                      {lastFeedback?.averageTicket}
                     </div>
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center ">
                     <div className="flex items-center justify-center">
-                      {lastFeedback?.Dinners}
+                      {lastFeedback?.dinners}
                     </div>
                   </TableCell>
                 </TableRow>

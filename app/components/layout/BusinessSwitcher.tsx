@@ -1,7 +1,7 @@
-import { CaretSortIcon, CheckIcon } from '@radix-ui/react-icons';
+import { CaretSortIcon, CheckIcon } from "@radix-ui/react-icons";
 
-import { cn } from '@/app/lib/utils';
-import { Button } from '@/app/components/ui/Button';
+import { cn } from "@/app/lib/utils";
+import { Button } from "@/app/components/ui/Button";
 import {
   Command,
   CommandEmpty,
@@ -9,23 +9,23 @@ import {
   CommandInput,
   CommandItem,
   CommandList,
-} from '@/app/components/ui/Command';
+} from "@/app/components/ui/Command";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
-} from '@/app/components/ui/Popover';
-import { Business } from '@/app/types/business';
-import { formatStringToSlug } from '@/app/helpers/strings.helpers';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
-import { ComponentPropsWithoutRef, useEffect, useState } from 'react';
+} from "@/app/components/ui/Popover";
+import { Business } from "@/app/types/business";
+import { formatStringToSlug } from "@/app/helpers/strings.helpers";
+import { useSearchParams, useRouter, usePathname } from "next/navigation";
+import { ComponentPropsWithoutRef, useEffect, useState } from "react";
 
 const generateBranchData = (
   branch: Business
 ): { label: string; value: string } => {
   return {
-    label: branch.Name,
-    value: formatStringToSlug(branch.Name),
+    label: branch.name,
+    value: formatStringToSlug(branch.name),
   };
 };
 
@@ -39,35 +39,35 @@ export default function BusinessSwitcher({
   className,
   businessData,
 }: BusinessSwitcherProps) {
-  const isDsc = businessData?.parentId === 'dsc-solutions';
+  const isDsc = businessData?.parentId === "dsc-solutions";
   const branches = businessData?.sucursales?.map(generateBranchData) || [];
-  const allLabel = isDsc ? 'All' : 'Todas';
+  const allLabel = isDsc ? "All" : "Todas";
   const groups = [
     {
-      label: isDsc ? 'Parent' : 'Matriz',
+      label: isDsc ? "Parent" : "Matriz",
       teams: [
         {
-          label: businessData?.Name,
-          value: 'matriz',
+          label: businessData?.name,
+          value: "matriz",
         },
       ],
     },
     {
-      label: isDsc ? 'Branches' : 'Sucursales',
-      teams: [{ label: allLabel, value: 'todas' }, ...branches] || [],
+      label: isDsc ? "Branches" : "Sucursales",
+      teams: [{ label: allLabel, value: "todas" }, ...branches],
     },
   ];
-  type Business = (typeof groups)[number]['teams'][number];
+  type Business = (typeof groups)[number]["teams"][number];
   const [open, setOpen] = useState(false);
   const [selectedTeam, setSelectedTeam] = useState<Business>({
     label:
-      businessData?.parentId === 'dsc-solutions'
+      businessData?.parentId === "dsc-solutions"
         ? allLabel
-        : businessData?.Name,
-    value: businessData?.parentId === 'dsc-solutions' ? 'todas' : 'matriz',
+        : businessData?.name,
+    value: businessData?.parentId === "dsc-solutions" ? "todas" : "matriz",
   });
   const searchParams = useSearchParams();
-  const slugBusinessName = formatStringToSlug(businessData?.Name);
+  const slugBusinessName = formatStringToSlug(businessData?.name);
 
   const pathname = usePathname();
   const router = useRouter();
@@ -75,15 +75,15 @@ export default function BusinessSwitcher({
   useEffect(() => {
     const { value } = selectedTeam;
     const current = new URLSearchParams(Array.from(searchParams.entries()));
-    const isMatriz = value === 'matriz';
+    const isMatriz = value === "matriz";
     if (isMatriz) {
-      current.delete('sucursal');
-      current.set('matriz', slugBusinessName);
+      current.delete("sucursal");
+      current.set("matriz", slugBusinessName);
     } else {
-      current.set('sucursal', selectedTeam.value);
+      current.set("sucursal", selectedTeam.value);
     }
     const search = current.toString();
-    const query = search ? `?${search}` : '';
+    const query = search ? `?${search}` : "";
 
     router.push(`${pathname}${query}`);
   }, [selectedTeam, searchParams, slugBusinessName, router, pathname]);
@@ -96,7 +96,8 @@ export default function BusinessSwitcher({
           role="combobox"
           aria-expanded={open}
           aria-label="Select a team"
-          className={cn('justify-between w-full', className)}>
+          className={cn("justify-between w-full", className)}
+        >
           <span className="truncate">{selectedTeam.label}</span>
           <CaretSortIcon className="ml-auto h-4 w-4 shrink-0 opacity-50" />
         </Button>
@@ -115,14 +116,15 @@ export default function BusinessSwitcher({
                       setSelectedTeam(team);
                       setOpen(false);
                     }}
-                    className="text-sm">
+                    className="text-sm"
+                  >
                     {team.label}
                     <CheckIcon
                       className={cn(
-                        'ml-auto h-4 w-4',
+                        "ml-auto h-4 w-4",
                         selectedTeam.value === team.value
-                          ? 'opacity-100'
-                          : 'opacity-0'
+                          ? "opacity-100"
+                          : "opacity-0"
                       )}
                     />
                   </CommandItem>

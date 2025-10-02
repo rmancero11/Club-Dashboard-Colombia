@@ -31,10 +31,10 @@ function ResultsWeeklyDistribution({ businessData, dateRange, preset, className 
     }
     const formattedDate: string = date.toLocaleDateString(isDsc ? 'en' : 'es-EC', options)
     if (!uniqueDatesSet.has(formattedDate)) {
-      uniqueDatesSet.add(formattedDate); // Agrega la fecha al conjunto
+      uniqueDatesSet.add(formattedDate); 
     }
     return {
-      Rating: (feedback as Feedback).Rating,
+      Rating: (feedback as Feedback).rating,
       CreationDate: formattedDate,
     }
   });

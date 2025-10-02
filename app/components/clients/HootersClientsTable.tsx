@@ -22,11 +22,10 @@ import { Pagination } from '../../components/ui/Pagination';
 import classNames from 'classnames';
 
 import { isEmpty } from '@/app/helpers/strings.helpers';
-import { IconChevronDown, IconChevronUp, IconClock } from '@tabler/icons-react';
+import { IconClock } from '@tabler/icons-react';
 import { useSearchParams } from 'next/navigation';
-import { Timestamp } from 'firebase/firestore';
 
-import { convertToTimestamp, formatTime } from '@/app/helpers';
+import { formatTime } from '@/app/helpers';
 
 import Image from 'next/image';
 import CommentDialog from '../../components/clients/CommentSideOver';
@@ -37,8 +36,6 @@ import RangeFeedbackSelector from '@/app/components/common/RangeFeedbackSelector
 type IHootersClientsProps = {
   businessData: Business | null | undefined;
 };
-
-const maxClientsInTable = 7;
 
 enum ActiveFilter {
   'byName',
@@ -70,7 +67,7 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
   const [clientsList, setClientsList] = useState<HootersClient[]>();
   const [totalClientsList, setTotalClientsList] = useState<HootersClient[]>();
   const [currentPageIndex, setCurrentPageIndex] = useState<number>(0);
-  const [maxClientsInTable, setMaxClientsInTable] = useState<number>(5);
+  const [maxClients, setMaxClients] = useState<number>(5);
   const [maxPages, setMaxPages] = useState<number>(1);
   const [activeFilter, setActiveFilter] = useState<ActiveFilter>(
     ActiveFilter.none
@@ -89,98 +86,34 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     const clients = getClientsTableData(
       businessData?.feedbacks || [],
       dateRange
-    );
-    sortTableByColumn(clients as HootersClient[]);
+    ) as HootersClient[]; 
+    sortTableByColumn(clients);
   }, [activeFilter, ascendingFilter, businessData?.feedbacks, dateRange]);
 
   useEffect(() => {
     setClientsListByPage(currentPageIndex);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [totalClientsList, currentPageIndex, maxClientsInTable]);
+  }, [totalClientsList, currentPageIndex, maxClients]);
 
-  useEffect(()=> { setCurrentPageIndex(0)},[maxClientsInTable])
+  useEffect(() => {
+    setCurrentPageIndex(0);
+  }, [maxClients]);
 
   const setClientsListByPage = (pageNumber: number) => {
     const pagedClientsList = totalClientsList?.slice(
-      pageNumber * maxClientsInTable,
-      pageNumber * maxClientsInTable + maxClientsInTable
+      pageNumber * maxClients,
+      pageNumber * maxClients + maxClients
     );
-    setMaxPages(Math.ceil((totalClientsList?.length ?? 0) / maxClientsInTable));
+    setMaxPages(Math.ceil((totalClientsList?.length ?? 0) / maxClients));
     setClientsList(pagedClientsList);
   };
 
   const hangleMaxClientsInTable = (maxItems: string) => {
-    setMaxClientsInTable(parseInt(maxItems));
-  }
-
-  function sortTableByColumn(clients: HootersClient[]) {
-    const sortingFunctions = {
-      [ActiveFilter.none]: () => clients,
-      [ActiveFilter.byName]: () =>
-        sortByStringField(clients, 'FullName', ascendingFilter),
-      [ActiveFilter.byEmail]: () =>
-        sortByStringField(clients, 'Email', ascendingFilter),
-      [ActiveFilter.byPhoneNumber]: () =>
-        sortByStringField(clients, 'PhoneNumber', ascendingFilter),
-      [ActiveFilter.byAcceptPromotions]: () =>
-        sortByStringField(clients, 'AcceptPromotions', ascendingFilter),
-      [ActiveFilter.byBirthdayDate]: () =>
-        sortByStringField(clients, 'BirthdayDate', ascendingFilter),
-      [ActiveFilter.byVisits]: () =>
-        sortVistis(clients, 'Visits', ascendingFilter),
-      [ActiveFilter.byGoogleReview]: () =>
-        sortByGoogleReview(clients, ascendingFilter),
-      [ActiveFilter.byCourtesy]: () =>
-        sortByNumberField(clients, 'Courtesy', ascendingFilter),
-      [ActiveFilter.byPlaceCleanness]: () =>
-        sortByNumberField(clients, 'PlaceCleanness', ascendingFilter),
-      [ActiveFilter.byQuickness]: () =>
-        sortByNumberField(clients, 'Quickness', ascendingFilter),
-      [ActiveFilter.byFoodQuality]: () =>
-        sortByNumberField(clients, 'FoodQuality', ascendingFilter),
-      [ActiveFilter.byClimate]: () =>
-        sortByNumberField(clients, 'Climate', ascendingFilter),
-      [ActiveFilter.byExperience]: () =>
-        sortByNumberField(clients, 'Experience', ascendingFilter),
-      [ActiveFilter.byRecommending]: () =>
-        sortByBooleanField(clients, 'Recommending', ascendingFilter),
-      [ActiveFilter.byImprove]: () =>
-        sortByArrayField(
-          clients,
-          'Improve' as keyof FeedbackHooters,
-          ascendingFilter
-        ),
-      [ActiveFilter.byComeBack]: () =>
-        sortByBooleanField(clients, 'ComeBack', ascendingFilter),
-      [ActiveFilter.byRecommendingText]: () =>
-        sortByArrayField(clients, 'RecommendingText', ascendingFilter),
-      [ActiveFilter.byComeBackText]: () =>
-        sortByArrayField(clients, 'ComeBackText', ascendingFilter),
-      [ActiveFilter.byImproveText]: () =>
-        sortByArrayField(clients, 'ImproveText', ascendingFilter),
-      [ActiveFilter.byDate]: () =>
-        sortByDateField(
-          clients,
-          'CreationDate' as keyof FeedbackHooters,
-          ascendingFilter
-        ),
-      [ActiveFilter.byFeedbackTime]: () =>
-        sortByFeedbackTimeField(
-          clients,
-          'CreationDate' as keyof FeedbackHooters,
-          'StartTime' as keyof FeedbackHooters,
-          ascendingFilter
-        ),
-      [ActiveFilter.byBusinessName]: () =>
-        sortByStringField(clients, 'BusinessName', ascendingFilter),
-    };
-
-    const sortedClients = sortingFunctions[activeFilter]();
-    setTotalClientsList(sortedClients);
-  }
+    setMaxClients(parseInt(maxItems));
+  };
 
   function hasProperty(obj: any, prop: string): boolean {
-    return obj && obj.hasOwnProperty(prop);
+    return obj && Object.prototype.hasOwnProperty.call(obj, prop);
   }
 
   function getProperty<T, K extends keyof T>(obj: T, key: K): T[K] {
@@ -201,13 +134,13 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     field: keyof FeedbackHooters,
     ascending: boolean
   ) {
-    return clients.sort((a, b) => {
+    return clients.slice().sort((a, b) => {
       const aValue = (
         getFeedbackProperty(a.feedback, field) || ''
-      ).toLowerCase();
+      ).toString().toLowerCase();
       const bValue = (
         getFeedbackProperty(b.feedback, field) || ''
-      ).toLowerCase();
+      ).toString().toLowerCase();
       return ascending
         ? aValue.localeCompare(bValue)
         : bValue.localeCompare(aValue);
@@ -219,9 +152,9 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     field: keyof FeedbackHooters,
     ascending: boolean
   ) {
-    return clients.sort((a, b) => {
-      const aValue = getFeedbackProperty(a.feedback, field) || 0;
-      const bValue = getFeedbackProperty(b.feedback, field) || 0;
+    return clients.slice().sort((a, b) => {
+      const aValue = Number(getFeedbackProperty(a.feedback, field) || 0);
+      const bValue = Number(getFeedbackProperty(b.feedback, field) || 0);
       return ascending ? aValue - bValue : bValue - aValue;
     });
   }
@@ -237,7 +170,7 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     field: keyof FeedbackHooters,
     ascending: boolean
   ) {
-    return clients.sort((a, b) => {
+    return clients.slice().sort((a, b) => {
       const aValue = getFeedbackProperty(a.feedback, field) ? 'si' : 'no';
       const bValue = getFeedbackProperty(b.feedback, field) ? 'si' : 'no';
       return ascending
@@ -251,7 +184,7 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     field: keyof FeedbackHooters,
     ascending: boolean
   ) {
-    return clients.sort((a, b) => {
+    return clients.slice().sort((a, b) => {
       const aValue = getFeedbackProperty(a.feedback, field)?.length || 0;
       const bValue = getFeedbackProperty(b.feedback, field)?.length || 0;
       return ascending ? aValue - bValue : bValue - aValue;
@@ -263,9 +196,11 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     field: keyof FeedbackHooters,
     ascending: boolean
   ) {
-    return clients.sort((a, b) => {
-      const aValue = getFeedbackProperty(a.feedback, field) || 0;
-      const bValue = getFeedbackProperty(b.feedback, field) || 0;
+    return clients.slice().sort((a, b) => {
+      const aValueRaw = getFeedbackProperty(a.feedback, field);
+      const bValueRaw = getFeedbackProperty(b.feedback, field);
+      const aValue = aValueRaw ? new Date(aValueRaw).getTime() : 0;
+      const bValue = bValueRaw ? new Date(bValueRaw).getTime() : 0;
       return ascending ? aValue - bValue : bValue - aValue;
     });
   }
@@ -276,29 +211,18 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     fieldStartDate: keyof FeedbackHooters,
     ascending: boolean
   ) {
-    return clients.sort((a, b) => {
-      const aCreationDate: Timestamp =
-        getFeedbackProperty(a.feedback, fieldCreationDate) || 0;
-      const aStartDate: Timestamp =
-        getFeedbackProperty(a.feedback, fieldStartDate) || 0;
+    return clients.slice().sort((a, b) => {
+      const aCreationDate = getFeedbackProperty(a.feedback, fieldCreationDate);
+      const aStartDate = getFeedbackProperty(a.feedback, fieldStartDate);
+      const bCreationDate = getFeedbackProperty(b.feedback, fieldCreationDate);
+      const bStartDate = getFeedbackProperty(b.feedback, fieldStartDate);
 
-      const bCreationDate: Timestamp =
-        getFeedbackProperty(b.feedback, fieldCreationDate) || 0;
-      const bStartDate: Timestamp =
-        getFeedbackProperty(b.feedback, fieldStartDate) || 0;
-
-      const aTimestampCreationDate = convertToTimestamp(
-        aCreationDate
-      ) as Timestamp;
-      const aTimestampStartDate = convertToTimestamp(aStartDate);
-
-      const bTimestampCreationDate = convertToTimestamp(bCreationDate);
-      const bTimestampStartDate = convertToTimestamp(bStartDate);
-
-      const aValue =
-        aTimestampCreationDate.seconds - aTimestampStartDate.seconds;
-      const bValue =
-        bTimestampCreationDate.seconds - bTimestampStartDate.seconds;
+      const aValue = aCreationDate && aStartDate
+        ? (new Date(aCreationDate).getTime() - new Date(aStartDate).getTime()) / 1000
+        : 0;
+      const bValue = bCreationDate && bStartDate
+        ? (new Date(bCreationDate).getTime() - new Date(bStartDate).getTime()) / 1000
+        : 0;
 
       return ascending ? aValue - bValue : bValue - aValue;
     });
@@ -309,66 +233,104 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
     field: keyof FeedbackHooters,
     ascending: boolean
   ) {
-    return clients.sort((a, b) => {
-      const aValue = getFeedbackProperty(a.feedback, field) || 0;
-      const bValue = getFeedbackProperty(b.feedback, field) || 0;
+    return clients.slice().sort((a, b) => {
+      const aValue = Number(getFeedbackProperty(a.feedback, field) || 0);
+      const bValue = Number(getFeedbackProperty(b.feedback, field) || 0);
       return ascending ? aValue - bValue : bValue - aValue;
     });
   }
 
-  const toggleFilterByColumn = (filter: ActiveFilter) => {
-    if (activeFilter === filter) {
-      if (!ascendingFilter) {
-        setActiveFilter(ActiveFilter.none);
-      }
-      setAscendingFilter(!ascendingFilter);
-    } else {
-      setActiveFilter(filter);
-      setAscendingFilter(true);
-    }
-  };
+  function sortTableByColumn(clients: HootersClient[]) {
+    const sortingFunctions = {
+      [ActiveFilter.none]: () => clients,
+      [ActiveFilter.byName]: () =>
+        sortByStringField(clients, 'fullName', ascendingFilter),
+      [ActiveFilter.byEmail]: () =>
+        sortByStringField(clients, 'email', ascendingFilter),
+      [ActiveFilter.byPhoneNumber]: () =>
+        sortByStringField(clients, 'phoneNumber', ascendingFilter),
+      [ActiveFilter.byAcceptPromotions]: () =>
+        // acceptPromotions vive en el nivel de HootersClient (no en feedback):
+        clients.slice().sort((a, b) => {
+          const av = a.acceptPromotions ? 'si' : 'no';
+          const bv = b.acceptPromotions ? 'si' : 'no';
+          return ascendingFilter ? av.localeCompare(bv) : bv.localeCompare(av);
+        }),
+      [ActiveFilter.byBirthdayDate]: () =>
+        sortByStringField(clients, 'birthdayDate', ascendingFilter),
+      [ActiveFilter.byVisits]: () =>
+        sortVistis(clients, 'visits', ascendingFilter),
+      [ActiveFilter.byGoogleReview]: () =>
+        sortByGoogleReview(clients, ascendingFilter),
+      [ActiveFilter.byCourtesy]: () =>
+        sortByNumberField(clients, 'courtesy', ascendingFilter),
+      [ActiveFilter.byPlaceCleanness]: () =>
+        sortByNumberField(clients, 'placeCleanness', ascendingFilter),
+      [ActiveFilter.byQuickness]: () =>
+        sortByNumberField(clients, 'quickness', ascendingFilter),
+      [ActiveFilter.byFoodQuality]: () =>
+        sortByNumberField(clients, 'foodQuality', ascendingFilter),
+      [ActiveFilter.byClimate]: () =>
+        sortByNumberField(clients, 'climate', ascendingFilter),
+      [ActiveFilter.byExperience]: () =>
+        sortByNumberField(clients, 'experience', ascendingFilter),
+      [ActiveFilter.byRecommending]: () =>
+        sortByBooleanField(clients, 'recommending', ascendingFilter),
+      [ActiveFilter.byImprove]: () =>
+        sortByArrayField(clients, 'improve', ascendingFilter),
+      [ActiveFilter.byComeBack]: () =>
+        sortByBooleanField(clients, 'comeBack', ascendingFilter),
+      [ActiveFilter.byRecommendingText]: () =>
+        sortByStringField(clients, 'recommendingText', ascendingFilter),
+      [ActiveFilter.byComeBackText]: () =>
+        sortByStringField(clients, 'comeBackText', ascendingFilter),
+      [ActiveFilter.byImproveText]: () =>
+        sortByStringField(clients, 'improveText', ascendingFilter),
+      [ActiveFilter.byDate]: () =>
+        sortByDateField(clients, 'creationDate', ascendingFilter),
+      [ActiveFilter.byFeedbackTime]: () =>
+        sortByFeedbackTimeField(
+          clients,
+          'creationDate',
+          'startTime',
+          ascendingFilter
+        ),
+      [ActiveFilter.byBusinessName]: () =>
+        // businessName vive en el nivel de HootersClient:
+        clients.slice().sort((a, b) => {
+          const av = (a.businessName || '').toLowerCase();
+          const bv = (b.businessName || '').toLowerCase();
+          return ascendingFilter ? av.localeCompare(bv) : bv.localeCompare(av);
+        }),
+    };
 
-  const showChevronInColumn = (filter: ActiveFilter) => {
-    return activeFilter === filter ? (
-      ascendingFilter ? (
-        <IconChevronUp size={12} />
-      ) : (
-        <IconChevronDown size={12} />
-      )
-    ) : (
-      <span />
-    );
-  };
+    const sortedClients = sortingFunctions[activeFilter]();
+    setTotalClientsList(sortedClients);
+  }
 
   const averageFeedbackTime = useMemo(() => {
-    if (!totalClientsList || totalClientsList.length === 0) {
-      return 0; // O el valor predeterminado que desees cuando no hay clientes
-    }
+    if (!totalClientsList || totalClientsList.length === 0) return 0;
 
-    return (
-      totalClientsList.reduce((acc, client) => {
-        const creationDate: Timestamp | undefined =
-          client?.feedback?.CreationDate;
-        const startTime: Timestamp | undefined = client?.feedback?.StartTime;
+    const total = totalClientsList.reduce((acc, client) => {
+      const creationDate: Date | undefined = client?.feedback?.creationDate;
+      const startTime: Date | undefined = client?.feedback?.startTime;
+      if (!creationDate || !startTime) return acc;
 
-        if (!creationDate || !startTime) {
-          return acc; // O manejar el caso en el que CreationDate o StartTime sean undefined
-        }
+      const seconds =
+        (new Date(creationDate).getTime() - new Date(startTime).getTime()) / 1000;
+      return acc + (Number.isFinite(seconds) ? seconds : 0);
+    }, 0);
 
-        const timestampCreationDate = convertToTimestamp(creationDate);
-        const timestampStartDate = convertToTimestamp(startTime);
-
-        if (!timestampCreationDate || !timestampStartDate) {
-          return acc; // O manejar el caso en el que los timestamps sean undefined
-        }
-
-        const feedbackTime =
-          timestampCreationDate.seconds - timestampStartDate.seconds;
-
-        return acc + feedbackTime;
-      }, 0) / totalClientsList.length
-    );
+    return total / totalClientsList.length;
   }, [totalClientsList]);
+
+  function showChevronInColumn(byComeBackText: ActiveFilter): import("react").ReactNode {
+    throw new Error('Function not implemented.');
+  }
+
+  function toggleFilterByColumn(byName: ActiveFilter): void {
+    throw new Error('Function not implemented.');
+  }
 
   return (
     <section className="flex flex-col items-center">
@@ -390,7 +352,7 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
           </div>
         </div>
         <h1 className="text-3xl font-bold text-center ">
-          Clientes {hasPreset ? `${preset.label} ` : ''} ({' '}
+          Clientes {hasPreset ? `${preset!.label} ` : ''} ({' '}
           {totalClientsList?.length ?? 0} )
         </h1>
       </div>
@@ -398,7 +360,6 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
         <Table>
           <TableHeader>
             <TableRow className="bg-zinc-100 ">
-              {/* <TableHead className='w-[80px] py-5' /> */}
               <TableHead
                 className="lg:min-w-[120px] min-w-[20px] p-4 text-left cursor-pointer"
                 onClick={() => toggleFilterByColumn(ActiveFilter.byName)}>
@@ -490,11 +451,11 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
                 </span>
               </TableHead>
               <TableHead
-                className="lg:min-w-[120px] min-w-[20px] p-4 text-center"
+                className="lg:min-w-[120px] min-w-[20px] p-4 text-center cursor-pointer"
                 onClick={() =>
                   toggleFilterByColumn(ActiveFilter.byFoodQuality)
                 }>
-                <span className="flex justify-center items-center cursor-pointer text-center">
+                <span className="flex justify-center items-center text-center">
                   Calidad de los alimentos
                   {showChevronInColumn(ActiveFilter.byFoodQuality)}
                 </span>
@@ -606,38 +567,46 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
           <TableBody className="w-full">
             {clientsList?.map((client, index) => {
               const lastFeedback = client.feedback;
-              const creationDate: Timestamp = lastFeedback?.CreationDate;
-              const startTime: Timestamp = lastFeedback?.StartTime;
+
+              const creationDate: Date | undefined = lastFeedback?.creationDate;
+              const startTime: Date | undefined = lastFeedback?.startTime;
               const birthdayDate: string | undefined =
-                lastFeedback?.BirthdayDate;
+                (lastFeedback?.birthdayDate as unknown as string) || undefined;
 
-              const timestampCreationDate = convertToTimestamp(creationDate);
-              const timestampStartDate = convertToTimestamp(startTime);
+              const feedbackDate = creationDate
+                ? new Date(creationDate)
+                : new Date(0);
 
-              const feedbackDate = timestampCreationDate.toDate();
-              const feedbackTime = formatTime(
-                timestampCreationDate.seconds - timestampStartDate.seconds
-              );
+              const feedbackSeconds =
+                creationDate && startTime
+                  ? (new Date(creationDate).getTime() -
+                      new Date(startTime).getTime()) /
+                    1000
+                  : 0;
+
+              const feedbackTime = formatTime(feedbackSeconds);
+
               return (
                 <TableRow key={`client_${index}_info`}>
                   <TableCell className="font-normal p-4 text-center">
-                    {lastFeedback?.FullName}
+                    {lastFeedback?.fullName}
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {lastFeedback?.Email}
+                    {lastFeedback?.email}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {isEmpty(lastFeedback?.PhoneNumber) ? (
+                    {isEmpty(lastFeedback?.phoneNumber ?? '') ? (
                       '-'
                     ) : (
                       <a
                         className="underline"
-                        href={`https://wa.me/${lastFeedback?.PhoneNumber?.replace(
+                        href={`https://wa.me/${lastFeedback?.phoneNumber?.replace(
                           '+',
                           ''
                         )}`}
-                        target="_blank">
-                        {lastFeedback?.PhoneNumber}
+                        target="_blank"
+                      >
+                        {lastFeedback?.phoneNumber}
                       </a>
                     )}
                   </TableCell>
@@ -666,7 +635,7 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
                     </div>
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {lastFeedback?.Visits}
+                    {lastFeedback?.visits}
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center ">
                     <div className="flex items-center justify-center">
@@ -690,75 +659,74 @@ const HootersClientsTable = ({ businessData }: IHootersClientsProps) => {
                     </div>
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.Courtesy}
+                    {lastFeedback?.courtesy}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.PlaceCleanness}
+                    {lastFeedback?.placeCleanness}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.Quickness}
+                    {lastFeedback?.quickness}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.FoodQuality}
+                    {lastFeedback?.foodQuality}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.Climate}
+                    {lastFeedback?.climate}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.Experience}
+                    {lastFeedback?.experience}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.Recommending ? 'Sí' : 'No'}
+                    {lastFeedback?.recommending ? 'Sí' : 'No'}
                   </TableCell>
                   <TableCell className="w-[70px] p-4 text-blue-500 font-bold text-center ">
-                    {lastFeedback?.ComeBack ? 'Sí' : 'No'}
+                    {lastFeedback?.comeBack ? 'Sí' : 'No'}
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {isEmpty(lastFeedback?.RecommendingText ?? '') ? (
+                    {isEmpty(lastFeedback?.recommendingText ?? '') ? (
                       '-'
                     ) : (
                       <CommentDialog
-                        clientFistName={lastFeedback?.FullName}
-                        comment={lastFeedback?.RecommendingText}
+                        clientFistName={lastFeedback?.fullName}
+                        comment={lastFeedback?.recommendingText}
                       />
                     )}
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {isEmpty(lastFeedback?.ComeBackText ?? '') ? (
+                    {isEmpty(lastFeedback?.comeBackText ?? '') ? (
                       '-'
                     ) : (
                       <CommentDialog
-                        clientFistName={lastFeedback?.FullName}
-                        comment={lastFeedback?.ComeBackText}
+                        clientFistName={lastFeedback?.fullName}
+                        comment={lastFeedback?.comeBackText}
                       />
                     )}
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center ">
                     <div className="flex flex-col place-content-center flex-wrap ">
-                      {lastFeedback?.Improve?.length === 0
-                        ? '-'
-                        : lastFeedback?.Improve?.map((improve, index) => (
+                      {lastFeedback?.improve?.length
+                        ? lastFeedback?.improve?.map((improve, idx) => (
                             <span
-                              key={`improve_feedback_${improve}`}
-                              style={{
-                                backgroundColor: colorByFeedback(improve),
-                              }}
+                              key={`improve_feedback_${improve}_${idx}`}
+                              style={{ backgroundColor: colorByFeedback(improve) }}
                               className={classNames(
                                 'inline-flex items-center rounded-md bg-gray-50 px-2 py-1 text-xs font-medium place-content-center text-gray-600 ring-0',
-                                { 'mt-1': index !== 0 }
-                              )}>
+                                { 'mt-1': idx !== 0 }
+                              )}
+                            >
                               {improve}
                             </span>
-                          ))}
+                          ))
+                        : '-'}
                     </div>
                   </TableCell>
                   <TableCell className="font-normal p-4 text-center">
-                    {isEmpty(lastFeedback?.ImproveText ?? '') ? (
+                    {isEmpty(lastFeedback?.improveText ?? '') ? (
                       '-'
                     ) : (
                       <CommentDialog
-                        clientFistName={lastFeedback?.FullName}
-                        comment={lastFeedback?.ImproveText}
+                        clientFistName={lastFeedback?.fullName}
+                        comment={lastFeedback?.improveText}
                       />
                     )}
                   </TableCell>
