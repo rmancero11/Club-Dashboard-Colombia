@@ -27,6 +27,7 @@ model User {
   createdAt  DateTime @default(now())
   business    Business? @relation(fields: [businessId], references: [id])
   businessId  String?
+  avatar    String   @default("/images/default-avatar.png")
 }
 
 model Business {

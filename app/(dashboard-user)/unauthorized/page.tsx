@@ -1,4 +1,5 @@
 "use client";
+
 import { useEffect, useState } from "react";
 import UserProfile from "@/app/components/UserProfile";
 
@@ -9,9 +10,7 @@ export default function ProfilePage() {
   useEffect(() => {
     async function fetchUser() {
       try {
-        const res = await fetch('/api/auth/me', {
-          credentials: 'include', // si usás cookies
-        });
+        const res = await fetch("/api/auth/me", { credentials: "include" });
         if (!res.ok) throw new Error("No se pudo obtener usuario");
         const data = await res.json();
         setUser(data.user);
@@ -21,7 +20,6 @@ export default function ProfilePage() {
         setLoading(false);
       }
     }
-
     fetchUser();
   }, []);
 

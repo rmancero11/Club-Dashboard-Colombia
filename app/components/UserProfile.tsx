@@ -1,3 +1,6 @@
+"use client"
+
+import { useState } from "react"
 import { User } from "@/app/types/user"
 
 interface Props {
@@ -5,16 +8,60 @@ interface Props {
 }
 
 export default function UserProfile({ user }: Props) {
+  const [avatarPreview, setAvatarPreview] = useState<string>(
+    user.avatar ?? "/images/default-avatar.png"
+  )
+  const [loading, setLoading] = useState(false)
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    const previewUrl = URL.createObjectURL(file)
+    setAvatarPreview(previewUrl)
+
+    const formData = new FormData()
+    formData.append("avatar", file)
+
+    try {
+      setLoading(true)
+      const res = await fetch("/api/user/avatar", {
+        method: "POST",
+        body: formData,
+        credentials: "include",
+      })
+      if (!res.ok) throw new Error("Error al subir avatar")
+      const data = await res.json()
+      setAvatarPreview(data.user.avatar) // URL real desde la API
+    } catch (err) {
+      console.error(err)
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <div className="max-w-4xl mx-auto px-4">
-      {/* Encabezado del perfil */}
       <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col items-center md:flex-row md:items-start gap-6">
-        {/* Imagen de perfil (placeholder mientras no tengas subida real) */}
-        <div className="flex-shrink-0">
+        {/* Avatar con upload */}
+        <div className="flex-shrink-0 flex flex-col items-center">
           <img
-            src="https://i.pravatar.cc/150?img=5"
+            src={avatarPreview}
             alt={user.name ?? "User profile"}
             className="w-32 h-32 rounded-full border-4 border-purple-500 object-cover"
+          />
+          <label
+            htmlFor="avatar-upload"
+            className="mt-3 text-sm text-white bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md cursor-pointer"
+          >
+            {loading ? "Subiendo..." : "Cambiar foto"}
+          </label>
+          <input
+            id="avatar-upload"
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarChange}
+            className="hidden"
           />
         </div>
 
@@ -44,7 +91,7 @@ export default function UserProfile({ user }: Props) {
         </div>
       </div>
 
-      {/* Espacios para futuras secciones */}
+      {/* Secciones futuras */}
       <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
         <div className="bg-white rounded-2xl shadow-md p-6 text-center text-gray-500">
           Aquí irán los agentes del viaje ✈️

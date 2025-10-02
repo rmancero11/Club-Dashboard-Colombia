@@ -29,6 +29,7 @@ export async function GET(req: Request) {
     preference: user.preference,
     destino: user.destino,
     createdAt: user.createdAt,
+    avatar: user.avatar,
   }
     })
   } catch (error) {
