@@ -6,26 +6,31 @@ export async function GET(
   { params }: { params: { id: string } }
 ) {
   try {
-    const business = await prisma.user.findUnique({
+    const user = await prisma.user.findUnique({
       where: { id: params.id },
       select: {
         id: true,
-        name: true,
         email: true,
+        name: true,
+        phone: true,
+        country: true,
+        budget: true,
+        preference: true,
+        destino: true,
+        password: true,
         role: true,
         createdAt: true,
-        // 👇 agrega aquí relaciones si tienes tabla Business
-        // businessData: true,
+        businessId: true,
       },
     })
 
-    if (!business) {
-      return NextResponse.json({ error: 'Business not found' }, { status: 404 })
+    if (!user) {
+      return NextResponse.json({ error: 'User not found' }, { status: 404 })
     }
 
-    return NextResponse.json(business)
+    return NextResponse.json(user)
   } catch (error) {
-    console.error('Error fetching business:', error)
+    console.error('Error fetching user:', error)
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 })
   }
 }

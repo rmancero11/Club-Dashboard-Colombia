@@ -1,9 +1,32 @@
-export default function UnauthorizedPage() {
-  return (
-    <div className="flex h-screen items-center justify-center">
-      <h1 className="text-2xl font-bold text-red-600">
-        Acceso denegado. No tienes permisos de administrador.
-      </h1>
-    </div>
-  );
+"use client";
+import { useEffect, useState } from "react";
+import UserProfile from "@/app/components/UserProfile";
+
+export default function ProfilePage() {
+  const [user, setUser] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function fetchUser() {
+      try {
+        const res = await fetch('/api/auth/me', {
+          credentials: 'include', // si usás cookies
+        });
+        if (!res.ok) throw new Error("No se pudo obtener usuario");
+        const data = await res.json();
+        setUser(data.user);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    fetchUser();
+  }, []);
+
+  if (loading) return <p>Cargando...</p>;
+  if (!user) return <p>No se encontró usuario</p>;
+
+  return <UserProfile user={user} />;
 }

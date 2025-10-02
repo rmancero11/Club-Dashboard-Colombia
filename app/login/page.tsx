@@ -80,17 +80,16 @@ const LoginPage = () => {
                 <div className="flex flex-col gap-2 items-center">
                   <h4 className="flex items-center text-primary text-3xl md:text-5xl">
                     <Image
-                      src="/isologoazul.webp"
-                      className="flex h-20"
+                      src="/logoclubsolteros.svg"
+                      className="flex h-32"
                       alt="logo"
-                      width={75}
-                      height={80}
+                      width={250}
+                      height={200}
+
                     />
-                    <span className="font-bold">Qik</span>
-                    <p>starts</p>
                   </h4>
                   <p className="text-gray-600 text-center font-medium max-w-[200px] md:max-w-full">
-                    El éxito de tu marca es la voz de tu cliente
+                    Únete a experiencias únicas
                   </p>
                 </div>
                 <div className="mt-20 md:mt-8 flex flex-col gap-4 text-sm">
@@ -132,14 +131,12 @@ const LoginPage = () => {
               <div className="my-auto relative flex flex-col gap-4 w-full max-w-[400px] px-8">
                 <div className="flex justify-center items-center text-primary text-3xl md:text-5xl">
                   <Image
-                    src="/isologoazul.webp"
+                    src="/logoclubsolteros.svg"
                     className="flex h-20"
                     alt="logo"
                     width={75}
                     height={80}
                   />
-                  <span className="font-bold">Qik</span>
-                  <p>starts</p>
                 </div>
                 <Button onClick={loginDemo} type="button" loading={loading}>
                   Start demo
@@ -160,7 +157,7 @@ const LoginPage = () => {
           </div>
           <div className="fixed hidden md:relative top-0 md:flex w-full md:w-3/5 h-[30vh] md:h-full rounded-bl-full rounded-br-full md:rounded-br-none md:rounded-tl-full md:rounded-l-full overflow-hidden bg-gradient-to-b">
             <Image
-              src="/loginbanner.webp"
+              src="/loginbanner.jpg"
               alt="banner"
               className="absolute z-0 w-full h-full object-cover"
               width={2048}

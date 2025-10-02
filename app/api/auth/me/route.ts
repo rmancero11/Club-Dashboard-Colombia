@@ -19,11 +19,17 @@ export async function GET(req: Request) {
 
     return NextResponse.json({
       user: {
-        id: user.id,
-        name: user.name,
-        email: user.email,
-        role: user.role,
-      }
+    id: user.id,
+    name: user.name,
+    email: user.email,
+    role: user.role,
+    phone: user.phone,
+    country: user.country,
+    budget: user.budget,
+    preference: user.preference,
+    destino: user.destino,
+    createdAt: user.createdAt,
+  }
     })
   } catch (error) {
     return NextResponse.json({ error: 'Token inválido' }, { status: 401 })

@@ -16,6 +16,7 @@ const config: Config = {
     },
     extend: {
       colors: {
+        primary: '#942B94',
         border: 'hsl(var(--border))',
         input: 'hsl(var(--input))',
         ring: 'hsl(var(--ring))',
@@ -36,10 +37,6 @@ const config: Config = {
         bronze: {
           DEFAULT: 'hsl(var(--bronze))',
           foreground: 'hsl(var(--bronze-foreground))'
-        },
-        primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))'
         },
         secondary: {
           DEFAULT: 'hsl(var(--secondary))',
