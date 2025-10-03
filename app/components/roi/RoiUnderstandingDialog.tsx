@@ -2,12 +2,10 @@ import { IconHelpCircle, IconInfoCircle } from '@tabler/icons-react'
 import { Alert, AlertDescription, AlertTitle } from '../ui/Alert'
 import { SlideOver } from '../ui/SlideOver'
 import { ScrollArea } from '../ui/ScrollArea'
-import { Button } from '../ui/Button'
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '../ui/ToolTip'
+import { HelpTrigger } from './HelpTrigger'
 
 export function RoiUnderstandingDialog({ tooltipContent }: { tooltipContent: string }) {
   return (
-
     <SlideOver
       title='Entendimiento del ROI'
       description='Mediantes los códigos QR de las encuestas de satisfacción de clientes, recaudamos los siguientes datos para la medición aproximada del ROI.'
@@ -15,18 +13,10 @@ export function RoiUnderstandingDialog({ tooltipContent }: { tooltipContent: str
       content={<Updates />}
       side='top'
     >
-      <Button variant='ghost' size='icon'>
-        <TooltipProvider>
-          <Tooltip>
-            <TooltipTrigger>
-              <IconHelpCircle className='h-4 w-4' />
-            </TooltipTrigger>
-            <TooltipContent>
-              <p>{tooltipContent}</p>
-            </TooltipContent>
-          </Tooltip>
-        </TooltipProvider>
-      </Button>
+      {/* 👇 Hijo directo de SheetTrigger asChild: forwardRef ✅ */}
+      <HelpTrigger variant="ghost" size="icon" tooltip={tooltipContent} aria-label="Ver explicación del ROI">
+        <IconHelpCircle className="h-4 w-4" />
+      </HelpTrigger>
     </SlideOver>
   )
 }
