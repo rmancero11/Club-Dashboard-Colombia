@@ -30,6 +30,17 @@ model User {
   avatar    String   @default("/images/default-avatar.png")
 }
 
+model Destino {
+  id          Int      @id @default(autoincrement())
+  nombre      String
+  precio      Float
+  descripcion String
+  incluidos   String   // Podría ser un JSON si querés una lista
+  imagen      String   // URL (ej. Cloudinary)
+  creadoEn    DateTime @default(now())
+  actualizadoEn DateTime @updatedAt
+}
+
 model Business {
   id            String     @id @default(cuid())
   Name          String

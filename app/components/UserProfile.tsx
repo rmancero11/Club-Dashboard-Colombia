@@ -1,5 +1,6 @@
 "use client"
 
+import DestinosList from "./DestinosList"
 import { useState } from "react"
 import { User } from "@/app/types/user"
 
@@ -97,7 +98,7 @@ export default function UserProfile({ user }: Props) {
           Aquí irán los agentes del viaje ✈️
         </div>
         <div className="bg-white rounded-2xl shadow-md p-6 text-center text-gray-500">
-          Aquí irán los destinos 🌍
+          <DestinosList userDestino={user.destino ?? ""} />
         </div>
         <div className="bg-white rounded-2xl shadow-md p-6 text-center text-gray-500 md:col-span-2">
           Aquí se mostrarán otros usuarios con su foto y nombre 👥
