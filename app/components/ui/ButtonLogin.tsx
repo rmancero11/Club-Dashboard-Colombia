@@ -1,47 +1,40 @@
-import { ReactNode, ButtonHTMLAttributes } from 'react'
-import { Icon } from '@iconify/react'
+'use client';
 
-const variants = {
-  primary: 'bg-primary text-white hover:bg-white hover:text-primary hover:border border-primary w-full',
-  warning: 'bg-warning text-white hover:bg-white hover:text-warning hover:border border-warning w-full',
-  error: 'btn btn-error text-white w-full'
-}
+import * as React from 'react';
 
-interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  children: ReactNode
-  loading?: boolean
-  disabled?: boolean
-  variant?: keyof typeof variants
-  loadingReplaceChildren?: boolean
-  onClick?: () => void
-}
-//
-export const Spinner = ({ size = 20 } = {}) => <Icon icon='gg:spinner' className='animate-spin' fontSize={size} />
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> & {
+  loading?: boolean;
+  variant?: 'primary' | 'outline' | 'ghost';
+};
 
-export const Button = ({
+export function Button({
   children,
   loading = false,
-  disabled = false,
-  type = 'button',
-  variant = 'primary',
-  loadingReplaceChildren = false,
-  onClick
-}: ButtonProps) => {
-  const loadingClassName = loading ? 'disabled:bg-gray-600 disabled:text-white' : ''
-  const variantClassName = variants[variant]
-  const baseClassName = `${variantClassName}  flex justify-center gap-2  px-4 py-3 cursor-pointer rounded-md duration-200`
-  const colorClassName = ''
-  const buttonClassName = `${baseClassName} ${colorClassName} ${loadingClassName}`
+  className = '',
+  variant = 'outline',
+  ...props
+}: ButtonProps) {
+  const base =
+    'inline-flex items-center justify-center rounded-md px-4 py-2 text-sm font-medium transition';
+  const styles: Record<string, string> = {
+    primary:
+      'bg-primary text-white hover:bg-primary/90 border border-primary shadow-md disabled:opacity-60',
+    outline:
+      'bg-white text-primary hover:bg-primary hover:text-white border border-primary shadow-md disabled:opacity-60',
+    ghost:
+      'bg-transparent text-primary hover:bg-primary/10 border border-transparent disabled:opacity-60',
+  };
+
   return (
-    <button type={type} disabled={loading || disabled} className={buttonClassName} onClick={onClick}>
-      {!!loadingReplaceChildren && loading && <Spinner />}
-      {!!loadingReplaceChildren && !loading && <>{children}</>}
-      {!loadingReplaceChildren && loading && (
-        <>
-          <Spinner /> {children}
-        </>
+    <button
+      className={`${base} ${styles[variant]} ${className}`}
+      disabled={loading || props.disabled}
+      {...props}
+    >
+      {loading && (
+        <span className="mr-2 inline-block h-4 w-4 animate-spin rounded-full border-2 border-white border-r-transparent" />
       )}
-      {!loadingReplaceChildren && !loading && <>{children}</>}
+      {children}
     </button>
-  )
+  );
 }

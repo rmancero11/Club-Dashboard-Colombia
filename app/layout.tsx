@@ -1,49 +1,19 @@
-import type { Metadata } from 'next';
-import { Inter } from 'next/font/google';
-import { AuthProvider } from './context/AuthContext';
-
-import './globals.css';
-import { Toaster } from '@/app/components/ui/toaster';
-
-const inter = Inter({ subsets: ['latin'] });
+// app/layout.tsx
+import type { Metadata } from "next";
+import { Inter } from "next/font/google";
+import "./globals.css";
 
 export const metadata: Metadata = {
-  title: 'Qik dashboard',
-  description: 'Developed by Qik starts',
+  title: { default: "ClubSolteros", template: "%s | ClubSolteros" },
+  description: "App Agencias de Viajes",
 };
 
-export default function RootLayout({
-  children,
-}: {
-  children: React.ReactNode;
-}) {
-  return (
-    <html lang="en">
-      <link
-        rel="apple-touch-icon"
-        sizes="180x180"
-        href="/favicons/apple-touch-icon.png"
-      />
-      <link
-        rel="icon"
-        type="image/png"
-        sizes="32x32"
-        href="/favicons/favicon-32x32.png"
-      />
-      <link
-        rel="icon"
-        type="image/png"
-        sizes="16x16"
-        href="/favicons/favicon-16x16.png"
-      />
-      <link rel="manifest" href="/favicons/site.webmanifest" />
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 
-      <body className={inter.className}>
-        <AuthProvider>
-          <Toaster />
-          {children}
-        </AuthProvider>
-      </body>
+export default function RootLayout({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="es" className={inter.variable}>
+      <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased">{children}</body>
     </html>
   );
 }

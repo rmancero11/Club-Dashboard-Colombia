@@ -1,9 +1,4 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Looking for ways to speed up your queries, or scale easily with your serverless or edge functions?
-// Try Prisma Accelerate: https://pris.ly/cli/accelerate-init
-
+// ================== Generators/Datasource ==================
 generator client {
   provider = "prisma-client-js"
 }
@@ -13,53 +8,77 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id         String  @id @default(uuid())
-  email      String   @unique
-  name       String?
-  phone      String? 
-  country    String?
-  budget     String?
-  preference String?
-  destino    String?
-  password   String
-  role       Role   @default(USER)
-  createdAt  DateTime @default(now())
-  business    Business? @relation(fields: [businessId], references: [id])
-  businessId  String?
-  avatar    String   @default("/images/default-avatar.png")
+// ================== Enums ==================
+enum Role {
+  USER // viajero con login
+  ADMIN
+  SELLER // agente/vendedor (dashboard interno)
 }
 
-model Destino {
-  id          Int      @id @default(autoincrement())
-  nombre      String
-  precio      Float
-  descripcion String
-  incluidos   String   // Podría ser un JSON si querés una lista
-  imagen      String   // URL (ej. Cloudinary)
-  creadoEn    DateTime @default(now())
-  actualizadoEn DateTime @updatedAt
+enum UserStatus {
+  ACTIVE
+  INACTIVE
 }
 
+enum ReservationStatus {
+  DRAFT
+  PENDING
+  CONFIRMED
+  CANCELED
+  COMPLETED
+}
+
+enum TaskStatus {
+  OPEN
+  IN_PROGRESS
+  DONE
+  CANCELLED
+}
+
+enum TaskPriority {
+  LOW
+  MEDIUM
+  HIGH
+}
+
+enum ActivityAction {
+  LOGIN
+  LOGOUT
+  CREATE_CLIENT
+  UPDATE_CLIENT
+  CREATE_RESERVATION
+  UPDATE_RESERVATION
+  CHANGE_STATUS
+  GENERATE_REPORT
+  NOTE
+}
+
+// ================== Núcleo multi-tenant ==================
 model Business {
-  id            String     @id @default(cuid())
-  Name          String
-  slug          String     @unique
-  IconoWhite    String?
-  Cover         String?
-  SocialMedia   Json?
-  Plan          String?
+  id              String   @id @default(cuid())
+  Name            String
+  slug            String   @unique
+  IconoWhite      String?
+  Cover           String?
+  SocialMedia     Json?
+  Plan            String?
   BusinessProgram String?
-  Template      String?
-  PricePlan     Int?
-  country       String?
-  createdAt     DateTime   @default(now())
-  sessionId     String?
+  Template        String?
+  PricePlan       Int?
+  country         String?
+  createdAt       DateTime @default(now())
+  sessionId       String?
+
   // Relaciones
-  users         User[]
-  branches      Branch[]
-  waiters       Waiter[]
-  customers     Customer[]
+  users        User[]
+  branches     Branch[]
+  destinations Destination[]
+  clients      Client[]
+  reservations Reservation[]
+  tasks        Task[]
+  activities   ActivityLog[]
+
+  @@index([slug])
 }
 
 model Branch {
@@ -71,52 +90,192 @@ model Branch {
   cover     String?
   country   String?
   createdAt DateTime @default(now())
-  // Relaciones
-  business   Business @relation(fields: [businessId], references: [id])
+
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
   businessId String
-  waiters    Waiter[]
-  customers  Customer[]
+
+  @@index([businessId, name])
 }
 
-model Waiter {
-  id        String   @id @default(cuid())
-  name      String
-  gender    String
+// ================== Usuarios (viajeros / agentes / admins) ==================
+model User {
+  id             String     @id @default(uuid())
+  email          String     @unique
+  name           String?
+  phone          String?
+  country        String?
+  budget         String?
+  preference     String?
+  destino        String?
+  password       String
+  role           Role       @default(USER)
+  status         UserStatus @default(ACTIVE)
+  createdAt      DateTime   @default(now())
+  avatar         String     @default("/images/default-avatar.png")
+  timezone       String? // p.ej. "America/Bogota"
+  commissionRate Decimal?   @db.Decimal(5, 2) // % comisión (para SELLER)
+
+  // Tenancy
+  business   Business? @relation(fields: [businessId], references: [id])
+  businessId String?
+
+  // Relaciones cuando es SELLER
+  sellerClients      Client[]      @relation("SellerClients")
+  sellerReservations Reservation[] @relation("SellerReservations")
+  sellerTasks        Task[]        @relation("SellerTasks")
+
+  // Vínculo 1:1 cuando el usuario es viajero (role=USER)
+  clientProfile Client? @relation("ClientUser")
+
+  activities ActivityLog[] @relation("UserActivities")
+
+  @@index([role, status])
+  @@index([businessId])
+}
+
+// ================== Viajes ==================
+model Destination {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  name            String
+  country         String
+  city            String?
+  description     String?
+  category        String? // playa, ciudad, montaña...
+  isActive        Boolean @default(true)
+  popularityScore Int     @default(0) // cache para "más populares"
+
+  reservations Reservation[]
+
   createdAt DateTime @default(now())
-  // Relaciones
-  business   Business @relation(fields: [businessId], references: [id])
-  businessId String
-  branch     Branch?  @relation(fields: [branchId], references: [id])
-  branchId   String?
-  feedbacks  Feedback[]
+  updatedAt DateTime @updatedAt
+
+  @@unique([businessId, name, country, city])
+  @@index([businessId, isActive, popularityScore])
+  @@index([country, city])
 }
 
-model Customer {
-  id        String   @id @default(cuid())
-  name      String?
-  email     String?
+model Client {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  // Dueño/gestor del cliente (agente)
+  sellerId String
+  seller   User   @relation("SellerClients", fields: [sellerId], references: [id], onDelete: Restrict)
+
+  // Vínculo opcional a la cuenta del viajero
+  userId String? @unique
+  user   User?   @relation("ClientUser", fields: [userId], references: [id], onDelete: SetNull)
+
+  name       String
+  email      String?
+  phone      String?
+  documentId String?
+  country    String?
+  city       String?
+  birthDate  DateTime?
+  tags       String[]  @default([])
+  notes      String?
+  isArchived Boolean   @default(false)
+
+  reservations Reservation[]
+  activities   ActivityLog[] @relation("ClientActivities")
+
   createdAt DateTime @default(now())
-  // Relaciones
-  business   Business @relation(fields: [businessId], references: [id])
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, sellerId, name])
+  @@index([email])
+  @@index([documentId])
+}
+
+model Reservation {
+  id         String   @id @default(uuid())
   businessId String
-  branch     Branch?  @relation(fields: [branchId], references: [id])
-  branchId   String?
-  feedbacks  Feedback[]
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  code String @unique // p.ej. RES-2025-000123
+
+  clientId String
+  client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
+
+  sellerId String
+  seller   User   @relation("SellerReservations", fields: [sellerId], references: [id], onDelete: Restrict)
+
+  destinationId String
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Restrict)
+
+  startDate   DateTime
+  endDate     DateTime
+  paxAdults   Int      @default(1)
+  paxChildren Int      @default(0)
+
+  currency    String            @default("USD")
+  totalAmount Decimal           @default(0) @db.Decimal(12, 2)
+  status      ReservationStatus @default(DRAFT)
+  notes       String?
+
+  tasks      Task[]        @relation("ReservationTasks")
+  activities ActivityLog[] @relation("ReservationActivities")
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, sellerId, status])
+  @@index([destinationId, status])
+  @@index([startDate, endDate])
+  @@index([clientId])
 }
 
-model Feedback {
-  id         String   @id @default(cuid())
-  rating     Int
-  comment    String?
-  createdAt  DateTime @default(now())
-  // Relaciones
-  customer   Customer @relation(fields: [customerId], references: [id])
-  customerId String
-  waiter     Waiter?  @relation(fields: [waiterId], references: [id])
-  waiterId   String?
+model Task {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  sellerId String
+  seller   User   @relation("SellerTasks", fields: [sellerId], references: [id], onDelete: Cascade)
+
+  reservationId String?
+  reservation   Reservation? @relation("ReservationTasks", fields: [reservationId], references: [id])
+
+  title       String
+  description String?
+  dueDate     DateTime?
+  status      TaskStatus   @default(OPEN)
+  priority    TaskPriority @default(MEDIUM)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([businessId, sellerId, status, priority])
+  @@index([reservationId])
 }
 
-enum Role {
-  USER
-  ADMIN
+model ActivityLog {
+  id         String   @id @default(uuid())
+  businessId String
+  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+
+  action   ActivityAction
+  message  String?
+  metadata Json?
+
+  userId String?
+  user   User?   @relation("UserActivities", fields: [userId], references: [id], onDelete: SetNull)
+
+  clientId String?
+  client   Client? @relation("ClientActivities", fields: [clientId], references: [id], onDelete: SetNull)
+
+  reservationId String?
+  reservation   Reservation? @relation("ReservationActivities", fields: [reservationId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([businessId, action, createdAt])
+  @@index([userId])
+  @@index([clientId])
+  @@index([reservationId])
 }

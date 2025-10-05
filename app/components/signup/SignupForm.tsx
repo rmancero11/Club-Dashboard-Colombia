@@ -1,116 +1,183 @@
-'use client'
+"use client";
 
-import { useForm, type SubmitHandler, useWatch } from 'react-hook-form'
-import { Input } from '../ui/InputLogin'
-import { Button } from '../ui/Button'
-import PasswordStrength from './PasswordStrength'
-import { useState, useEffect } from 'react'
-import { passwordStrength } from 'check-password-strength'
-import { cn } from '@/app/lib/utils'
+import { useState } from "react";
+import { useRouter } from "next/navigation";
+import { useForm, SubmitHandler } from "react-hook-form";
+import { useToast } from "@/app/hooks/useToast";
+import { Button } from "@/app/components/ui/ButtonLogin";
+import { Input } from "@/app/components/ui/InputLogin";
 
-type SignupInputs = {
-  name: string
-  email: string
-  phone: string
-  password: string
-}
+type Inputs = {
+  name: string;
+  email: string;
+  whatsapp?: string;
+  country?: string;
+  password: string;
+  confirmPassword: string;
+  commissionRate?: string;
+  businessSlug: string;
+};
 
-type Strength = 0 | 1 | 2 | 3
+export default function SignupForm() {
+  const { toast } = useToast();
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
 
-const SignupFormAdmin = () => {
-  const { register, handleSubmit, control, reset } = useForm<SignupInputs>()
-  const [strength, setStrength] = useState<Strength>(0)
-  const [message, setMessage] = useState<string | null>(null)
+  const { register, handleSubmit, watch } = useForm<Inputs>();
+  const pwd = watch("password");
 
-  const passwordInput = useWatch({
-    name: 'password',
-    control,
-  })
+  const onSubmit: SubmitHandler<Inputs> = async (values) => {
+    if (values.password !== values.confirmPassword) {
+      toast({
+        title: "Las contraseñas no coinciden",
+        variant: "destructive",
+      });
+      return;
+    }
 
-  const onSubmit: SubmitHandler<SignupInputs> = async (data) => {
+    setLoading(true);
     try {
-      const response = await fetch('/api/register-admin', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
-      })
+      const res = await fetch("/api/auth/signup-seller", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          name: values.name,
+          email: values.email,
+          whatsapp: values.whatsapp,
+          country: values.country,
+          password: values.password,
+          commissionRate: values.commissionRate
+            ? Number(values.commissionRate)
+            : undefined,
+          businessSlug: values.businessSlug,
+        }),
+      });
 
-      const result = await response.json()
+      const data = await res.json();
 
-      if (result.success) {
-        setMessage('✅ Administrador creado exitosamente')
-        reset()
-      } else {
-        setMessage('❌ ' + (result.message || 'No se pudo registrar'))
+      if (!res.ok) {
+        toast({
+          title: "No se pudo crear la cuenta",
+          description: data.error || "Intenta de nuevo.",
+          variant: "destructive",
+        });
+        setLoading(false);
+        return;
       }
-    } catch (err) {
-      setMessage('❌ Error de conexión con el servidor')
-    }
-  }
 
-  useEffect(() => {
-    if (passwordInput) {
-      setStrength(passwordStrength(passwordInput).id as Strength)
+      toast({
+        title: "Cuenta creada",
+        description: "Bienvenido al panel de vendedores.",
+        variant: "success",
+      });
+
+      // El endpoint setea cookie y loguea; redirigimos al dashboard
+      router.replace("/dashboard-seller");
+    } catch (e) {
+      toast({
+        title: "Error de conexión",
+        description: "No se pudo conectar con el servidor.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
-  }, [passwordInput])
+  };
 
   return (
-    <div className="flex flex-col gap-4 p-8 bg-primary rounded-3xl w-full max-w-md mx-auto">
-      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-4">
-        <h1 className="text-white font-bold text-3xl text-center">
-          Registro de Administrador
-        </h1>
+    <form
+      onSubmit={handleSubmit(onSubmit)}
+      className="my-auto relative flex flex-col gap-4 w-full max-w-[420px]"
+    >
+      <h2 className="text-2xl font-semibold">Crear cuenta de agente</h2>
+      <p className="text-sm text-gray-600">
+        Regístrate para acceder al dashboard de vendedores.
+      </p>
 
+      <div className="mt-2 flex flex-col gap-4 text-sm">
         <Input
           name="name"
-          label="Nombre"
-          placeholder="Nombre completo"
+          label="Nombre completo"
           register={register}
-          registerOptions={{ required: true }}
+          placeholder="Tu nombre"
+          required
         />
-
         <Input
           name="email"
+          label="Email"
           type="email"
-          label="Correo electrónico"
-          placeholder="admin@empresa.com"
           register={register}
-          registerOptions={{ required: true }}
+          placeholder="tucorreo@dominio.com"
+          required
+          autoComplete="email"
         />
-
         <Input
-          name="phone"
-          label="Teléfono"
-          placeholder="0987654321"
+          name="whatsapp"
+          label="WhatsApp"
           register={register}
+          placeholder="+57 300 000 0000"
         />
-
-        <div>
+        <Input
+          name="country"
+          label="País"
+          register={register}
+          placeholder="CO"
+        />
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input
             name="password"
-            type="password"
             label="Contraseña"
-            placeholder="********"
+            type="password"
             register={register}
-            registerOptions={{ required: true }}
+            required
+            autoComplete="new-password"
+            minLength={6}
           />
-          {passwordInput && <PasswordStrength strength={strength} />}
+          <Input
+            name="confirmPassword"
+            label="Confirmar contraseña"
+            type="password"
+            register={register}
+            required
+            autoComplete="new-password"
+            minLength={6}
+          />
         </div>
+        <Input
+          name="commissionRate"
+          label="Comisión (%) (opcional)"
+          type="number"
+          step="0.01"
+          min="0"
+          register={register}
+          placeholder="10.00"
+        />
+        <Input
+          name="businessSlug"
+          label="Slug de la empresa"
+          register={register}
+          placeholder="p.ej. clubsolteros"
+          required
+        />
+      </div>
 
-        <Button
-          type="submit"
-          className={cn('w-full text-base text-white bg-blue-700 py-3', {
-            'cursor-not-allowed opacity-50': strength <= 2,
-          })}
-          disabled={strength <= 2}
-        >
-          Crear administrador
+      <div className="flex items-start gap-2 text-xs text-gray-600">
+        <input type="checkbox" required className="mt-1" />
+        <span>
+          Acepto los{" "}
+          <a href="#" className="text-primary underline">
+            Términos y Condiciones
+          </a>
+          .
+        </span>
+      </div>
+
+      <div className="mt-1 flex flex-col justify-center items-center gap-3">
+        <Button type="submit" variant="primary" loading={loading}>
+          Crear cuenta
         </Button>
-
-        {message && <p className="text-center text-sm text-white">{message}</p>}
-      </form>
-    </div>
-  )
+      </div>
+    </form>
+  );
 }
-
-export default SignupFormAdmin

@@ -1,37 +1,75 @@
-import { NextResponse } from 'next/server'
-import jwt from 'jsonwebtoken'
-import { prisma } from '@/app/lib/prisma'
+import { NextResponse } from "next/server";
+import { cookies } from "next/headers";
+import { jwtVerify } from "jose";
+import prisma from "@/app/lib/prisma";
 
-export async function GET(req: Request) {
+const JWT_SECRET = process.env.JWT_SECRET || "";
+const enc = new TextEncoder();
+
+type Role = "ADMIN" | "SELLER" | "USER";
+
+export async function GET() {
   try {
-    const token = req.headers.get('cookie')?.split('token=')[1]?.split(';')[0]
+    const token = cookies().get("token")?.value;
     if (!token) {
-      return NextResponse.json({ error: 'No autenticado' }, { status: 401 })
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
     }
 
-    const decoded = jwt.verify(token, process.env.JWT_SECRET!) as { id: string }
-    const user = await prisma.user.findUnique({ where: { id: decoded.id } })
+    const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
+    const userId = payload?.id as string | undefined;
+    if (!userId) {
+      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+    }
+
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        phone: true,
+        country: true,
+        budget: true,
+        preference: true,
+        destino: true,
+        createdAt: true,
+        avatar: true,
+        businessId: true,
+        clientProfile: { select: { id: true } },
+      },
+    });
 
     if (!user) {
-      return NextResponse.json({ error: 'Usuario no encontrado' }, { status: 404 })
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+    }
+
+    if (user.status !== "ACTIVE") {
+      return NextResponse.json({ error: "Cuenta inactiva" }, { status: 403 });
     }
 
     return NextResponse.json({
       user: {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    phone: user.phone,
-    country: user.country,
-    budget: user.budget,
-    preference: user.preference,
-    destino: user.destino,
-    createdAt: user.createdAt,
-    avatar: user.avatar,
-  }
-    })
-  } catch (error) {
-    return NextResponse.json({ error: 'Token inválido' }, { status: 401 })
+        id: user.id,
+        name: user.name,
+        email: user.email,
+        role: user.role as Role,
+        phone: user.phone,
+        country: user.country,
+        budget: user.budget,
+        preference: user.preference,
+        destino: user.destino,
+        createdAt: user.createdAt,
+        avatar: user.avatar,
+        businessId: user.businessId,
+        clientProfileId: user.clientProfile?.id ?? null,
+      },
+    }, {
+      status: 200,
+      headers: { "Cache-Control": "no-store" },
+    });
+  } catch {
+    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
   }
 }
