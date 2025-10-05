@@ -1,32 +1,45 @@
-# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
-
 # dependencies
 /node_modules
 /.pnp
-.pnp.js
-.yarn/install-state.gz
+.pnp.* 
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
 # testing
 /coverage
 
 # next.js
 /.next/
-/out/
+out/
+.next-static/
 
 # production
 /build
 
 # misc
 .DS_Store
+Thumbs.db
 *.pem
 
 # debug
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+pnpm-debug.log*
 
-# local env files
-.env*.local
+# local env files (NUNCA subirlos)
+.env
+.env.local
+.env.development
+.env.development.local
+.env.production
+.env.production.local
+.env.test
+.env.test.local
 
 # vercel
 .vercel
@@ -35,4 +48,16 @@ yarn-error.log*
 *.tsbuildinfo
 next-env.d.ts
 
+# prisma (NO ignores migrations; se commitean)
+# Si alguna vez usas SQLite local:
+*.db
+*.db-journal
+
+# código generado
 /app/generated/prisma
+
+# IDEs/editores
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea
