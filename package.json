@@ -24,6 +24,8 @@
     "react": "^18",
     "react-dom": "^18",
     "react-hook-form": "^7.48.2",
+    "react-slick": "^0.31.0",
+    "slick-carousel": "^1.8.1",
     "zod": "^3.22.4"
   },
   "devDependencies": {

@@ -53,7 +53,7 @@ const LoginPage = () => {
       } else if (role === "SELLER") {
         router.replace("/dashboard-seller");
       } else if (role === "USER") {
-        router.replace("/dashboard-user");
+        router.replace("/dashboard-user/user-profile");
       } else {
         router.replace("/unauthorized");
       }

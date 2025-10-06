@@ -3,6 +3,7 @@
 import * as React from 'react';
 import { useRouter } from 'next/navigation';
 import Image from 'next/image';
+import DestinationsList from './DestinationList';
 
 type Role = 'ADMIN' | 'SELLER' | 'USER';
 
@@ -20,15 +21,8 @@ type UserShape = {
   avatar?: string | null;
   businessId?: string | null;
   clientProfileId?: string | null;
+  vendedor?: { nombre: string; telefono?: string } | null;
 };
-
-function roleColor(role: Role) {
-  switch (role) {
-    case 'ADMIN': return 'bg-purple-100 text-purple-700 border-purple-200';
-    case 'SELLER': return 'bg-emerald-100 text-emerald-700 border-emerald-200';
-    default: return 'bg-blue-100 text-blue-700 border-blue-200';
-  }
-}
 
 function formatDate(d?: string | Date | null) {
   if (!d) return '—';
@@ -37,18 +31,39 @@ function formatDate(d?: string | Date | null) {
   return date.toLocaleDateString('es-CO', { year: 'numeric', month: 'short', day: '2-digit' });
 }
 
-function getInitials(name?: string | null, email?: string) {
-  if (name && name.trim().length > 0) {
-    const parts = name.trim().split(/\s+/);
-    const first = parts[0]?.[0] ?? '';
-    const last = parts.length > 1 ? parts[parts.length - 1][0] ?? '' : '';
-    return (first + last).toUpperCase();
-  }
-  return (email?.[0] ?? '?').toUpperCase();
-}
-
 export default function UserProfile({ user }: { user: UserShape }) {
   const router = useRouter();
+  const [avatarPreview, setAvatarPreview] = React.useState<string>(
+    user.avatar ?? '/images/default-avatar.png'
+  );
+  const [loading, setLoading] = React.useState(false);
+
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const previewUrl = URL.createObjectURL(file);
+    setAvatarPreview(previewUrl);
+
+    const formData = new FormData();
+    formData.append('avatar', file);
+
+    try {
+      setLoading(true);
+      const res = await fetch('/api/user/avatar', {
+        method: 'POST',
+        body: formData,
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Error al subir avatar');
+      const data = await res.json();
+      setAvatarPreview(data.user.avatar); // URL real desde la API
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const logout = async () => {
     try {
@@ -58,77 +73,106 @@ export default function UserProfile({ user }: { user: UserShape }) {
   };
 
   return (
-    <div className="mx-auto w-full max-w-3xl rounded-2xl border bg-white p-6 shadow-sm">
-      {/* Header */}
-      <div className="flex items-center gap-4">
-        {/* Avatar (img si hay url, sino iniciales) */}
-        {user.avatar ? (
+    <div className="max-w-4xl mx-auto px-4">
+      {/* Header principal */}
+      <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col items-center md:flex-row md:items-start gap-6">
+        {/* Avatar con upload */}
+        <div className="flex-shrink-0 flex flex-col items-center">
           <Image
-            src={user.avatar}
-            alt={user.name ?? user.email}
-            className="h-16 w-16 rounded-full object-cover ring-2 ring-gray-100"
+            src={avatarPreview}
+            alt={user.name ?? 'User profile'}
+            className="w-32 h-32 rounded-full border-4 border-purple-500 object-cover"
+            width={128}
+            height={128}
           />
-        ) : (
-          <div className="flex h-16 w-16 items-center justify-center rounded-full bg-gray-100 text-lg font-semibold text-gray-700 ring-2 ring-gray-100">
-            {getInitials(user.name, user.email)}
-          </div>
-        )}
-
-        <div className="flex-1">
-          <h1 className="text-xl font-semibold">{user.name || 'Sin nombre'}</h1>
-          <div className="mt-1 flex flex-wrap items-center gap-2 text-sm text-gray-600">
-            <span>{user.email}</span>
-            <span className="text-gray-300">•</span>
-            <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-xs font-medium ${roleColor(user.role)}`}>
-              {user.role}
-            </span>
-            {user.businessId && (
-              <>
-                <span className="text-gray-300">•</span>
-                <span className="text-gray-500">Business: {user.businessId.slice(0, 8)}…</span>
-              </>
-            )}
-          </div>
+          <label
+            htmlFor="avatar-upload"
+            className="mt-3 text-sm text-white bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md cursor-pointer"
+          >
+            {loading ? 'Subiendo...' : 'Cambiar foto'}
+          </label>
+          <input
+            id="avatar-upload"
+            type="file"
+            accept="image/*"
+            onChange={handleAvatarChange}
+            className="hidden"
+          />
         </div>
 
-        <button
-          onClick={logout}
-          className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
-        >
-          Cerrar sesión
-        </button>
+        {/* Información principal */}
+        <div className="flex-1 w-full">
+          <div className="flex justify-between items-start">
+            <div>
+              <h1 className="text-2xl font-bold text-gray-800">{user.name ?? 'Sin nombre'}</h1>
+              <p className="text-gray-600">{user.email}</p>
+              <span className="inline-block mt-1 text-xs font-medium bg-purple-100 text-purple-700 px-2 py-0.5 rounded-md">
+                {user.role}
+              </span>
+            </div>
+            <div className="flex gap-2">
+    <button
+      onClick={() => router.push('/profile/edit')}
+      className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
+    >
+      Editar perfil
+    </button>
+
+    <button
+      onClick={logout}
+      className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"
+    >
+      Cerrar sesión
+    </button>
+    </div>
+          </div>
+
+          {/* Detalles */}
+          <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="bg-purple-50 rounded-lg p-4">
+              <p className="text-sm text-gray-500">Teléfono</p>
+              <p className="font-medium text-gray-800">{user.phone ?? 'No especificado'}</p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-4">
+              <p className="text-sm text-gray-500">País</p>
+              <p className="font-medium text-gray-800">{user.country ?? 'No especificado'}</p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-4">
+              <p className="text-sm text-gray-500">Preferencia</p>
+              <p className="font-medium text-gray-800">{user.preference ?? 'No especificado'}</p>
+            </div>
+            <div className="bg-purple-50 rounded-lg p-4">
+              <p className="text-sm text-gray-500">Destino de interés</p>
+              <p className="font-medium text-gray-800">{user.destino ?? 'No especificado'}</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* Info grid */}
-      <div className="mt-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
-        <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Teléfono</div>
-          <div className="mt-1 text-sm">{user.phone || '—'}</div>
-        </div>
-        <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">País</div>
-          <div className="mt-1 text-sm">{user.country || '—'}</div>
-        </div>
-        <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Presupuesto</div>
-          <div className="mt-1 text-sm">{user.budget || '—'}</div>
-        </div>
-        <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Preferencias</div>
-          <div className="mt-1 text-sm">{user.preference || '—'}</div>
-        </div>
-        <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Destino de interés</div>
-          <div className="mt-1 text-sm">{user.destino || '—'}</div>
-        </div>
-        <div className="rounded-xl border p-4">
-          <div className="text-xs uppercase tracking-wide text-gray-500">Creado</div>
-          <div className="mt-1 text-sm">{formatDate(user.createdAt)}</div>
+      {/* Secciones adicionales */}
+      {/* Destinos */}
+      <div className="mt-8">
+        <h2 className="text-xl font-bold mb-4">Destinos recomendados</h2>
+        <DestinationsList userDestino={user.destino ?? undefined} />
+      </div>
+
+      {/* Vendedor / viajeros */}
+      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="bg-white rounded-2xl shadow-md p-6 text-center text-gray-500">
+          {user.vendedor ? (
+            <p className="text-gray-700 font-medium">
+              Vendedor asignado: {user.vendedor.nombre}
+              {user.vendedor.telefono && <span> ({user.vendedor.telefono})</span>}
+            </p>
+          ) : (
+            <p className="text-gray-500">No tienes un vendedor asignado</p>
+          )}
         </div>
       </div>
 
-      {/* Acciones / accesos rápidos */}
-      <div className="mt-6 flex flex-wrap gap-3">
+
+      {/* Acceso rápido */}
+      <div className="mt-8 flex flex-wrap gap-3 justify-center">
         {user.role === 'ADMIN' && (
           <a href="/dashboard-admin" className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-black/90">
             Ir al Dashboard Admin
@@ -143,11 +187,6 @@ export default function UserProfile({ user }: { user: UserShape }) {
           <a href="/dashboard-user" className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-black/90">
             Ir a mi Dashboard
           </a>
-        )}
-        {user.clientProfileId && (
-          <span className="rounded-lg border px-3 py-2 text-sm text-gray-700">
-            Perfil CRM conectado
-          </span>
         )}
       </div>
     </div>
