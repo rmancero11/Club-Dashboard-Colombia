@@ -6,6 +6,9 @@ const allowedOrigin = "https://clubdeviajerossolteros.com";
 const BUSINESS_SLUG_DEFAULT = process.env.BUSINESS_SLUG_DEFAULT ?? "clubdeviajeros";
 const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
 
+// 👉 NUEVO: URL de redirección
+const DASHBOARD_REDIRECT_URL = "https://clubsocial-phi.vercel.app/dashboard-user";
+
 function corsHeaders(origin: string) {
   return {
     "Access-Control-Allow-Origin": origin,
@@ -77,8 +80,8 @@ export async function POST(req: Request) {
           preference: preferencia,
           destino,
           password: hashedPassword,
-          role: "USER",                        
-          businessId: business?.id ?? null,    
+          role: "USER",
+          businessId: business?.id ?? null,
         },
         select: {
           id: true, email: true, name: true, phone: true, country: true,
@@ -177,8 +180,9 @@ export async function POST(req: Request) {
       return { newUser, clientId };
     });
 
+    // 👉 NUEVO: incluimos redirectUrl en el payload
     return NextResponse.json(
-      { success: true, usuario: result.newUser, clientId: result.clientId },
+      { success: true, usuario: result.newUser, clientId: result.clientId, redirectUrl: DASHBOARD_REDIRECT_URL },
       { status: 201, headers: corsHeaders(origin) }
     );
   } catch (error) {
