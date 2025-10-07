@@ -3,7 +3,7 @@ import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import prisma from "@/app/lib/prisma";
 
-const JWT_SECRET = process.env.JWT_SECRET || "";
+const JWT_SECRET = process.env.JWT_SECRET;
 const enc = new TextEncoder();
 
 type Role = "ADMIN" | "SELLER" | "USER";

@@ -197,37 +197,26 @@ export async function POST(req: Request) {
       return { newUser, clientId };
     });
 
-    const token = await new SignJWT({
+    const r = await new SignJWT({
       sub: result.newUser.id,
-      email: result.newUser.email,
-      role: result.newUser.role,
-      businessID: result.newUser.businessId ?? null,
+      purpose: "onboard",
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
-      .setExpirationTime("7d")
+      .setExpirationTime("2m")
       .sign(enc.encode(JWT_SECRET));
 
-    const res = NextResponse.json(
+    const redirectUrl = `https://clubsocial-phi.vercel.app/api/auth/accept-register?r=${encodeURIComponent(r)}&next=/dashboard-user`;
+
+    return NextResponse.json(
       {
         success: true,
         usuario: result.newUser,
         clientId: result.clientId,
-        redirectUrl: DASHBOARD_REDIRECT_URL,
+        redirectUrl
       },
       { status: 201, headers: corsHeaders(origin) }
     );
-
-    res.cookies.set("token", token, {
-      httpOnly: true,
-      secure: true,
-      sameSite: "none",
-      path: "/",
-      maxAge: 60 * 60 * 24 * 7,
-      ...(process.env.VERCEL ? { domain: "clubsocial-phi.vercel.app" } : {}),
-    });
-
-    return res;
   } catch (error) {
     console.error("Error al registrar:", error);
     return NextResponse.json(
