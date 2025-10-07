@@ -3,18 +3,21 @@ import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 
 const allowedOrigin = "https://clubdeviajerossolteros.com";
-const BUSINESS_SLUG_DEFAULT = process.env.BUSINESS_SLUG_DEFAULT ?? "clubdeviajeros";
+const BUSINESS_SLUG_DEFAULT =
+  process.env.BUSINESS_SLUG_DEFAULT ?? "clubdeviajeros";
 const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
 
 // 👉 NUEVO: URL de redirección
-const DASHBOARD_REDIRECT_URL = "https://clubsocial-phi.vercel.app/dashboard-user";
+const DASHBOARD_REDIRECT_URL =
+  "https://clubsocial-phi.vercel.app/dashboard-user";
 
 function corsHeaders(origin: string) {
   return {
     "Access-Control-Allow-Origin": origin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
-    "Vary": "Origin",
+    "Access-Control-Allow-Credentials": "true",
+    Vary: "Origin",
   };
 }
 
@@ -44,13 +47,13 @@ export async function POST(req: Request) {
       preferencia,
       destino,
       password,
-      businessSlug, 
+      businessSlug,
     } = body ?? {};
 
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: "Email y Contraseña son obligatorios" },
-        { status: 200, headers: corsHeaders(origin) } 
+        { status: 200, headers: corsHeaders(origin) }
       );
     }
 
@@ -84,9 +87,17 @@ export async function POST(req: Request) {
           businessId: business?.id ?? null,
         },
         select: {
-          id: true, email: true, name: true, phone: true, country: true,
-          role: true, status: true, avatar: true, businessId: true, createdAt: true
-        }
+          id: true,
+          email: true,
+          name: true,
+          phone: true,
+          country: true,
+          role: true,
+          status: true,
+          avatar: true,
+          businessId: true,
+          createdAt: true,
+        },
       });
 
       let clientId: string | null = null;
@@ -112,10 +123,7 @@ export async function POST(req: Request) {
           const existingClient = await tx.client.findFirst({
             where: {
               businessId: business.id,
-              OR: [
-                { email },
-                whatsapp ? { phone: whatsapp } : { id: "" },
-              ],
+              OR: [{ email }, whatsapp ? { phone: whatsapp } : { id: "" }],
             },
             select: { id: true, userId: true },
           });
@@ -127,7 +135,9 @@ export async function POST(req: Request) {
             presupuesto ? `Presupuesto: ${presupuesto}` : null,
             destino ? `Destino de interés: ${destino}` : null,
             preferencia ? `Preferencias: ${preferencia}` : null,
-          ].filter(Boolean).join(" | ");
+          ]
+            .filter(Boolean)
+            .join(" | ");
 
           if (existingClient) {
             const updated = await tx.client.update({
@@ -139,7 +149,7 @@ export async function POST(req: Request) {
                 tags: tags.length ? { push: tags } : undefined,
                 notes: notes ? { set: notes } : undefined,
               },
-              select: { id: true }
+              select: { id: true },
             });
             clientId = updated.id;
           } else {
@@ -147,7 +157,7 @@ export async function POST(req: Request) {
               data: {
                 businessId: business.id,
                 sellerId: seller.id,
-                userId: newUser.id, 
+                userId: newUser.id,
                 name: name ?? email,
                 email,
                 phone: whatsapp ?? null,
@@ -155,7 +165,7 @@ export async function POST(req: Request) {
                 tags,
                 notes: notes || null,
               },
-              select: { id: true }
+              select: { id: true },
             });
             clientId = created.id;
           }
@@ -171,7 +181,9 @@ export async function POST(req: Request) {
             },
           });
         } else {
-          console.warn("[register] No SELLER activo disponible; se creó solo User.");
+          console.warn(
+            "[register] No SELLER activo disponible; se creó solo User."
+          );
         }
       } else {
         console.warn("[register] Business no encontrado; se creó solo User.");
@@ -182,7 +194,12 @@ export async function POST(req: Request) {
 
     // 👉 NUEVO: incluimos redirectUrl en el payload
     return NextResponse.json(
-      { success: true, usuario: result.newUser, clientId: result.clientId, redirectUrl: DASHBOARD_REDIRECT_URL },
+      {
+        success: true,
+        usuario: result.newUser,
+        clientId: result.clientId,
+        redirectUrl: DASHBOARD_REDIRECT_URL,
+      },
       { status: 201, headers: corsHeaders(origin) }
     );
   } catch (error) {
