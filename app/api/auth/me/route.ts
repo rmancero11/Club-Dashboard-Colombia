@@ -4,6 +4,9 @@ import { jwtVerify } from "jose";
 import prisma from "@/app/lib/prisma";
 
 const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET no está definido en las variables de entorno");
+}
 const enc = new TextEncoder();
 
 type Role = "ADMIN" | "SELLER" | "USER";
@@ -17,7 +20,7 @@ export async function GET() {
 
     const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
     const userId =
-      (payload?.id as string | undefined) ||
+      (payload?.sub as string | undefined) ||
       (payload as any)?.id;
     if (!userId) {
       return NextResponse.json({ error: "Token inválido" }, { status: 401, headers: { "Cache-Control": "no-store" } });
