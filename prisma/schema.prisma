@@ -120,9 +120,10 @@ model User {
   businessId String?
 
   // Relaciones cuando es SELLER
-  sellerClients      Client[]      @relation("SellerClients")
-  sellerReservations Reservation[] @relation("SellerReservations")
-  sellerTasks        Task[]        @relation("SellerTasks")
+  sellerClients       Client[]             @relation("SellerClients")
+  sellerReservations  Reservation[]        @relation("SellerReservations")
+  sellerTasks         Task[]               @relation("SellerTasks")
+  passwordResetTokens PasswordResetToken[]
 
   // Vínculo 1:1 cuando el usuario es viajero (role=USER)
   clientProfile Client? @relation("ClientUser")
@@ -278,4 +279,21 @@ model ActivityLog {
   @@index([userId])
   @@index([clientId])
   @@index([reservationId])
+}
+
+model PasswordResetToken {
+  id     String @id @default(uuid())
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // guarda SOLO el hash del token (no el token plano)
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  ip        String?
+  userAgent String?
+
+  createdAt DateTime @default(now())
+
+  @@index([userId, expiresAt])
 }

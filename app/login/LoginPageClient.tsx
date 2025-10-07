@@ -8,6 +8,7 @@ import { Button } from "@/app/components/ui/ButtonLogin";
 import { Input } from "@/app/components/ui/InputLogin";
 import Image from "next/image";
 import Link from "next/link";
+import ForgotPasswordPanel from "@/app/components/auth/ForgotPasswordPanel";
 
 type Inputs = { email: string; password: string };
 
@@ -24,6 +25,7 @@ export default function LoginPageClient({
   const isDemo = searchParams.get("demo") === "true";
 
   const [loading, setLoading] = useState(false);
+  const [showForgot, setShowForgot] = useState(false);
   const { register, handleSubmit } = useForm<Inputs>();
 
   const onSubmit: SubmitHandler<Inputs> = async ({ email, password }) => {
@@ -50,7 +52,7 @@ export default function LoginPageClient({
       else if (role === "SELLER") router.replace("/dashboard-seller");
       else if (role === "USER") router.replace("/dashboard-user");
       else router.replace("/unauthorized");
-    } catch (error) {
+    } catch {
       toast({
         title: "Error de conexión",
         description: "No se pudo conectar con el servidor.",
@@ -69,7 +71,7 @@ export default function LoginPageClient({
     <section>
       <div className="flex items-center h-screen">
         <div className="z-[1000] w-full md:w-2/5 h-full flex flex-col items-center">
-          {!isDemo && (
+          {!isDemo && !showForgot && (
             <form
               onSubmit={handleSubmit(onSubmit)}
               className="my-auto relative flex flex-col gap-4 w-full max-w-[400px] px-8"
@@ -77,7 +79,7 @@ export default function LoginPageClient({
               <div className="flex flex-col gap-2 items-center">
                 <h4 className="flex items-center text-primary text-3xl md:text-5xl">
                   <Image
-                    src={icon} // <— dinámico
+                    src={icon}
                     className="h-25 w-auto"
                     alt="logo"
                     width={250}
@@ -122,11 +124,19 @@ export default function LoginPageClient({
               </div>
 
               <div className="mt-4">
-                <div className="cursor-pointer text-center hover:text-primary hover:font-bold duration-200 font-sans">
+                <button
+                  type="button"
+                  onClick={() => setShowForgot(true)}
+                  className="w-full cursor-pointer text-center hover:text-primary hover:font-bold duration-200 font-sans"
+                >
                   Forgot your password?
-                </div>
+                </button>
               </div>
             </form>
+          )}
+
+          {!isDemo && showForgot && (
+            <ForgotPasswordPanel onBack={() => setShowForgot(false)} />
           )}
 
           {isDemo && (
@@ -156,8 +166,8 @@ export default function LoginPageClient({
           <Image
             src={cover}
             alt="banner"
-            fill 
-            className="object-cover object-center" 
+            fill
+            className="object-cover object-center"
             priority
           />
           <div className="hidden md:flex bg-black/40 absolute inset-0 md:rounded-tl-full md:rounded-l-full z-[10000]" />
