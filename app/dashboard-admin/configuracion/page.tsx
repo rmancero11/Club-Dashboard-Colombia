@@ -54,9 +54,6 @@ export default async function AdminSettingsPage() {
       <section className="rounded-xl border bg-white p-4">
         <h2 className="mb-2 text-lg font-semibold">Empresa</h2>
         <BusinessSettingsForm business={biz} />
-        <div className="mt-3 text-xs text-gray-500">
-          ID: {biz.id} · Slug: <code>{biz.slug}</code> · Creado: {new Date(biz.createdAt).toLocaleString("es-CO")}
-        </div>
       </section>
 
       {/* Sucursales */}

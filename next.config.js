@@ -3,10 +3,8 @@ const nextConfig = {
   images: {
     domains: ['via.placeholder.com'],
     remotePatterns: [
-      {
-        protocol: 'https',
-        hostname: 'res.cloudinary.com',
-      },
+      { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' }, 
+      { protocol: 'https', hostname: 'static.vecteezy.com', pathname: '/**' }, 
     ],
   },
 
