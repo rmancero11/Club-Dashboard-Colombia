@@ -34,8 +34,8 @@ function formatDate(d?: string | Date | null) {
 export default function UserProfile({ user }: { user: UserShape }) {
   const router = useRouter();
   const [avatarPreview, setAvatarPreview] = React.useState<string>(
-    user.avatar ?? '/images/default-avatar.png'
-  );
+  user.avatar ?? '/images/default-avatar.png'
+);
   const [loading, setLoading] = React.useState(false);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -112,12 +112,11 @@ export default function UserProfile({ user }: { user: UserShape }) {
             </div>
             <div className="flex gap-2">
     <button
-      onClick={() => router.push('/profile/edit')}
+      onClick={() => router.push(`/dashboard-user/config/${user.id}`)}
       className="rounded-md border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50"
     >
       Editar perfil
     </button>
-
     <button
       onClick={logout}
       className="rounded-md border border-red-200 px-3 py-2 text-sm font-medium text-red-600 hover:bg-red-50"

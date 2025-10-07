@@ -112,10 +112,9 @@ model User {
   status         UserStatus @default(ACTIVE)
   createdAt      DateTime   @default(now())
   avatar         String     @default("/images/default-avatar.png")
-  timezone       String? // p.ej. "America/Bogota"
-  commissionRate Decimal?   @db.Decimal(5, 2) // % comisión (para SELLER)
+  timezone       String?
+  commissionRate Decimal?   @db.Decimal(5, 2)
 
-  // Tenancy
   business   Business? @relation(fields: [businessId], references: [id])
   businessId String?
 
@@ -124,8 +123,10 @@ model User {
   sellerReservations  Reservation[]        @relation("SellerReservations")
   sellerTasks         Task[]               @relation("SellerTasks")
   passwordResetTokens PasswordResetToken[]
+  sellerClients      Client[]      @relation("SellerClients")
+  sellerReservations Reservation[] @relation("SellerReservations")
+  sellerTasks        Task[]        @relation("SellerTasks")
 
-  // Vínculo 1:1 cuando el usuario es viajero (role=USER)
   clientProfile Client? @relation("ClientUser")
 
   activities ActivityLog[] @relation("UserActivities")
@@ -133,6 +134,7 @@ model User {
   @@index([role, status])
   @@index([businessId])
 }
+
 
 // ================== Viajes ==================
 model Destination {

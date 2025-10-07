@@ -41,9 +41,11 @@ export async function POST(req: Request) {
 
     // 5️⃣ Actualizar usuario en DB con la URL de Cloudinary
     const updatedUser = await prisma.user.update({
-      where: { id: decoded.id },
-      data: { avatar: uploadResult.secure_url },
-    });
+  where: { id: decoded.id },
+  data: {
+    avatar: uploadResult.secure_url, // SOLO esto
+  },
+});
 
     return NextResponse.json({ user: updatedUser });
   } catch (error) {
