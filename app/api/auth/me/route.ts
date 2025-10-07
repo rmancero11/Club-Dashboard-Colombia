@@ -12,13 +12,15 @@ export async function GET() {
   try {
     const token = cookies().get("token")?.value;
     if (!token) {
-      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+      return NextResponse.json({ error: "No autenticado" }, { status: 401, headers: { "Cache-Control": "no-store"} });
     }
 
     const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
-    const userId = payload?.id as string | undefined;
+    const userId =
+      (payload?.id as string | undefined) ||
+      (payload as any)?.id;
     if (!userId) {
-      return NextResponse.json({ error: "Token inválido" }, { status: 401 });
+      return NextResponse.json({ error: "Token inválido" }, { status: 401, headers: { "Cache-Control": "no-store" } });
     }
 
     const user = await prisma.user.findUnique({
@@ -42,11 +44,11 @@ export async function GET() {
     });
 
     if (!user) {
-      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+      return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404, headers: { "Cache-Control": "no-store" } });
     }
 
     if (user.status !== "ACTIVE") {
-      return NextResponse.json({ error: "Cuenta inactiva" }, { status: 403 });
+      return NextResponse.json({ error: "Cuenta inactiva" }, { status: 403, headers: { "Cache-Control": "no-store" } });
     }
 
     return NextResponse.json({
@@ -70,6 +72,6 @@ export async function GET() {
       headers: { "Cache-Control": "no-store" },
     });
   } catch {
-    return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    return NextResponse.json({ error: "No autenticado" }, { status: 401, headers: { "Cache-Control": "no-store" } });
   }
 }
