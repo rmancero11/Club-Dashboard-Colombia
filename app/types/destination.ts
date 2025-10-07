@@ -10,4 +10,5 @@ export interface DestinationDTO {
   popularityScore: number;
   createdAt: string; // o Date si lo parseas
   updatedAt: string;
+  imageUrl: string;
 }
