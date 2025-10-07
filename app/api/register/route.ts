@@ -1,15 +1,21 @@
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
+import { SignJWT } from "jose";
 
 const allowedOrigin = "https://clubdeviajerossolteros.com";
 const BUSINESS_SLUG_DEFAULT =
   process.env.BUSINESS_SLUG_DEFAULT ?? "clubdeviajeros";
 const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
-
-// 👉 NUEVO: URL de redirección
 const DASHBOARD_REDIRECT_URL =
   "https://clubsocial-phi.vercel.app/dashboard-user";
+
+const JWT_SECRET = process.env.JWT_SECRET;
+if (!JWT_SECRET) {
+  throw new Error("JWT_SECRET no esta definido en las variables de entorno");
+}
+
+const enc = new TextEncoder();
 
 function corsHeaders(origin: string) {
   return {
@@ -29,7 +35,6 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const origin = req.headers.get("origin") || "";
   try {
-    // 1) CORS estricto: solo WP
     if (origin !== allowedOrigin) {
       return NextResponse.json(
         { success: false, message: "Origin no permitido" },
@@ -192,8 +197,18 @@ export async function POST(req: Request) {
       return { newUser, clientId };
     });
 
-    // 👉 NUEVO: incluimos redirectUrl en el payload
-    return NextResponse.json(
+    const token = await new SignJWT({
+      sub: result.newUser.id,
+      email: result.newUser.email,
+      role: result.newUser.role,
+      businessID: result.newUser.businessId ?? null,
+    })
+      .setProtectedHeader({ alg: "HS256", typ: "JWT" })
+      .setIssuedAt()
+      .setExpirationTime("7d")
+      .sign(enc.encode(JWT_SECRET));
+
+    const res = NextResponse.json(
       {
         success: true,
         usuario: result.newUser,
@@ -202,6 +217,17 @@ export async function POST(req: Request) {
       },
       { status: 201, headers: corsHeaders(origin) }
     );
+
+    res.cookies.set("token", token, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "none",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+      ...(process.env.VERCEL ? { domain: "clubsocial-phi.vercel.app" } : {}),
+    });
+
+    return res;
   } catch (error) {
     console.error("Error al registrar:", error);
     return NextResponse.json(
