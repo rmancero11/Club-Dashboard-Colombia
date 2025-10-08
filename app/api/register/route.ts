@@ -2,18 +2,13 @@ import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
+import { assignSellerAutomatically } from "@/app/lib/userService";
 
 const allowedOrigin = "https://clubdeviajerossolteros.com";
-const BUSINESS_SLUG_DEFAULT =
-  process.env.BUSINESS_SLUG_DEFAULT ?? "clubdeviajeros";
+const BUSINESS_SLUG_DEFAULT = process.env.BUSINESS_SLUG_DEFAULT ?? "clubdeviajeros";
 const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
-const DASHBOARD_REDIRECT_URL =
-  "https://clubsocial-phi.vercel.app/dashboard-user";
-
 const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET no esta definido en las variables de entorno");
-}
+if (!JWT_SECRET) throw new Error("JWT_SECRET no definido");
 
 const enc = new TextEncoder();
 
@@ -43,21 +38,11 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const {
-      name,
-      email,
-      country,
-      whatsapp,
-      presupuesto,
-      preferencia,
-      destino,
-      password,
-      businessSlug,
-    } = body ?? {};
+    const { name, email, country, whatsapp, presupuesto, preferencia, destino, password, businessSlug } = body ?? {};
 
     if (!email || !password) {
       return NextResponse.json(
-        { success: false, message: "Email y Contraseña son obligatorios" },
+        { success: false, message: "Email y contraseña son obligatorios" },
         { status: 200, headers: corsHeaders(origin) }
       );
     }
@@ -77,144 +62,61 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const result = await prisma.$transaction(async (tx) => {
-      const newUser = await tx.user.create({
-        data: {
-          email,
-          name,
-          phone: whatsapp,
-          country,
-          budget: presupuesto,
-          preference: preferencia,
-          destino,
-          password: hashedPassword,
-          role: "USER",
-          businessId: business?.id ?? null,
-        },
-        select: {
-          id: true,
-          email: true,
-          name: true,
-          phone: true,
-          country: true,
-          role: true,
-          status: true,
-          avatar: true,
-          businessId: true,
-          createdAt: true,
-        },
-      });
-
-      let clientId: string | null = null;
-
-      if (business?.id) {
-        let seller = await tx.user.findFirst({
-          where: { businessId: business.id, role: "SELLER", status: "ACTIVE" },
-          orderBy: { sellerClients: { _count: "asc" } },
-          select: { id: true },
-        });
-
-        if (!seller && SELLER_DEFAULT_ID) {
-          const s = await tx.user.findUnique({
-            where: { id: SELLER_DEFAULT_ID },
-            select: { id: true, role: true, status: true },
-          });
-          if (s?.role === "SELLER" && s?.status === "ACTIVE") {
-            seller = { id: s.id };
-          }
-        }
-
-        if (seller) {
-          const existingClient = await tx.client.findFirst({
-            where: {
-              businessId: business.id,
-              OR: [{ email }, whatsapp ? { phone: whatsapp } : { id: "" }],
-            },
-            select: { id: true, userId: true },
-          });
-
-          const tags: string[] = [];
-          if (preferencia) tags.push(`pref:${preferencia}`);
-          if (destino) tags.push(`dest:${destino}`);
-          const notes = [
-            presupuesto ? `Presupuesto: ${presupuesto}` : null,
-            destino ? `Destino de interés: ${destino}` : null,
-            preferencia ? `Preferencias: ${preferencia}` : null,
-          ]
-            .filter(Boolean)
-            .join(" | ");
-
-          if (existingClient) {
-            const updated = await tx.client.update({
-              where: { id: existingClient.id },
-              data: {
-                userId: existingClient.userId ?? newUser.id,
-                phone: whatsapp ?? undefined,
-                country: country ?? undefined,
-                tags: tags.length ? { push: tags } : undefined,
-                notes: notes ? { set: notes } : undefined,
-              },
-              select: { id: true },
-            });
-            clientId = updated.id;
-          } else {
-            const created = await tx.client.create({
-              data: {
-                businessId: business.id,
-                sellerId: seller.id,
-                userId: newUser.id,
-                name: name ?? email,
-                email,
-                phone: whatsapp ?? null,
-                country: country ?? null,
-                tags,
-                notes: notes || null,
-              },
-              select: { id: true },
-            });
-            clientId = created.id;
-          }
-
-          await tx.activityLog.create({
-            data: {
-              businessId: business.id,
-              action: "CREATE_CLIENT",
-              message: `Alta/actualización desde WordPress: ${name ?? email}`,
-              metadata: { destino, preferencia, presupuesto },
-              userId: newUser.id,
-              clientId: clientId!,
-            },
-          });
-        } else {
-          console.warn(
-            "[register] No SELLER activo disponible; se creó solo User."
-          );
-        }
-      } else {
-        console.warn("[register] Business no encontrado; se creó solo User.");
-      }
-
-      return { newUser, clientId };
+    // Crear usuario
+    const newUser = await prisma.user.create({
+      data: {
+        email,
+        name,
+        phone: whatsapp,
+        country,
+        budget: presupuesto,
+        preference: preferencia,
+        destino,
+        password: hashedPassword,
+        role: "USER",
+        businessId: business?.id ?? null,
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        phone: true,
+        country: true,
+        role: true,
+        status: true,
+        avatar: true,
+        businessId: true,
+        createdAt: true,
+      },
     });
 
-    const r = await new SignJWT({
-      sub: result.newUser.id,
-      purpose: "onboard",
-    })
+    // Asignación automática de vendedor y creación/actualización del client
+    let clientData = null;
+    if (business?.id) {
+      clientData = await assignSellerAutomatically({
+        userId: newUser.id,
+        businessId: business.id,
+        name,
+        email,
+        phone: whatsapp,
+        country,
+        destino,
+        preferencia,
+        sellerDefaultId: SELLER_DEFAULT_ID,
+      });
+    }
+
+    // Crear JWT para redirección
+    const token = await new SignJWT({ sub: newUser.id, purpose: "onboard" })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
       .setExpirationTime("2m")
       .sign(enc.encode(JWT_SECRET));
 
-    const redirectUrl = `https://clubsocial-phi.vercel.app/api/auth/accept-register?r=${encodeURIComponent(r)}&next=/dashboard-user`;
+    const redirectUrl = `https://clubsocial-phi.vercel.app/api/auth/accept-register?r=${encodeURIComponent(token)}&next=/dashboard-user`;
 
     return NextResponse.json(
-      {
-        success: true,
-        usuario: result.newUser,
-        clientId: result.clientId,
-        redirectUrl
-      },
+      { success: true, usuario: newUser, clientId: clientData?.clientId, redirectUrl },
       { status: 201, headers: corsHeaders(origin) }
     );
   } catch (error) {

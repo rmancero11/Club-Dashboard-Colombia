@@ -23,11 +23,21 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
   const d = await prisma.destination.findFirst({
     where: { id: params.id, businessId },
     select: {
-      id: true, name: true, country: true, city: true, category: true, description: true,
-      isActive: true, popularityScore: true, createdAt: true, updatedAt: true,
+      id: true,
+      name: true,
+      country: true,
+      city: true,
+      category: true,
+      description: true,
+      imageUrl: true, // <-- Traemos imageUrl
+      isActive: true,
+      popularityScore: true,
+      createdAt: true,
+      updatedAt: true,
       _count: { select: { reservations: true } },
     },
   });
+
   if (!d) notFound();
 
   const recentReservations = await prisma.reservation.findMany({
@@ -35,8 +45,14 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
     orderBy: { createdAt: "desc" },
     take: 8,
     select: {
-      id: true, code: true, totalAmount: true, currency: true, status: true,
-      client: { select: { name: true } }, startDate: true, endDate: true,
+      id: true,
+      code: true,
+      totalAmount: true,
+      currency: true,
+      status: true,
+      client: { select: { name: true } },
+      startDate: true,
+      endDate: true,
     },
   });
 
@@ -57,6 +73,12 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Editar destino</h2>
 
+          {d.imageUrl && (
+            <div className="mb-3">
+              <img src={d.imageUrl} alt={d.name} className="w-full rounded-md object-cover max-h-48" />
+            </div>
+          )}
+
           <EditDestinationForm
             dest={{
               id: d.id,
@@ -65,6 +87,7 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
               city: d.city,
               category: d.category,
               description: d.description,
+              imageUrl: d.imageUrl, // <-- Pasamos imageUrl al formulario
             }}
           />
 

@@ -18,15 +18,20 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
 
   useEffect(() => {
     const fetchDestinos = async () => {
+      setLoading(true)
+      setError(null)
+
       try {
+        // Si quieres traer solo los activos puedes agregar ?active=true
         const res = await fetch('/api/destination', { cache: 'no-store' })
         if (!res.ok) throw new Error('Error al cargar destinos')
 
         const { items } = await res.json()
         let sorted: DestinationDTO[] = items
 
+        // Filtrado por nombre si userDestino está definido
         if (userDestino) {
-          sorted = items.sort((a: DestinationDTO, b: DestinationDTO) => {
+          sorted = sorted.sort((a, b) => {
             const aMatch = normalize(a.name).includes(normalize(userDestino))
             const bMatch = normalize(b.name).includes(normalize(userDestino))
             if (aMatch && !bMatch) return -1
@@ -38,6 +43,7 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
         // Limitar a máximo 6 destinos
         setDestinos(sorted.slice(0, 6))
       } catch (err: any) {
+        console.error(err)
         setError(err.message || 'Error desconocido')
       } finally {
         setLoading(false)
@@ -83,7 +89,9 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
             )}
 
             <div className="mt-3">
-              <p className="text-purple-600 font-bold">Popularidad: {destino.popularityScore?.toFixed(1)}</p>
+              <p className="text-purple-600 font-bold">
+                Popularidad: {destino.popularityScore?.toFixed(1) || 0}
+              </p>
             </div>
           </div>
         </div>

@@ -79,8 +79,15 @@ export default async function AdminDestinationsPage({
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
-        id: true, name: true, country: true, city: true, category: true,
-        isActive: true, popularityScore: true, createdAt: true,
+        id: true,
+        name: true,
+        country: true,
+        city: true,
+        category: true,
+        isActive: true,
+        popularityScore: true,
+        createdAt: true,
+        imageUrl: true, // 👈 nuevo campo
         _count: { select: { reservations: true } },
       },
     }),
@@ -88,7 +95,17 @@ export default async function AdminDestinationsPage({
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (page > totalPages) {
-    redirect(`/dashboard-admin/destinos${qstr({ q, active, country, category, order, page: String(totalPages), pageSize: String(pageSize) })}`);
+    redirect(
+      `/dashboard-admin/destinos${qstr({
+        q,
+        active,
+        country,
+        category,
+        order,
+        page: String(totalPages),
+        pageSize: String(pageSize),
+      })}`
+    );
   }
 
   return (
@@ -96,40 +113,86 @@ export default async function AdminDestinationsPage({
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Destinos</h1>
-          <p className="text-sm text-gray-500">Mostrando {items.length} de {total.toLocaleString("es-CO")}.</p>
+          <p className="text-sm text-gray-500">
+            Mostrando {items.length} de {total.toLocaleString("es-CO")}.
+          </p>
         </div>
         <div className="flex gap-2">
-          <a href="/dashboard-admin/destinos/nuevo" className="rounded-lg bg-black px-4 py-2 text-white">Nuevo destino</a>
+          <a
+            href="/dashboard-admin/destinos/nuevo"
+            className="rounded-lg bg-black px-4 py-2 text-white"
+          >
+            Nuevo destino
+          </a>
         </div>
       </header>
 
       <div className="rounded-xl border bg-white p-6">
         <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-6" method="GET">
-          <input name="q" defaultValue={q} className="rounded-md border px-3 py-2 text-sm" placeholder="Buscar por nombre, país, categoría..." />
-          <select name="active" defaultValue={active} className="rounded-md border px-3 py-2 text-sm">
+          <input
+            name="q"
+            defaultValue={q}
+            className="rounded-md border px-3 py-2 text-sm"
+            placeholder="Buscar por nombre, país, categoría..."
+          />
+          <select
+            name="active"
+            defaultValue={active}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="">Estado (todos)</option>
             <option value="yes">Activos</option>
             <option value="no">Inactivos</option>
           </select>
-          <select name="country" defaultValue={country} className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="country"
+            defaultValue={country}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="">País (todos)</option>
-            {countryOpts.map(c => <option key={c} value={c}>{c}</option>)}
+            {countryOpts.map(c => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
-          <select name="category" defaultValue={category} className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="category"
+            defaultValue={category}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="">Categoría (todas)</option>
-            {categoryOpts.map(c => <option key={c} value={c}>{c}</option>)}
+            {categoryOpts.map(c => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
-          <select name="order" defaultValue={order} className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="order"
+            defaultValue={order}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="createdAt_desc">Más recientes</option>
             <option value="name_asc">Nombre (A–Z)</option>
             <option value="popularity_desc">Popularidad</option>
           </select>
           <div className="flex items-center gap-2">
-            <select name="pageSize" defaultValue={String(pageSize)} className="rounded-md border px-3 py-2 text-sm">
-              {[10, 20, 30, 50].map(n => <option key={n} value={n}>{n} / pág.</option>)}
+            <select
+              name="pageSize"
+              defaultValue={String(pageSize)}
+              className="rounded-md border px-3 py-2 text-sm"
+            >
+              {[10, 20, 30, 50].map(n => (
+                <option key={n} value={n}>
+                  {n} / pág.
+                </option>
+              ))}
             </select>
             <input type="hidden" name="page" value="1" />
-            <button className="rounded-md border px-2 py-2 text-sm" type="submit">Aplicar</button>
+            <button className="rounded-md border px-2 py-2 text-sm" type="submit">
+              Aplicar
+            </button>
           </div>
         </form>
 
@@ -148,26 +211,60 @@ export default async function AdminDestinationsPage({
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={7} className="px-2 py-10 text-center text-gray-400">Sin resultados</td></tr>
+                <tr>
+                  <td
+                    colSpan={7}
+                    className="px-2 py-10 text-center text-gray-400"
+                  >
+                    Sin resultados
+                  </td>
+                </tr>
               )}
               {items.map(d => (
                 <tr key={d.id} className="border-t">
                   <td className="px-2 py-2">
-                    <div className="font-medium">{d.name}</div>
-                    <div className="text-xs text-gray-600">Creado: {new Date(d.createdAt).toLocaleDateString("es-CO")}</div>
+                    <div className="flex items-center gap-3">
+                      {d.imageUrl && (
+                        <img
+                          src={d.imageUrl}
+                          alt={d.name}
+                          className="h-12 w-12 rounded-md object-cover border"
+                        />
+                      )}
+                      <div>
+                        <div className="font-medium">{d.name}</div>
+                        <div className="text-xs text-gray-600">
+                          Creado:{" "}
+                          {new Date(d.createdAt).toLocaleDateString("es-CO")}
+                        </div>
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-2 py-2">{[d.city, d.country].filter(Boolean).join(", ") || d.country}</td>
+                  <td className="px-2 py-2">
+                    {[d.city, d.country].filter(Boolean).join(", ") || d.country}
+                  </td>
                   <td className="px-2 py-2">{d.category || "—"}</td>
                   <td className="px-2 py-2">{d._count.reservations}</td>
                   <td className="px-2 py-2">{d.popularityScore}</td>
                   <td className="px-2 py-2">
-                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${
-                      d.isActive ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-gray-200 bg-gray-100 text-gray-600"
-                    }`}>{d.isActive ? "Activo" : "Inactivo"}</span>
+                    <span
+                      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${
+                        d.isActive
+                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                          : "border-gray-200 bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {d.isActive ? "Activo" : "Inactivo"}
+                    </span>
                   </td>
                   <td className="px-2 py-2 text-right">
                     <div className="flex gap-2">
-                      <a href={`/dashboard-admin/destinos/${d.id}`} className="text-primary underline">Editar</a>
+                      <a
+                        href={`/dashboard-admin/destinos/${d.id}`}
+                        className="text-primary underline"
+                      >
+                        Editar
+                      </a>
                       {/* Botón cliente para activar/desactivar */}
                       <ToggleActive id={d.id} isActive={d.isActive} />
                     </div>
@@ -181,19 +278,57 @@ export default async function AdminDestinationsPage({
         {/* Paginación */}
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
-            Página {page} de {totalPages} — Mostrando {items.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}` : "0"} de {total.toLocaleString("es-CO")}
+            Página {page} de {totalPages} — Mostrando{" "}
+            {items.length > 0
+              ? `${(page - 1) * pageSize + 1}–${
+                  (page - 1) * pageSize + items.length
+                }`
+              : "0"}{" "}
+            de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
-              href={page > 1 ? `/dashboard-admin/destinos${qstr({ q, active, country, category, order, page: String(page - 1), pageSize: String(pageSize) })}` : "#"}
-            >← Anterior</a>
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page <= 1 ? "pointer-events-none opacity-50" : ""
+              }`}
+              href={
+                page > 1
+                  ? `/dashboard-admin/destinos${qstr({
+                      q,
+                      active,
+                      country,
+                      category,
+                      order,
+                      page: String(page - 1),
+                      pageSize: String(pageSize),
+                    })}`
+                  : "#"
+              }
+            >
+              ← Anterior
+            </a>
             <a
               aria-disabled={page >= totalPages}
-              className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
-              href={page < totalPages ? `/dashboard-admin/destinos${qstr({ q, active, country, category, order, page: String(page + 1), pageSize: String(pageSize) })}` : "#"}
-            >Siguiente →</a>
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page >= totalPages ? "pointer-events-none opacity-50" : ""
+              }`}
+              href={
+                page < totalPages
+                  ? `/dashboard-admin/destinos${qstr({
+                      q,
+                      active,
+                      country,
+                      category,
+                      order,
+                      page: String(page + 1),
+                      pageSize: String(pageSize),
+                    })}`
+                  : "#"
+              }
+            >
+              Siguiente →
+            </a>
           </div>
         </div>
       </div>

@@ -135,7 +135,8 @@ model User {
   avatar         String     @default("/images/default-avatar.png")
   timezone       String?
   commissionRate Decimal?   @db.Decimal(5, 2)
-
+  dniFile   String?
+  otherFile String?
   business   Business? @relation(fields: [businessId], references: [id])
   businessId String?
 
@@ -170,6 +171,7 @@ model Destination {
   category        String? // playa, ciudad, montaña...
   isActive        Boolean @default(true)
   popularityScore Int     @default(0) // cache para "más populares"
+  imageUrl        String?
 
   reservations Reservation[]
 
