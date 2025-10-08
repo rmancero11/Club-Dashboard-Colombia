@@ -13,20 +13,26 @@ type SidebarUser = {
   avatar?: string | null;
 };
 
-const NAV = [
-  { href: "/dashboard-admin", label: "Inicio", exact: true },
-  { href: "/dashboard-admin/usuarios", label: "Usuarios" },
-  { href: "/dashboard-admin/vendedores", label: "Vendedores" },
-  { href: "/dashboard-admin/clientes", label: "Clientes" },
-  { href: "/dashboard-admin/destinos", label: "Destinos" },
-  { href: "/dashboard-admin/reservas", label: "Reservas" },
-  { href: "/dashboard-admin/reportes", label: "Reportes" },
-  { href: "/dashboard-admin/configuracion", label: "Configuración" },
-];
-
-export default function AdminSidebar({ user }: { user: SidebarUser }) {
+export default function AdminSidebar({
+  user,
+  onNavigate, 
+}: {
+  user: SidebarUser;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
+
+  const NAV = [
+    { href: "/dashboard-admin", label: "Inicio", exact: true },
+    { href: "/dashboard-admin/usuarios", label: "Usuarios" },
+    { href: "/dashboard-admin/vendedores", label: "Vendedores" },
+    { href: "/dashboard-admin/clientes", label: "Clientes" },
+    { href: "/dashboard-admin/destinos", label: "Destinos" },
+    { href: "/dashboard-admin/reservas", label: "Reservas" },
+    { href: "/dashboard-admin/reportes", label: "Reportes" },
+    { href: "/dashboard-admin/configuracion", label: "Configuración" },
+  ];
 
   const isActive = useCallback(
     (href: string, exact?: boolean) =>
@@ -43,7 +49,7 @@ export default function AdminSidebar({ user }: { user: SidebarUser }) {
     <div className="flex h-full flex-col">
       {/* Branding */}
       <div className="p-4">
-        <Link href="/dashboard-admin" className="block text-xl font-semibold">
+        <Link href="/dashboard-admin" className="block text-xl font-semibold" onClick={onNavigate}>
           ClubSolteros
         </Link>
         <p className="text-sm text-gray-500">Panel de Administración</p>
@@ -78,6 +84,7 @@ export default function AdminSidebar({ user }: { user: SidebarUser }) {
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavigate}
             className={`block rounded-md px-3 py-2 text-sm font-medium ${
               isActive(item.href, item.exact)
                 ? "bg-gray-100 text-gray-900"
@@ -92,7 +99,7 @@ export default function AdminSidebar({ user }: { user: SidebarUser }) {
       {/* Footer actions */}
       <div className="border-t p-3">
         <button
-          onClick={logout}
+          onClick={() => { onNavigate?.(); logout(); }}
           className="w-full rounded-md border px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"
         >
           Cerrar sesión

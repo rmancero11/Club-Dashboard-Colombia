@@ -2,7 +2,8 @@ import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
-import AdminSidebar from "@/app/components/admin/AdminiSidebar";
+import MobileNav from "@/app/components/admin/MobileNav";
+import CollapsibleSidebar from "@/app/components/admin/CollapsibleSidebar"; // <— nuevo
 
 export default async function AdminLayout({ children }: { children: ReactNode }) {
   const auth = await getAuth();
@@ -15,20 +16,29 @@ export default async function AdminLayout({ children }: { children: ReactNode })
     select: { id: true, name: true, email: true, role: true, avatar: true },
   });
 
+  const sidebarUser = {
+    id: user?.id || "",
+    name: user?.name || "Administrador",
+    email: user?.email || "",
+    role: "ADMIN" as const,
+    avatar: user?.avatar || "/images/default-avatar.png",
+  };
+
   return (
-    <div className="grid min-h-dvh grid-cols-[260px_1fr]">
-      <aside className="border-r bg-white">
-        <AdminSidebar
-          user={{
-            id: user?.id || "",
-            name: user?.name || "Administrador",
-            email: user?.email || "",
-            role: "ADMIN",
-            avatar: user?.avatar || "/images/default-avatar.png",
-          }}
-        />
-      </aside>
-      <main className="p-4 md:p-6">{children}</main>
+    <div className="min-h-dvh">
+      {/* Móvil: topbar + drawer */}
+      <MobileNav user={sidebarUser} />
+
+      {/* md+: sidebar colapsable con franja/flecha + contenido */}
+      <div className="md:flex md:min-h-dvh">
+        {/* Oculto en móvil, visible en md+ */}
+        <div className="hidden md:block">
+          <CollapsibleSidebar user={sidebarUser} />
+        </div>
+
+        {/* Contenido siempre visible; en md+ ocupa el resto */}
+        <main className="flex-1 p-4 md:p-6">{children}</main>
+      </div>
     </div>
   );
 }
