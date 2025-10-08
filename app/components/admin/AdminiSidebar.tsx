@@ -25,7 +25,6 @@ export default function AdminSidebar({
 
   const NAV = [
     { href: "/dashboard-admin", label: "Inicio", exact: true },
-    { href: "/dashboard-admin/usuarios", label: "Usuarios" },
     { href: "/dashboard-admin/vendedores", label: "Vendedores" },
     { href: "/dashboard-admin/clientes", label: "Clientes" },
     { href: "/dashboard-admin/destinos", label: "Destinos" },

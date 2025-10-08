@@ -5,6 +5,7 @@ import KpiCard from "@/app/components/seller/KpiCard";
 import Sparkline from "@/app/components/seller/Sparkline";
 import TopDestinosSection from "../components/admin/TopDestinosSection";
 import ConfirmadosVsPerdidosChart from "../components/admin/ConfirmadosVsPedidosChart";
+import MonthlyLeadsChart from "../components/admin/MonthlyLeadsChart";
 
 // === utils de fechas (mes a mes, 12 puntos) ===
 function startOfMonth(d = new Date()) {
@@ -153,15 +154,7 @@ export default async function AdminHomePage() {
       {/* Gráficas: 12 meses (sin saltos) */}
       <section className="grid gap-4 lg:grid-cols-2">
         {/* Tendencia de leads creados (total) */}
-        <div className="rounded-xl border bg-white p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Leads creados (mes a mes)</h2>
-            <span className="text-xs text-gray-500">últimos 12 meses</span>
-          </div>
-          <div className="h-64">
-            <Sparkline labels={labels} values={totalPerMonth} />
-          </div>
-        </div>
+        <MonthlyLeadsChart labels={labels} values={totalPerMonth}/>
         <section className="grid gap-4 lg:grid-cols-1">
           {/* Confirmados vs Perdidos (componente nuevo) */}
           <ConfirmadosVsPerdidosChart

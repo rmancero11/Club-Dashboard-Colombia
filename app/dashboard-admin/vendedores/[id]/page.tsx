@@ -9,43 +9,135 @@ function startEndOfMonth(d = new Date()) {
 }
 function fmtMoney(n: number, currency = "USD") {
   try {
-    return new Intl.NumberFormat("es-CO", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(n);
   } catch {
     return `${currency} ${n.toFixed(2)}`;
   }
 }
+function daysBetween(a: Date, b: Date) {
+  return Math.max(
+    0,
+    Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24))
+  );
+}
+const RES_PENDING = ["LEAD", "QUOTED", "HOLD"] as const;
+const TASK_PENDING = ["OPEN", "IN_PROGRESS", "BLOCKED"] as const;
 
-export default async function AdminSellerDetailPage({ params }: { params: { id: string } }) {
+export default async function AdminSellerDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
   if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
   const businessId = auth.businessId!;
 
+  // ---------- Perfil ----------
   const seller = await prisma.user.findFirst({
     where: { id: params.id, businessId, role: "SELLER" },
-    select: { id: true, name: true, email: true, phone: true, country: true, commissionRate: true, status: true, createdAt: true },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      country: true,
+      commissionRate: true,
+      status: true,
+      createdAt: true,
+    },
   });
   if (!seller) notFound();
 
+  const now = new Date();
   const { start, end } = startEndOfMonth();
 
-  const [clientsCount, resTotalAgg, resMonthAgg, tasksOpenCount, recentReservations, recentTasks] = await Promise.all([
+  // ---------- Métricas principales en paralelo ----------
+  const [
+    clientsCount,
+    resTotalAgg,
+    resMonthAgg,
+    tasksPendingCount,
+    tasksOverdueCount,
+    resByStatus,
+    tasksByStatus,
+    tasksByPriority,
+    topDestGroupRaw,
+    recentReservations,
+    recentTasks,
+    recentClients,
+    recentActivity,
+  ] = await Promise.all([
     prisma.client.count({ where: { businessId, sellerId: seller.id } }),
     prisma.reservation.aggregate({
       where: { businessId, sellerId: seller.id },
-      _count: { _all: true }, _sum: { totalAmount: true },
+      _count: { _all: true },
+      _sum: { totalAmount: true },
     }),
     prisma.reservation.aggregate({
-      where: { businessId, sellerId: seller.id, startDate: { gte: start, lte: end } },
-      _count: { _all: true }, _sum: { totalAmount: true },
+      where: {
+        businessId,
+        sellerId: seller.id,
+        startDate: { gte: start, lte: end },
+      },
+      _count: { _all: true },
+      _sum: { totalAmount: true },
     }),
-    prisma.task.count({ where: { businessId, sellerId: seller.id, status: { in: ["OPEN", "IN_PROGRESS"] } } }),
+    prisma.task.count({
+      where: {
+        businessId,
+        sellerId: seller.id,
+        status: { in: TASK_PENDING as any },
+      },
+    }),
+    prisma.task.count({
+      where: {
+        businessId,
+        sellerId: seller.id,
+        status: { in: TASK_PENDING as any },
+        dueDate: { lt: now },
+      },
+    }),
+    prisma.reservation.groupBy({
+      where: { businessId, sellerId: seller.id },
+      by: ["status"],
+      _count: { _all: true },
+      _sum: { totalAmount: true },
+    }),
+    prisma.task.groupBy({
+      where: { businessId, sellerId: seller.id },
+      by: ["status"],
+      _count: { _all: true },
+    }),
+    prisma.task.groupBy({
+      where: { businessId, sellerId: seller.id },
+      by: ["priority"],
+      _count: { _all: true },
+    }),
+    // SIN orderBy/take en DB; lo hacemos en memoria para evitar error de tipos
+    prisma.reservation.groupBy({
+      where: { businessId, sellerId: seller.id },
+      by: ["destinationId"],
+      _count: { _all: true },
+      _sum: { totalAmount: true },
+    }),
     prisma.reservation.findMany({
       where: { businessId, sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
-        id: true, code: true, status: true, startDate: true, endDate: true, totalAmount: true, currency: true,
+        id: true,
+        code: true,
+        status: true,
+        startDate: true,
+        endDate: true,
+        totalAmount: true,
+        currency: true,
+        createdAt: true,
         client: { select: { name: true } },
         destination: { select: { name: true } },
       },
@@ -54,47 +146,246 @@ export default async function AdminSellerDetailPage({ params }: { params: { id: 
       where: { businessId, sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
-      select: { id: true, title: true, status: true, priority: true, dueDate: true, createdAt: true },
+      select: {
+        id: true,
+        title: true,
+        status: true,
+        priority: true,
+        dueDate: true,
+        createdAt: true,
+      },
+    }),
+    prisma.client.findMany({
+      where: { businessId, sellerId: seller.id },
+      orderBy: { createdAt: "desc" },
+      take: 6,
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        createdAt: true,
+      },
+    }),
+    prisma.activityLog.findMany({
+      where: { businessId, userId: seller.id },
+      orderBy: { createdAt: "desc" },
+      take: 8,
+      select: { id: true, action: true, message: true, createdAt: true },
     }),
   ]);
 
-  const totalResCount = resTotalAgg._count._all;
-  const totalResSum = Number(resTotalAgg._sum.totalAmount || 0);
-  const monthResCount = resMonthAgg._count._all;
-  const monthResSum = Number(resMonthAgg._sum.totalAmount || 0);
+  const totalResCount = resTotalAgg._count?._all ?? 0;
+  const totalResSum = Number(resTotalAgg._sum?.totalAmount ?? 0);
+  const monthResCount = resMonthAgg._count?._all ?? 0;
+  const monthResSum = Number(resMonthAgg._sum?.totalAmount ?? 0);
+
+  const pendingResCount = resByStatus
+    .filter((r) => (RES_PENDING as readonly string[]).includes(r.status))
+    .reduce((acc, r) => acc + (r._count?._all ?? 0), 0);
+
+  const avgTicket = totalResCount > 0 ? totalResSum / totalResCount : 0;
+  const tenureDays = daysBetween(seller.createdAt, now);
+
+  // Top destinos: ordenar en memoria y mapear IDs -> nombres
+  const topDestSorted = [...topDestGroupRaw]
+    .sort((a, b) => (b._count?._all ?? 0) - (a._count?._all ?? 0))
+    .slice(0, 5);
+
+  const topDestIds = topDestSorted.map((d) => d.destinationId);
+  const topDestinationNames = topDestIds.length
+    ? await prisma.destination.findMany({
+        where: { id: { in: topDestIds } },
+        select: { id: true, name: true },
+      })
+    : [];
+  const destNameById = Object.fromEntries(
+    topDestinationNames.map((d) => [d.id, d.name])
+  );
+
+  // Helper chips
+  const statusPill =
+    seller.status === "ACTIVE"
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-gray-200 bg-gray-100 text-gray-600";
 
   return (
     <div className="space-y-6">
-      <header className="flex items-center justify-between">
+      {/* Header */}
+      <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">{seller.name || "Vendedor"}</h1>
-          <p className="text-sm text-gray-500">{seller.email} · {seller.phone || "—"} · {seller.country || "—"}</p>
+          <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold">
+              {seller.name || "Vendedor"}
+            </h1>
+            <span
+              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusPill}`}
+            >
+              {seller.status === "ACTIVE" ? "Activo" : "Inactivo"}
+            </span>
+          </div>
+          <p className="text-sm text-gray-600">
+            {seller.email} · {seller.phone || "—"} · {seller.country || "—"}
+          </p>
+          <p className="text-xs text-gray-400">
+            Alta: {new Date(seller.createdAt).toLocaleDateString("es-CO")} ·
+            Antigüedad: {tenureDays} días
+            {seller.commissionRate != null
+              ? ` · Comisión: ${Number(seller.commissionRate).toFixed(2)}%`
+              : ""}
+          </p>
         </div>
         <div className="flex gap-2">
-          <a href={`/dashboard-admin/usuarios/${seller.id}`} className="rounded-md border px-3 py-2 text-sm">Editar</a>
-          <a href="/dashboard-admin/vendedores" className="rounded-md border px-3 py-2 text-sm">← Volver</a>
+          <a
+            href={`/dashboard-admin/usuarios/${seller.id}`}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            Editar
+          </a>
+          <a
+            href="/dashboard-admin/vendedores"
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            ← Volver
+          </a>
         </div>
       </header>
 
       {/* KPIs */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <div className="rounded-xl border bg-white p-4">
+      <section className="grid w-full gap-4 [grid-template-columns:repeat(auto-fit,minmax(180px,1fr))]">
+        <div className="min-w-0 rounded-xl border bg-white p-4">
           <div className="text-sm text-gray-500">Clientes</div>
           <div className="text-2xl font-semibold">{clientsCount}</div>
         </div>
-        <div className="rounded-xl border bg-white p-4">
-          <div className="text-sm text-gray-500">Reservas (total)</div>
-          <div className="text-2xl font-semibold">{totalResCount}</div>
-          <div className="text-xs text-gray-500">{fmtMoney(totalResSum)}</div>
+
+        <div className="min-w-0 rounded-xl border bg-white p-4">
+          <div className="text-sm text-gray-500">Reservas (pendientes)</div>
+          <div className="text-2xl font-semibold">{pendingResCount}</div>
+          <div className="text-[11px] text-amber-600">LEAD/QUOTED/HOLD</div>
         </div>
-        <div className="rounded-xl border bg-white p-4">
-          <div className="text-sm text-gray-500">Reservas (mes)</div>
-          <div className="text-2xl font-semibold">{monthResCount}</div>
-          <div className="text-xs text-gray-500">{fmtMoney(monthResSum)}</div>
+
+        <div className="min-w-0 rounded-xl border bg-white p-4">
+          <div className="text-sm text-gray-500">Tareas (pendientes)</div>
+          <div className="text-2xl font-semibold">{tasksPendingCount}</div>
+          <div className="text-[11px] text-sky-600">
+            OPEN/IN_PROGRESS/BLOCKED
+          </div>
         </div>
+
+        <div className="min-w-0 rounded-xl border bg-white p-4">
+          <div className="text-sm text-gray-500">Tareas atrasadas</div>
+          <div className="text-2xl font-semibold">{tasksOverdueCount}</div>
+          <div className="text-[11px] text-rose-600">con fecha vencida</div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border bg-white p-4">
+          <div className="text-sm text-gray-500">Ticket promedio</div>
+          <div className="text-2xl font-semibold">{fmtMoney(avgTicket)}</div>
+          <div className="text-[11px] text-gray-500">en todas las reservas</div>
+        </div>
+
+        <div className="min-w-0 rounded-xl border bg-white p-4">
+          <div className="text-sm text-gray-500">Ventas (mes)</div>
+          <div className="text-2xl font-semibold">{fmtMoney(monthResSum)}</div>
+          <div className="text-[11px] text-gray-500">
+            {monthResCount} reservas
+          </div>
+        </div>
+      </section>
+
+      {/* Embudos */}
+      <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border bg-white p-4">
-          <div className="text-sm text-gray-500">Tareas abiertas</div>
-          <div className="text-2xl font-semibold">{tasksOpenCount}</div>
+          <h2 className="mb-3 text-lg font-semibold">Embudo de reservas</h2>
+          <ul className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
+            {[
+              "LEAD",
+              "QUOTED",
+              "HOLD",
+              "CONFIRMED",
+              "TRAVELING",
+              "COMPLETED",
+              "CANCELED",
+              "EXPIRED",
+            ].map((st) => {
+              const row = resByStatus.find((r) => r.status === st);
+              const c = row?._count?._all ?? 0;
+              const sum = Number(row?._sum?.totalAmount ?? 0);
+              const pill =
+                st === "COMPLETED"
+                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                  : st === "CONFIRMED"
+                  ? "bg-sky-50 border-sky-200 text-sky-700"
+                  : st === "HOLD"
+                  ? "bg-amber-50 border-amber-200 text-amber-700"
+                  : st === "QUOTED"
+                  ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                  : st === "LEAD"
+                  ? "bg-gray-50 border-gray-200 text-gray-700"
+                  : st === "TRAVELING"
+                  ? "bg-cyan-50 border-cyan-200 text-cyan-700"
+                  : st === "CANCELED"
+                  ? "bg-rose-50 border-rose-200 text-rose-700"
+                  : "bg-stone-50 border-stone-200 text-stone-700";
+              return (
+                <li key={st} className={`rounded-lg border p-3 ${pill}`}>
+                  <div className="text-xs font-medium">{st}</div>
+                  <div className="mt-1 text-base font-semibold">{c}</div>
+                  <div className="text-[11px]">{fmtMoney(sum)}</div>
+                </li>
+              );
+            })}
+          </ul>
+        </div>
+
+        <div className="rounded-xl border bg-white p-4">
+          <h2 className="mb-3 text-lg font-semibold">
+            Tareas por estado y prioridad
+          </h2>
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="mb-2 text-sm font-medium text-gray-600">
+                Por estado
+              </div>
+              <ul className="space-y-1 text-sm">
+                {["OPEN", "IN_PROGRESS", "BLOCKED", "DONE", "CANCELLED"].map(
+                  (st) => {
+                    const row = tasksByStatus.find((t) => t.status === st);
+                    const c = row?._count?._all ?? 0;
+                    return (
+                      <li
+                        key={st}
+                        className="flex items-center justify-between rounded-md border px-2 py-1"
+                      >
+                        <span>{st}</span>
+                        <span className="font-semibold">{c}</span>
+                      </li>
+                    );
+                  }
+                )}
+              </ul>
+            </div>
+            <div>
+              <div className="mb-2 text-sm font-medium text-gray-600">
+                Por prioridad
+              </div>
+              <ul className="space-y-1 text-sm">
+                {["HIGH", "MEDIUM", "LOW"].map((p) => {
+                  const row = tasksByPriority.find((t) => t.priority === p);
+                  const c = row?._count?._all ?? 0;
+                  return (
+                    <li
+                      key={p}
+                      className="flex items-center justify-between rounded-md border px-2 py-1"
+                    >
+                      <span>{p}</span>
+                      <span className="font-semibold">{c}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -106,19 +397,52 @@ export default async function AdminSellerDetailPage({ params }: { params: { id: 
             <div className="text-gray-400">Sin reservas</div>
           ) : (
             <ul className="divide-y">
-              {recentReservations.map((r) => (
-                <li key={r.id} className="py-2">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <div className="font-medium">{r.destination?.name || "—"} · {r.client?.name || "—"}</div>
-                      <div className="text-xs text-gray-500">
-                        {new Date(r.startDate).toLocaleDateString("es-CO")} → {new Date(r.endDate).toLocaleDateString("es-CO")} · {r.status}
+              {recentReservations.map((r) => {
+                const statusPill =
+                  r.status === "COMPLETED"
+                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
+                    : r.status === "CONFIRMED"
+                    ? "bg-sky-50 border-sky-200 text-sky-700"
+                    : r.status === "HOLD"
+                    ? "bg-amber-50 border-amber-200 text-amber-700"
+                    : r.status === "QUOTED"
+                    ? "bg-indigo-50 border-indigo-200 text-indigo-700"
+                    : r.status === "LEAD"
+                    ? "bg-gray-50 border-gray-200 text-gray-700"
+                    : r.status === "TRAVELING"
+                    ? "bg-cyan-50 border-cyan-200 text-cyan-700"
+                    : r.status === "CANCELED"
+                    ? "bg-rose-50 border-rose-200 text-rose-700"
+                    : "bg-stone-50 border-stone-200 text-stone-700";
+                return (
+                  <li key={r.id} className="py-2">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-medium">
+                          {r.destination?.name || "—"} · {r.client?.name || "—"}
+                        </div>
+                        <div className="text-xs text-gray-500">
+                          {new Date(r.startDate).toLocaleDateString("es-CO")} →{" "}
+                          {new Date(r.endDate).toLocaleDateString("es-CO")}
+                          {" · "}
+                          <span
+                            className={`inline-flex items-center rounded-md border px-1.5 py-[1px] text-[10px] ${statusPill}`}
+                          >
+                            {r.status}
+                          </span>
+                        </div>
+                        <div className="text-[11px] text-gray-400">
+                          Creada:{" "}
+                          {new Date(r.createdAt).toLocaleDateString("es-CO")}
+                        </div>
+                      </div>
+                      <div className="text-sm whitespace-nowrap">
+                        {fmtMoney(Number(r.totalAmount), r.currency)}
                       </div>
                     </div>
-                    <div className="text-sm">{fmtMoney(Number(r.totalAmount), r.currency)}</div>
-                  </div>
-                </li>
-              ))}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
@@ -131,15 +455,102 @@ export default async function AdminSellerDetailPage({ params }: { params: { id: 
             <ul className="divide-y">
               {recentTasks.map((t) => (
                 <li key={t.id} className="py-2">
-                  <div className="flex items-center justify-between">
+                  <div className="flex items-start justify-between gap-3">
                     <div>
                       <div className="font-medium">{t.title}</div>
                       <div className="text-xs text-gray-500">
-                        {t.status} · {t.priority} {t.dueDate ? `· vence ${new Date(t.dueDate).toLocaleDateString("es-CO")}` : ""}
+                        {t.status} · {t.priority}
+                        {t.dueDate
+                          ? ` · vence ${new Date(t.dueDate).toLocaleDateString(
+                              "es-CO"
+                            )}`
+                          : ""}
+                      </div>
+                      <div className="text-[11px] text-gray-400">
+                        Creada:{" "}
+                        {new Date(t.createdAt).toLocaleDateString("es-CO")}
                       </div>
                     </div>
-                    <a className="text-sm text-primary underline" href={`/dashboard-admin/tareas/${t.id}`}>Ver</a>
+                    <a
+                      className="text-sm text-primary underline whitespace-nowrap"
+                      href={`/dashboard-admin/tareas/${t.id}`}
+                    >
+                      Ver
+                    </a>
                   </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      </section>
+
+      {/* Top destinos + Clientes recientes + Actividad */}
+      <section className="grid gap-4 lg:grid-cols-3">
+        <div className="rounded-xl border bg-white p-4">
+          <h2 className="mb-2 text-lg font-semibold">Top destinos</h2>
+          {topDestSorted.length === 0 ? (
+            <div className="text-gray-400">Sin datos</div>
+          ) : (
+            <ul className="divide-y text-sm">
+              {topDestSorted.map((d) => (
+                <li
+                  key={d.destinationId}
+                  className="flex items-center justify-between py-2"
+                >
+                  <div className="truncate">
+                    {destNameById[d.destinationId] || "Destino"}
+                  </div>
+                  <div className="flex items-baseline gap-3">
+                    <span className="font-semibold">{d._count?._all ?? 0}</span>
+                    <span className="text-gray-500">
+                      {fmtMoney(Number(d._sum?.totalAmount ?? 0))}
+                    </span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-white p-4">
+          <h2 className="mb-2 text-lg font-semibold">Clientes recientes</h2>
+          {recentClients.length === 0 ? (
+            <div className="text-gray-400">Sin clientes</div>
+          ) : (
+            <ul className="divide-y text-sm">
+              {recentClients.map((c) => (
+                <li key={c.id} className="py-2">
+                  <div className="font-medium truncate">{c.name}</div>
+                  <div className="text-xs text-gray-500">
+                    {c.email || "—"} {c.phone ? `· ${c.phone}` : ""}
+                  </div>
+                  <div className="text-[11px] text-gray-400">
+                    Alta: {new Date(c.createdAt).toLocaleDateString("es-CO")}
+                  </div>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+
+        <div className="rounded-xl border bg-white p-4">
+          <h2 className="mb-2 text-lg font-semibold">Actividad reciente</h2>
+          {recentActivity.length === 0 ? (
+            <div className="text-gray-400">Sin actividad</div>
+          ) : (
+            <ul className="divide-y text-sm">
+              {recentActivity.map((a) => (
+                <li key={a.id} className="py-2">
+                  <div className="flex items-center justify-between">
+                    <span className="font-medium">{a.action}</span>
+                    <span className="text-[11px] text-gray-500">
+                      {new Date(a.createdAt).toLocaleDateString("es-CO")}
+                    </span>
+                  </div>
+                  {a.message && (
+                    <div className="text-xs text-gray-600">{a.message}</div>
+                  )}
                 </li>
               ))}
             </ul>

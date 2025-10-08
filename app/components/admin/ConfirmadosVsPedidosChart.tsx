@@ -12,11 +12,12 @@ import {
 } from 'recharts';
 
 type Props = {
-  labels: string[];              // ["YYYY-MM", ...] 12 meses
+  labels: string[];              // ["YYYY-MM", ...]
   confirmed: number[];           // mismo largo que labels
   lost: number[];                // mismo largo que labels
   title?: string;
   subtitle?: string;
+  months?: number;               // por si luego quieres 3, 6, 12... default: 6
 };
 
 function formatYm(ym: string) {
@@ -26,17 +27,28 @@ function formatYm(ym: string) {
   return d.toLocaleDateString('es-CO', { year: 'numeric', month: 'short' });
 }
 
+function lastN<T>(arr: T[], n: number): T[] {
+  if (!Array.isArray(arr)) return [];
+  return arr.slice(Math.max(0, arr.length - n));
+}
+
 export default function ConfirmadosVsPerdidosChart({
   labels,
   confirmed,
   lost,
   title = 'Confirmados vs Perdidos',
-  subtitle = 'últimos 12 meses',
+  subtitle,             // si no se pasa, ponemos "últimos 6 meses"
+  months = 6,
 }: Props) {
-  const data = labels.map((ym, i) => ({
+  // Toma solo los últimos N meses
+  const labels6 = lastN(labels, months);
+  const confirmed6 = lastN(confirmed, months);
+  const lost6 = lastN(lost, months);
+
+  const data = labels6.map((ym, i) => ({
     month: formatYm(ym),
-    Confirmados: confirmed[i] ?? 0,
-    Perdidos: lost[i] ?? 0,
+    Confirmados: confirmed6[i] ?? 0,
+    Perdidos: lost6[i] ?? 0,
   }));
 
   const hasData = data.some(d => d.Confirmados > 0 || d.Perdidos > 0);
@@ -45,7 +57,7 @@ export default function ConfirmadosVsPerdidosChart({
     <div className="rounded-xl border bg-white p-4">
       <div className="mb-2 flex items-center justify-between">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="text-xs text-gray-500">{subtitle}</span>
+        <span className="text-xs text-gray-500">{subtitle ?? `últimos ${months} meses`}</span>
       </div>
 
       {!hasData ? (
@@ -54,21 +66,20 @@ export default function ConfirmadosVsPerdidosChart({
         </div>
       ) : (
         <>
-          <div className="h-96">{/* altura mayor para legibilidad */}
+          <div className="h-96">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart
                 data={data}
-                margin={{ top: 10, right: 24, bottom: 40, left: 56 }} // más espacio para ejes
+                margin={{ top: 10, right: 24, bottom: 40, left: 56 }}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="month"
-                  // Evita solapamiento: rotación, margen y gap mínimo
                   angle={-35}
                   textAnchor="end"
                   tickMargin={12}
                   minTickGap={8}
-                  interval={0} // muestra todos los meses
+                  interval={0}
                   height={50}
                 />
                 <YAxis
@@ -94,8 +105,6 @@ export default function ConfirmadosVsPerdidosChart({
                   verticalAlign="top"
                   height={24}
                 />
-
-                {/* Verde = confirmados, Rojo = perdidos */}
                 <Line
                   type="monotone"
                   dataKey="Confirmados"
@@ -116,10 +125,9 @@ export default function ConfirmadosVsPerdidosChart({
             </ResponsiveContainer>
           </div>
 
-          {/* Aclara ejes para el usuario */}
           <div className="mt-2 text-xs text-gray-500">
-            Eje X: meses (MMM AAAA). Eje Y: <span className="font-medium">número de leads</span>
-            — líneas: <span className="text-emerald-700 font-medium">Confirmados</span> vs{" "}
+            Eje X: meses (MMM AAAA). Eje Y: <span className="font-medium">número de leads</span> —
+            líneas: <span className="text-emerald-700 font-medium">Confirmados</span> vs{' '}
             <span className="text-rose-700 font-medium">Perdidos</span> (Cancelados + Expirados).
           </div>
         </>

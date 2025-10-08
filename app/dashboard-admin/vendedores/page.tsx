@@ -17,19 +17,14 @@ function qstr(params: Record<string, string | undefined>) {
 }
 function fmtMoney(n: number, currency = "USD") {
   try {
-    return new Intl.NumberFormat("es-CO", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(n);
   } catch {
     return `${currency} ${n.toFixed(2)}`;
   }
-}
-function startEndOfMonth(yyyyMM?: string) {
-  const now = new Date();
-  const [y, m] = (yyyyMM || `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`).split("-");
-  const year = parseInt(y, 10);
-  const month = parseInt(m, 10) - 1;
-  const start = new Date(year, month, 1, 0, 0, 0, 0);
-  const end = new Date(year, month + 1, 0, 23, 59, 59, 999);
-  return { start, end };
 }
 
 export default async function AdminSellersPage({
@@ -43,22 +38,28 @@ export default async function AdminSellersPage({
 
   const businessId = auth.businessId!;
 
-  // filtros
-  const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
-  const status = (Array.isArray(searchParams.status) ? searchParams.status[0] : searchParams.status) ?? ""; // "", ACTIVE, INACTIVE
-  const month = (Array.isArray(searchParams.month) ? searchParams.month[0] : searchParams.month) ?? "";
+  // ===== Filtros/Orden =====
+  const q =
+    (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
+  // reemplazamos "status" y "month" por órdenes de métricas
+  const resPendOrder =
+    (Array.isArray(searchParams.resPendOrder)
+      ? searchParams.resPendOrder[0]
+      : searchParams.resPendOrder) ?? ""; // "asc" | "desc" | ""
+  const tasksOrder =
+    (Array.isArray(searchParams.tasksOrder)
+      ? searchParams.tasksOrder[0]
+      : searchParams.tasksOrder) ?? ""; // "asc" | "desc" | ""
   const page = toInt(searchParams.page, 1);
   const pageSizeRaw = toInt(searchParams.pageSize, 10);
   const pageSize = Math.min(pageSizeRaw, 50);
 
+  // WHERE: solo búsqueda por nombre y email
   const whereUser: any = { businessId, role: "SELLER" };
-  if (status === "ACTIVE" || status === "INACTIVE") whereUser.status = status;
   if (q) {
     whereUser.OR = [
       { name: { contains: q, mode: "insensitive" } },
       { email: { contains: q, mode: "insensitive" } },
-      { phone: { contains: q, mode: "insensitive" } },
-      { country: { contains: q, mode: "insensitive" } },
     ];
   }
 
@@ -66,12 +67,18 @@ export default async function AdminSellersPage({
     prisma.user.count({ where: whereUser }),
     prisma.user.findMany({
       where: whereUser,
-      orderBy: { createdAt: "desc" },
+      orderBy: { createdAt: "desc" }, // orden base; luego reordenamos en memoria según métricas si aplica
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
-        id: true, name: true, email: true, phone: true, country: true,
-        status: true, commissionRate: true, createdAt: true,
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        country: true,
+        status: true,
+        commissionRate: true,
+        createdAt: true,
       },
     }),
   ]);
@@ -79,21 +86,31 @@ export default async function AdminSellersPage({
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   const safePage = Math.min(page, totalPages);
   if (safePage !== page) {
-    const qs = qstr({ q, status, month, page: String(safePage), pageSize: String(pageSize) });
+    const qs = qstr({
+      q,
+      resPendOrder: resPendOrder || undefined,
+      tasksOrder: tasksOrder || undefined,
+      page: String(safePage),
+      pageSize: String(pageSize),
+    });
     redirect(`/dashboard-admin/vendedores${qs}`);
   }
 
-  // métricas por vendedor (en lote)
+  // ===== Métricas por vendedor (en lote) =====
   const sellerIds = sellers.map((s) => s.id);
-  const { start, end } = startEndOfMonth(month);
+
+  // Reservas pendientes = LEAD | QUOTED | HOLD
+  const PENDING_RES_STATUSES = ["LEAD", "QUOTED", "HOLD"] as const;
+  // Tareas pendientes = OPEN | IN_PROGRESS | BLOCKED
+  const PENDING_TASK_STATUSES = ["OPEN", "IN_PROGRESS", "BLOCKED"] as const;
 
   let clientsBySeller: Record<string, number> = {};
   let resAllBySeller: Record<string, { count: number; sum: number }> = {};
-  let resMonthBySeller: Record<string, { count: number; sum: number }> = {};
-  let tasksOpenBySeller: Record<string, number> = {};
+  let resPendingBySeller: Record<string, number> = {};
+  let tasksPendingBySeller: Record<string, number> = {};
 
   if (sellerIds.length > 0) {
-    const [clientsGroup, resAll, resMonth, tasksOpen] = await Promise.all([
+    const [clientsGroup, resAll, resPending, tasksPending] = await Promise.all([
       prisma.client.groupBy({
         where: { businessId, sellerId: { in: sellerIds } },
         by: ["sellerId"],
@@ -106,26 +123,57 @@ export default async function AdminSellersPage({
         _sum: { totalAmount: true },
       }),
       prisma.reservation.groupBy({
-        where: { businessId, sellerId: { in: sellerIds }, startDate: { gte: start, lte: end } },
+        where: {
+          businessId,
+          sellerId: { in: sellerIds },
+          status: { in: PENDING_RES_STATUSES as any },
+        },
         by: ["sellerId"],
         _count: { _all: true },
-        _sum: { totalAmount: true },
       }),
       prisma.task.groupBy({
-        where: { businessId, sellerId: { in: sellerIds }, status: { in: ["OPEN", "IN_PROGRESS"] } },
+        where: {
+          businessId,
+          sellerId: { in: sellerIds },
+          status: { in: PENDING_TASK_STATUSES as any },
+        },
         by: ["sellerId"],
         _count: { _all: true },
       }),
     ]);
 
-    clientsBySeller = Object.fromEntries(clientsGroup.map((g) => [g.sellerId, g._count._all]));
+    clientsBySeller = Object.fromEntries(
+      clientsGroup.map((g) => [g.sellerId, g._count._all])
+    );
     resAllBySeller = Object.fromEntries(
-      resAll.map((g) => [g.sellerId, { count: g._count._all, sum: Number(g._sum.totalAmount || 0) }])
+      resAll.map((g) => [
+        g.sellerId,
+        { count: g._count._all, sum: Number(g._sum.totalAmount || 0) },
+      ])
     );
-    resMonthBySeller = Object.fromEntries(
-      resMonth.map((g) => [g.sellerId, { count: g._count._all, sum: Number(g._sum.totalAmount || 0) }])
+    resPendingBySeller = Object.fromEntries(
+      resPending.map((g) => [g.sellerId, g._count._all])
     );
-    tasksOpenBySeller = Object.fromEntries(tasksOpen.map((g) => [g.sellerId, g._count._all]));
+    tasksPendingBySeller = Object.fromEntries(
+      tasksPending.map((g) => [g.sellerId, g._count._all])
+    );
+  }
+
+  // ===== Reordenamiento en memoria por métricas (si aplica) =====
+  let sellersSorted = [...sellers];
+  if (resPendOrder === "asc" || resPendOrder === "desc") {
+    sellersSorted.sort((a, b) => {
+      const av = resPendingBySeller[a.id] ?? 0;
+      const bv = resPendingBySeller[b.id] ?? 0;
+      return resPendOrder === "asc" ? av - bv : bv - av;
+    });
+  }
+  if (tasksOrder === "asc" || tasksOrder === "desc") {
+    sellersSorted.sort((a, b) => {
+      const av = tasksPendingBySeller[a.id] ?? 0;
+      const bv = tasksPendingBySeller[b.id] ?? 0;
+      return tasksOrder === "asc" ? av - bv : bv - av;
+    });
   }
 
   return (
@@ -134,38 +182,70 @@ export default async function AdminSellersPage({
       <header className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Vendedores</h1>
-          <p className="text-sm text-gray-500">
-            Gestión de agentes. Mostrando {sellers.length} de {total.toLocaleString("es-CO")}.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <a href="/dashboard-admin/usuarios/invitar" className="rounded-lg border px-4 py-2">Invitar vendedor</a>
-          <a href="/dashboard-admin/usuarios" className="rounded-lg border px-4 py-2">Ver todos los usuarios</a>
+          <p className="text-sm text-gray-500">Gestión de agentes.</p>
         </div>
       </header>
 
-      {/* Filtros */}
+      {/* Filtros / Orden */}
       <div className="rounded-xl border bg-white p-4">
-        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5" method="GET">
+        <form
+          className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5"
+          method="GET"
+        >
           <input
-            name="q" defaultValue={q}
+            name="q"
+            defaultValue={q}
             className="rounded-md border px-3 py-2 text-sm"
-            placeholder="Buscar por nombre, email, país..."
+            placeholder="Buscar por nombre o email"
           />
-          <select name="status" defaultValue={status} className="rounded-md border px-3 py-2 text-sm">
-            <option value="">Estado (todos)</option>
-            <option value="ACTIVE">Activo</option>
-            <option value="INACTIVE">Inactivo</option>
+
+          {/* Orden por reservas pendientes (asc/desc) */}
+          <select
+            name="resPendOrder"
+            defaultValue={resPendOrder}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">Ordenar: Reservas pendientes</option>
+            <option value="asc">Reservas pendientes ↑ (menor a mayor)</option>
+            <option value="desc">Reservas pendientes ↓ (mayor a menor)</option>
           </select>
-          <input type="month" name="month" defaultValue={month || undefined} className="rounded-md border px-3 py-2 text-sm" />
-          <select name="pageSize" defaultValue={String(pageSize)} className="rounded-md border px-3 py-2 text-sm">
+
+          {/* Orden por tareas pendientes (asc/desc) */}
+          <select
+            name="tasksOrder"
+            defaultValue={tasksOrder}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">Ordenar: Tareas pendientes</option>
+            <option value="asc">Tareas pendientes ↑ (menor a mayor)</option>
+            <option value="desc">Tareas pendientes ↓ (mayor a menor)</option>
+          </select>
+
+          <select
+            name="pageSize"
+            defaultValue={String(pageSize)}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             {[10, 20, 30, 50].map((n) => (
-              <option key={n} value={n}>{n} / pág.</option>
+              <option key={n} value={n}>
+                {n} / pág.
+              </option>
             ))}
           </select>
-          <div>
+          <div className="flex items-center gap-2">
             <input type="hidden" name="page" value="1" />
-            <button className="rounded-md border px-3 py-2 text-sm" type="submit">Aplicar</button>
+            <button
+              className="rounded-md border px-3 py-2 text-sm"
+              type="submit"
+            >
+              Aplicar
+            </button>
+            <a
+              href="/dashboard-admin/vendedores"
+              className="rounded-md border px-3 py-2 text-sm"
+            >
+              Borrar filtros
+            </a>
           </div>
         </form>
 
@@ -176,61 +256,94 @@ export default async function AdminSellersPage({
               <tr className="text-left text-gray-500">
                 <th className="px-2 py-2">Vendedor</th>
                 <th className="px-2 py-2">Contacto</th>
-                <th className="px-2 py-2">Comisión</th>
                 <th className="px-2 py-2">Clientes</th>
-                <th className="px-2 py-2">Reservas (total)</th>
-                <th className="px-2 py-2">Ventas (total)</th>
-                <th className="px-2 py-2">Reservas (mes)</th>
-                <th className="px-2 py-2">Ventas (mes)</th>
-                <th className="px-2 py-2">Tareas abiertas</th>
-                <th className="px-2 py-2">Estado</th>
+                <th className="px-2 py-2">Reservas Pendientes</th>
+                <th className="px-2 py-2">Tareas Pendientes</th>
+                <th className="px-2 py-2">Reservas Totales</th>
+                <th className="px-2 py-2">Ventas Totales</th>
+                <th className="px-2 py-2">Comisión</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
-              {sellers.length === 0 && (
+              {sellersSorted.length === 0 && (
                 <tr>
-                  <td colSpan={11} className="px-2 py-10 text-center text-gray-400">Sin resultados</td>
+                  <td
+                    colSpan={10}
+                    className="px-2 py-10 text-center text-gray-400"
+                  >
+                    Sin resultados
+                  </td>
                 </tr>
               )}
-              {sellers.map((s) => {
-                const clients = clientsBySeller[s.id] || 0;
-                const ra = resAllBySeller[s.id] || { count: 0, sum: 0 };
-                const rm = resMonthBySeller[s.id] || { count: 0, sum: 0 };
-                const openTasks = tasksOpenBySeller[s.id] || 0;
+              {sellersSorted.map((s) => {
+                const clients = clientsBySeller[s.id] ?? 0;
+                const ra = resAllBySeller[s.id] ?? { count: 0, sum: 0 };
+                const resPend = resPendingBySeller[s.id] ?? 0;
+                const tasksPend = tasksPendingBySeller[s.id] ?? 0;
 
                 return (
                   <tr key={s.id} className="border-t">
                     <td className="px-2 py-2">
                       <div className="font-medium">{s.name || "—"}</div>
-                      <div className="text-xs text-gray-600">Creado: {new Date(s.createdAt).toLocaleDateString("es-CO")}</div>
+                      <div className="text-xs text-gray-600">
+                        Creado:{" "}
+                        {new Date(s.createdAt).toLocaleDateString("es-CO")}
+                      </div>
                     </td>
                     <td className="px-2 py-2">
                       <div className="flex flex-col">
                         <span className="text-xs text-gray-600">{s.email}</span>
-                        {s.phone && <span className="text-xs text-gray-600">{s.phone}</span>}
+                        {s.phone && (
+                          <span className="text-xs text-gray-600">
+                            {s.phone}
+                          </span>
+                        )}
+                        {s.country && (
+                          <span className="text-[11px] text-gray-400">
+                            {s.country}
+                          </span>
+                        )}
                       </div>
                     </td>
-                    <td className="px-2 py-2">
-                      {s.commissionRate ? `${Number(s.commissionRate).toFixed(2)}%` : "—"}
-                    </td>
                     <td className="px-2 py-2">{clients}</td>
-                    <td className="px-2 py-2">{ra.count}</td>
-                    <td className="px-2 py-2">{fmtMoney(ra.sum)}</td>
-                    <td className="px-2 py-2">{rm.count}</td>
-                    <td className="px-2 py-2">{fmtMoney(rm.sum)}</td>
-                    <td className="px-2 py-2">{openTasks}</td>
                     <td className="px-2 py-2">
-                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${
-                        s.status === "ACTIVE" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-gray-200 bg-gray-100 text-gray-600"
-                      }`}>
-                        {s.status === "ACTIVE" ? "Activo" : "Inactivo"}
+                      <span
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${
+                          resPend > 0
+                            ? "border-amber-200 bg-amber-50 text-amber-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        {resPend}
                       </span>
                     </td>
+                    <td className="px-2 py-2">
+                      <span
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${
+                          tasksPend > 0
+                            ? "border-sky-200 bg-sky-50 text-sky-700"
+                            : "border-gray-200 bg-gray-50 text-gray-600"
+                        }`}
+                      >
+                        {tasksPend}
+                      </span>
+                    </td>
+                    <td className="px-2 py-2">{ra.count}</td>
+                    <td className="px-2 py-2">{fmtMoney(ra.sum)}</td>
+                    <td className="px-2 py-2">
+                      {s.commissionRate
+                        ? `${Number(s.commissionRate).toFixed(2)}%`
+                        : "—"}
+                    </td>
                     <td className="px-2 py-2 text-right">
-                      <div className="flex gap-2">
-                        <a href={`/dashboard-admin/vendedores/${s.id}`} className="text-primary underline">Ver</a>
-                        <a href={`/dashboard-admin/usuarios/${s.id}`} className="text-primary underline">Editar</a>
+                      <div className="flex gap-1">
+                        <a
+                          href={`/dashboard-admin/vendedores/${s.id}`}
+                          className="text-primary underline"
+                        >
+                          Ver
+                        </a>
                       </div>
                     </td>
                   </tr>
@@ -244,16 +357,28 @@ export default async function AdminSellersPage({
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
-            {sellers.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + sellers.length}` : "0"}
-            {" "}de {total.toLocaleString("es-CO")}
+            {sellers.length > 0
+              ? `${(page - 1) * pageSize + 1}–${
+                  (page - 1) * pageSize + sellers.length
+                }`
+              : "0"}{" "}
+            de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page <= 1 ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page > 1
-                  ? `/dashboard-admin/vendedores${qstr({ q, status, month, page: String(page - 1), pageSize: String(pageSize) })}`
+                  ? `/dashboard-admin/vendedores${qstr({
+                      q,
+                      resPendOrder: resPendOrder || undefined,
+                      tasksOrder: tasksOrder || undefined,
+                      page: String(page - 1),
+                      pageSize: String(pageSize),
+                    })}`
                   : "#"
               }
             >
@@ -261,10 +386,18 @@ export default async function AdminSellersPage({
             </a>
             <a
               aria-disabled={page >= totalPages}
-              className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page >= totalPages ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page < totalPages
-                  ? `/dashboard-admin/vendedores${qstr({ q, status, month, page: String(page + 1), pageSize: String(pageSize) })}`
+                  ? `/dashboard-admin/vendedores${qstr({
+                      q,
+                      resPendOrder: resPendOrder || undefined,
+                      tasksOrder: tasksOrder || undefined,
+                      page: String(page + 1),
+                      pageSize: String(pageSize),
+                    })}`
                   : "#"
               }
             >
