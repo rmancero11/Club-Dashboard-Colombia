@@ -61,7 +61,7 @@ export async function POST(req: Request) {
           paxChildren: Number(paxChildren) || 0,
           currency: String(currency || "USD"),
           totalAmount: Number(totalAmount || 0).toFixed(2),
-          status: "DRAFT",
+          status: "LEAD",
           notes: typeof notes === "string" ? notes : null,
         },
         select: { id: true, code: true },

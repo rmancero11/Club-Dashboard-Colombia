@@ -10,7 +10,7 @@ datasource db {
 
 // ================== Enums ==================
 enum Role {
-  USER // viajero con login
+  USER // viajero con login (únicos que pueden tener Client)
   ADMIN
   SELLER // agente/vendedor (dashboard interno)
 }
@@ -20,17 +20,22 @@ enum UserStatus {
   INACTIVE
 }
 
+// Embudo simple (sin pagos): Lead -> Cotizado -> Confirmado -> Viajando -> Completado
 enum ReservationStatus {
-  DRAFT
-  PENDING
-  CONFIRMED
-  CANCELED
-  COMPLETED
+  LEAD // Lead creado (registro desde WP o interés en destino)
+  QUOTED // Cotización enviada / seguimiento activo
+  HOLD // Opción/bloqueo temporal gestionado con proveedor
+  CONFIRMED // Confirmada (cupos OK)
+  TRAVELING // Viaje en curso
+  COMPLETED // Viaje finalizado
+  CANCELED // Cancelada
+  EXPIRED // Venció la opción/hold sin respuesta
 }
 
 enum TaskStatus {
   OPEN
   IN_PROGRESS
+  BLOCKED // esperando info de cliente/proveedor (p. ej., por WhatsApp)
   DONE
   CANCELLED
 }
@@ -42,13 +47,29 @@ enum TaskPriority {
 }
 
 enum ActivityAction {
+  // Autenticación
   LOGIN
   LOGOUT
+
+  // Clientes / Leads
   CREATE_CLIENT
   UPDATE_CLIENT
+  LEAD_CREATED_FROM_WP // Lead registrado desde WordPress (incluye destino)
+  LEAD_ASSIGNED // Lead asignado a un SELLER
+
+  // Reservas
   CREATE_RESERVATION
   UPDATE_RESERVATION
-  CHANGE_STATUS
+  CHANGE_STATUS // Cambios en ReservationStatus
+  QUOTE_SENT // Cotización enviada
+  HOLD_SET // Opción/hold creado
+  EXPIRED_AUTO // Lead/hold marcado como expirado
+
+  // Comunicación (WhatsApp-first)
+  WHATSAPP_SENT // Mensaje saliente
+  WHATSAPP_RECEIVED // Mensaje entrante
+
+  // Reportes / notas
   GENERATE_REPORT
   NOTE
 }
@@ -108,7 +129,7 @@ model User {
   preference     String?
   destino        String?
   password       String
-  role           Role       @default(USER)
+  role           Role       @default(USER) // USER | ADMIN | SELLER
   status         UserStatus @default(ACTIVE)
   createdAt      DateTime   @default(now())
   avatar         String     @default("/images/default-avatar.png")
@@ -118,7 +139,7 @@ model User {
   business   Business? @relation(fields: [businessId], references: [id])
   businessId String?
 
-  // Relaciones cuando es SELLER
+  // Relaciones cuando es SELLER (agente)
   sellerClients       Client[]             @relation("SellerClients")
   sellerReservations  Reservation[]        @relation("SellerReservations")
   sellerTasks         Task[]               @relation("SellerTasks")
@@ -127,6 +148,7 @@ model User {
   sellerReservations Reservation[] @relation("SellerReservations")
   sellerTasks        Task[]        @relation("SellerTasks")
 
+  // Perfil de cliente (solo si role = USER) — validado en la app
   clientProfile Client? @relation("ClientUser")
 
   activities ActivityLog[] @relation("UserActivities")
@@ -134,7 +156,6 @@ model User {
   @@index([role, status])
   @@index([businessId])
 }
-
 
 // ================== Viajes ==================
 model Destination {
@@ -169,9 +190,9 @@ model Client {
   sellerId String
   seller   User   @relation("SellerClients", fields: [sellerId], references: [id], onDelete: Restrict)
 
-  // Vínculo opcional a la cuenta del viajero
-  userId String? @unique
-  user   User?   @relation("ClientUser", fields: [userId], references: [id], onDelete: SetNull)
+  // Vínculo OBLIGATORIO al usuario (User con role=USER; validar en la app/seed)
+  userId String @unique
+  user   User   @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
 
   name       String
   email      String?
@@ -218,7 +239,7 @@ model Reservation {
 
   currency    String            @default("USD")
   totalAmount Decimal           @default(0) @db.Decimal(12, 2)
-  status      ReservationStatus @default(DRAFT)
+  status      ReservationStatus @default(LEAD)
   notes       String?
 
   tasks      Task[]        @relation("ReservationTasks")

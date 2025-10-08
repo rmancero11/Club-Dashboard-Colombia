@@ -37,7 +37,7 @@ export default async function SellerHomePage() {
   const kpisPromise = Promise.all([
     prisma.reservation.count({ where: { businessId, sellerId } }),
     prisma.reservation.count({
-      where: { businessId, sellerId, status: { in: ["PENDING", "DRAFT"] } },
+      where: { businessId, sellerId, status: { in: ["LEAD"] } },
     }),
     prisma.reservation.count({
       where: { businessId, sellerId, status: "CONFIRMED" },

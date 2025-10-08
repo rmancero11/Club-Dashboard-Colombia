@@ -3,7 +3,7 @@ type Task = {
   title: string;
   description: string | null;
   dueDate: string | Date | null;
-  status: "OPEN" | "IN_PROGRESS" | "DONE" | "CANCELLED";
+  status: "OPEN" | "IN_PROGRESS" | "BLOCKED" | "DONE" | "CANCELLED";
   priority: "LOW" | "MEDIUM" | "HIGH";
   reservationId: string | null;
 };

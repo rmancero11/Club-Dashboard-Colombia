@@ -3,8 +3,10 @@ import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 import KpiCard from "@/app/components/seller/KpiCard";
 import Sparkline from "@/app/components/seller/Sparkline";
+import TopDestinosSection from "../components/admin/TopDestinosSection";
+import ConfirmadosVsPerdidosChart from "../components/admin/ConfirmadosVsPedidosChart";
 
-// utils de fechas
+// === utils de fechas (mes a mes, 12 puntos) ===
 function startOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
 }
@@ -15,6 +17,11 @@ function monthsAgo(n: number) {
   d.setHours(0, 0, 0, 0);
   return d;
 }
+function ymKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+}
+
+type RowYMCount = { ym: string; count: bigint };
 
 export default async function AdminHomePage() {
   const auth = await getAuth();
@@ -24,129 +31,149 @@ export default async function AdminHomePage() {
 
   const businessId = auth.businessId!;
   const monthStart = startOfMonth();
-  const yearStart = monthsAgo(11); // 12 meses
+  const yearStart = monthsAgo(11); // desde el inicio de hace 11 meses => 12 meses cerrados
 
-  // KPIs principales
+  // ===== KPIs fila 1 (Vendedores | Clientes | Leads totales)
   const kpisPromise = Promise.all([
-    prisma.user.count({ where: { businessId } }),                                // total usuarios (todas las cuentas)
-    prisma.user.count({ where: { businessId, role: "SELLER" } }),                // vendedores
-    prisma.client.count({ where: { businessId } }),                               // clientes
-    prisma.reservation.count({ where: { businessId } }),                          // reservas totales
+    prisma.user.count({ where: { businessId, role: "SELLER" } }), // vendedores
+    prisma.client.count({ where: { businessId } }), // clientes
+    prisma.reservation.count({ where: { businessId } }), // leads totales (reservas como registros)
   ]);
 
-  // Kpis de estado de reservas
+  // ===== KPIs fila 2 (Leads abiertos | Confirmadas | Leads creados este mes)
   const statusPromise = Promise.all([
-    prisma.reservation.count({ where: { businessId, status: "PENDING" } }),
-    prisma.reservation.count({ where: { businessId, status: "CONFIRMED" } }),
-    prisma.reservation.count({ where: { businessId, startDate: { gte: monthStart } } }), // reservas este mes (cualquier estado)
+    prisma.reservation.count({
+      where: { businessId, status: { in: ["LEAD", "QUOTED", "HOLD"] } },
+    }),
+    prisma.reservation.count({
+      where: { businessId, status: "CONFIRMED" },
+    }),
+    prisma.reservation.count({
+      where: { businessId, createdAt: { gte: monthStart } }, // coherente con la idea de "este mes"
+    }),
   ]);
 
-  // Serie de reservas por mes (12 meses) – todas las reservas de la empresa
-  const seriesPromise = prisma.$queryRaw<{ ym: string; count: bigint }[]>`
-    SELECT to_char(date_trunc('month', "startDate"), 'YYYY-MM') AS ym,
+  // ===== Series mensuales (siempre 12 meses, por createdAt)
+  // 1) Total de leads creados por mes
+  const seriesTotalPromise = prisma.$queryRaw<RowYMCount[]>`
+    SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
     WHERE "businessId" = ${businessId}
-      AND "startDate" >= ${yearStart}
+      AND "createdAt" >= ${yearStart}
     GROUP BY 1
     ORDER BY 1
   `;
 
-  // Top destinos (empresa)
-  const rowsDestinosPromise = prisma.$queryRaw<{ name: string; cnt: bigint }[]>`
-    SELECT d."name" AS name, COUNT(r.*)::bigint AS cnt
-    FROM "Reservation" r
-    JOIN "Destination" d ON d."id" = r."destinationId"
-    WHERE r."businessId" = ${businessId}
-    GROUP BY d."name"
-    ORDER BY cnt DESC
-    LIMIT 5
+  // 2) Confirmados por mes
+  const seriesConfirmedPromise = prisma.$queryRaw<RowYMCount[]>`
+    SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
+           COUNT(*)::bigint AS count
+    FROM "Reservation"
+    WHERE "businessId" = ${businessId}
+      AND "createdAt" >= ${yearStart}
+      AND "status" = 'CONFIRMED'
+    GROUP BY 1
+    ORDER BY 1
   `;
 
-  const [[totalUsers, sellersCount, clientsCount, reservationsCount], [pendingCount, confirmedCount, thisMonthCount], rawSeries, topDest] =
-    await Promise.all([kpisPromise, statusPromise, seriesPromise, rowsDestinosPromise]);
+  // 3) Perdidos por mes (Cancelados + Expirados)
+  const seriesLostPromise = prisma.$queryRaw<RowYMCount[]>`
+    SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
+           COUNT(*)::bigint AS count
+    FROM "Reservation"
+    WHERE "businessId" = ${businessId}
+      AND "createdAt" >= ${yearStart}
+      AND "status" IN ('CANCELED','EXPIRED')
+    GROUP BY 1
+    ORDER BY 1
+  `;
 
-  // Normaliza serie 12 meses contiguos
+  const [
+    [sellersCount, clientsCount, leadsTotal],
+    [openLeadsCount, confirmedCount, leadsThisMonth],
+    seriesTotal,
+    seriesConfirmed,
+    seriesLost,
+  ] = await Promise.all([
+    kpisPromise,
+    statusPromise,
+    seriesTotalPromise,
+    seriesConfirmedPromise,
+    seriesLostPromise,
+  ]);
+
+  // ===== Normalizar 12 meses contiguos (sin saltos)
   const labels: string[] = [];
-  const counts: number[] = [];
+  const totalPerMonth: number[] = [];
+  const confirmedPerMonth: number[] = [];
+  const lostPerMonth: number[] = [];
+
   for (let i = 11; i >= 0; i--) {
     const d = monthsAgo(i);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
-    labels.push(ym);
-    const found = rawSeries.find((r) => r.ym === ym);
-    counts.push(found ? Number(found.count) : 0);
-  }
+    const key = ymKey(d);
+    labels.push(key);
 
-  const topRows = topDest.map((r) => ({ name: r.name, count: Number(r.cnt) }));
+    const t = seriesTotal.find((r) => r.ym === key);
+    const c = seriesConfirmed.find((r) => r.ym === key);
+    const l = seriesLost.find((r) => r.ym === key);
+
+    totalPerMonth.push(t ? Number(t.count) : 0);
+    confirmedPerMonth.push(c ? Number(c.count) : 0);
+    lostPerMonth.push(l ? Number(l.count) : 0);
+  }
 
   return (
     <div className="space-y-6">
-      <header>
-        <h1 className="text-2xl font-semibold">Inicio (Admin)</h1>
-        <p className="text-sm text-gray-500">Resumen del negocio.</p>
+      {/* Encabezado */}
+      <header className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Panel de control</h1>
+          <p className="text-sm text-gray-500">Resumen del negocio</p>
+        </div>
+        <span className="rounded-md bg-gray-100 px-3 py-1 text-xs text-gray-600">
+          Actualizado al {new Date().toLocaleDateString("es-CO")}
+        </span>
       </header>
 
       {/* KPIs fila 1 */}
-      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <KpiCard label="Usuarios (cuentas)" value={totalUsers} />
+      <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
         <KpiCard label="Vendedores" value={sellersCount} />
         <KpiCard label="Clientes" value={clientsCount} />
-        <KpiCard label="Reservas totales" value={reservationsCount} />
+        <KpiCard label="Leads totales" value={leadsTotal} />
       </section>
 
       {/* KPIs fila 2 */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KpiCard label="Reservas pendientes" value={pendingCount} />
-        <KpiCard label="Reservas confirmadas" value={confirmedCount} />
-        <KpiCard label="Reservas este mes" value={thisMonthCount} />
+        <KpiCard label="Leads abiertos" value={openLeadsCount} />
+        <KpiCard label="Confirmadas" value={confirmedCount} />
+        <KpiCard label="Leads creados este mes" value={leadsThisMonth} />
       </section>
 
-      {/* Tendencia + Top destinos */}
+      {/* Gráficas: 12 meses (sin saltos) */}
       <section className="grid gap-4 lg:grid-cols-2">
+        {/* Tendencia de leads creados (total) */}
         <div className="rounded-xl border bg-white p-4">
           <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Tendencia de reservas</h2>
+            <h2 className="text-lg font-semibold">Leads creados (mes a mes)</h2>
             <span className="text-xs text-gray-500">últimos 12 meses</span>
           </div>
           <div className="h-64">
-            <Sparkline labels={labels} values={counts} />
+            <Sparkline labels={labels} values={totalPerMonth} />
           </div>
         </div>
-
-        <div className="rounded-xl border bg-white p-4">
-          <h2 className="mb-2 text-lg font-semibold">Top destinos</h2>
-          <div className="overflow-auto">
-            <table className="min-w-full text-sm">
-              <thead>
-                <tr className="text-left text-gray-500">
-                  <th className="px-2 py-2">Destino</th>
-                  <th className="px-2 py-2">Reservas</th>
-                </tr>
-              </thead>
-              <tbody>
-                {topRows.length === 0 && (
-                  <tr><td colSpan={2} className="px-2 py-10 text-center text-gray-400">Sin datos</td></tr>
-                )}
-                {topRows.map((r) => (
-                  <tr key={r.name} className="border-t">
-                    <td className="px-2 py-2">{r.name}</td>
-                    <td className="px-2 py-2">{r.count}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <section className="grid gap-4 lg:grid-cols-1">
+          {/* Confirmados vs Perdidos (componente nuevo) */}
+          <ConfirmadosVsPerdidosChart
+            labels={labels}
+            confirmed={confirmedPerMonth}
+            lost={lostPerMonth}
+          />
+        </section>
       </section>
 
-      {/* Accesos rápidos */}
-      <section className="flex flex-wrap gap-3">
-        <a href="/dashboard-admin/usuarios" className="rounded-lg border px-4 py-2">Gestionar usuarios</a>
-        <a href="/dashboard-admin/vendedores" className="rounded-lg border px-4 py-2">Gestionar vendedores</a>
-        <a href="/dashboard-admin/destinos" className="rounded-lg border px-4 py-2">Ver destinos</a>
-        <a href="/dashboard-admin/reservas" className="rounded-lg border px-4 py-2">Ver reservas</a>
-        <a href="/dashboard-admin/reportes" className="rounded-lg border px-4 py-2">Reportes</a>
-      </section>
+      {/* Insights: Top destinos (puedes sumar "Top vendedores" si quieres) */}
+      <TopDestinosSection businessId={businessId} />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
+import { ReservationStatus } from "@prisma/client";
 
 // helpers
 function toInt(v: string | string[] | undefined, def: number) {
@@ -17,11 +18,19 @@ function qstr(params: Record<string, string | undefined>) {
 }
 function fmtDate(d: Date | string) {
   const date = typeof d === "string" ? new Date(d) : d;
-  return date.toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "2-digit" });
+  return date.toLocaleDateString("es-CO", {
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+  });
 }
 function fmtMoney(n: number, currency = "USD") {
   try {
-    return new Intl.NumberFormat("es-CO", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency,
+      maximumFractionDigits: 2,
+    }).format(n);
   } catch {
     return `${currency} ${n.toFixed(2)}`;
   }
@@ -37,7 +46,19 @@ function parseDayEnd(s?: string | null) {
   return Number.isNaN(d.getTime()) ? undefined : d;
 }
 
-const ALLOWED_STATUS = new Set(["DRAFT", "PENDING", "CONFIRMED", "CANCELED", "COMPLETED"]);
+// Nuevos estados del enum ReservationStatus
+const STATUS_LIST = [
+  { value: "LEAD", label: "Lead" },
+  { value: "QUOTED", label: "Cotizado" },
+  { value: "HOLD", label: "Hold/Opción" },
+  { value: "CONFIRMED", label: "Confirmada" },
+  { value: "TRAVELING", label: "Viajando" },
+  { value: "COMPLETED", label: "Completada" },
+  { value: "CANCELED", label: "Cancelada" },
+  { value: "EXPIRED", label: "Expirada" },
+] as const;
+
+const ALLOWED_STATUS = new Set(STATUS_LIST.map((s) => s.value));
 
 export default async function ReservasPage({
   searchParams,
@@ -53,12 +74,29 @@ export default async function ReservasPage({
   const sellerId = auth.userId;
 
   // Query params
-  const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
-  const statusRaw = (Array.isArray(searchParams.status) ? searchParams.status[0] : searchParams.status) ?? "";
-  const status = ALLOWED_STATUS.has(statusRaw) ? statusRaw : "";
-  const destinationId = (Array.isArray(searchParams.destinationId) ? searchParams.destinationId[0] : searchParams.destinationId) ?? "";
-  const dateFrom = (Array.isArray(searchParams.dateFrom) ? searchParams.dateFrom[0] : searchParams.dateFrom) ?? "";
-  const dateTo = (Array.isArray(searchParams.dateTo) ? searchParams.dateTo[0] : searchParams.dateTo) ?? "";
+  const q =
+    (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
+  const statusRaw =
+    (Array.isArray(searchParams.status)
+      ? searchParams.status[0]
+      : searchParams.status) ?? "";
+  const status: ReservationStatus | "" = ALLOWED_STATUS.has(
+    statusRaw as ReservationStatus
+  )
+    ? (statusRaw as ReservationStatus)
+    : "";
+  const destinationId =
+    (Array.isArray(searchParams.destinationId)
+      ? searchParams.destinationId[0]
+      : searchParams.destinationId) ?? "";
+  const dateFrom =
+    (Array.isArray(searchParams.dateFrom)
+      ? searchParams.dateFrom[0]
+      : searchParams.dateFrom) ?? "";
+  const dateTo =
+    (Array.isArray(searchParams.dateTo)
+      ? searchParams.dateTo[0]
+      : searchParams.dateTo) ?? "";
   const page = toInt(searchParams.page, 1);
   const pageSizeRaw = toInt(searchParams.pageSize, 10);
   const pageSize = Math.min(pageSizeRaw, 50);
@@ -71,7 +109,8 @@ export default async function ReservasPage({
 
   const gte = parseDayStart(dateFrom);
   const lte = parseDayEnd(dateTo);
-  if (gte || lte) where.startDate = { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) };
+  if (gte || lte)
+    where.startDate = { ...(gte ? { gte } : {}), ...(lte ? { lte } : {}) };
 
   if (q) {
     where.OR = [
@@ -138,32 +177,47 @@ export default async function ReservasPage({
         <div>
           <h1 className="text-2xl font-semibold">Reservas</h1>
           <p className="text-sm text-gray-500">
-            Crea y gestiona reservas. Mostrando {items.length} de {total.toLocaleString("es-CO")}.
+            Crea y gestiona reservas. Mostrando {items.length} de{" "}
+            {total.toLocaleString("es-CO")}.
           </p>
         </div>
-        <a href="/dashboard-seller/reservas/nueva" className="rounded-lg bg-black px-4 py-2 text-white">
+        <a
+          href="/dashboard-seller/reservas/nueva"
+          className="rounded-lg bg-black px-4 py-2 text-white"
+        >
           Nueva reserva
         </a>
       </header>
 
       {/* Filtros */}
       <div className="rounded-xl border bg-white p-4">
-        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-6" method="GET">
+        <form
+          className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-6"
+          method="GET"
+        >
           <input
             name="q"
             defaultValue={q}
             className="rounded-md border px-3 py-2 text-sm"
             placeholder="Código, cliente, destino..."
           />
-          <select name="status" defaultValue={status} className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="status"
+            defaultValue={status}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="">Estado (todos)</option>
-            <option value="DRAFT">Borrador</option>
-            <option value="PENDING">Pendiente</option>
-            <option value="CONFIRMED">Confirmada</option>
-            <option value="CANCELED">Cancelada</option>
-            <option value="COMPLETED">Completada</option>
+            {STATUS_LIST.map((s) => (
+              <option key={s.value} value={s.value}>
+                {s.label}
+              </option>
+            ))}
           </select>
-          <select name="destinationId" defaultValue={destinationId} className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="destinationId"
+            defaultValue={destinationId}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="">Destino (todos)</option>
             {destinations.map((d) => (
               <option key={d.id} value={d.id}>
@@ -171,17 +225,34 @@ export default async function ReservasPage({
               </option>
             ))}
           </select>
-          <input type="date" name="dateFrom" defaultValue={dateFrom} className="rounded-md border px-3 py-2 text-sm" />
-          <input type="date" name="dateTo" defaultValue={dateTo} className="rounded-md border px-3 py-2 text-sm" />
+          <input
+            type="date"
+            name="dateFrom"
+            defaultValue={dateFrom}
+            className="rounded-md border px-3 py-2 text-sm"
+          />
+          <input
+            type="date"
+            name="dateTo"
+            defaultValue={dateTo}
+            className="rounded-md border px-3 py-2 text-sm"
+          />
           <div className="flex gap-2">
-            <select name="pageSize" defaultValue={String(pageSize)} className="w-full rounded-md border px-3 py-2 text-sm">
+            <select
+              name="pageSize"
+              defaultValue={String(pageSize)}
+              className="w-full rounded-md border px-3 py-2 text-sm"
+            >
               {[10, 20, 30, 50].map((n) => (
                 <option key={n} value={n}>
                   {n} / pág.
                 </option>
               ))}
             </select>
-            <button className="whitespace-nowrap rounded-md border px-3 py-2 text-sm" type="submit">
+            <button
+              className="whitespace-nowrap rounded-md border px-3 py-2 text-sm"
+              type="submit"
+            >
               Aplicar
             </button>
           </div>
@@ -206,7 +277,10 @@ export default async function ReservasPage({
             <tbody>
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-2 py-10 text-center text-gray-400">
+                  <td
+                    colSpan={8}
+                    className="px-2 py-10 text-center text-gray-400"
+                  >
                     Sin resultados
                   </td>
                 </tr>
@@ -214,13 +288,39 @@ export default async function ReservasPage({
 
               {items.map((r) => {
                 const amount = Number(r.totalAmount); // Decimal -> number
+
+                const statusClass =
+                  r.status === "CONFIRMED"
+                    ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+                    : r.status === "LEAD"
+                    ? "border-amber-200 bg-amber-50 text-amber-700"
+                    : r.status === "QUOTED"
+                    ? "border-yellow-200 bg-yellow-50 text-yellow-700"
+                    : r.status === "HOLD"
+                    ? "border-indigo-200 bg-indigo-50 text-indigo-700"
+                    : r.status === "TRAVELING"
+                    ? "border-purple-200 bg-purple-50 text-purple-700"
+                    : r.status === "COMPLETED"
+                    ? "border-blue-200 bg-blue-50 text-blue-700"
+                    : r.status === "CANCELED"
+                    ? "border-gray-200 bg-gray-100 text-gray-600"
+                    : r.status === "EXPIRED"
+                    ? "border-stone-200 bg-stone-50 text-stone-700"
+                    : "border-gray-200 bg-white text-gray-700";
+
                 return (
                   <tr key={r.id} className="border-t">
                     <td className="px-2 py-2 font-medium">{r.code}</td>
                     <td className="px-2 py-2">
                       <div className="flex flex-col">
-                        <span className="font-normal">{r.client?.name || "—"}</span>
-                        {r.client?.email && <span className="text-xs text-gray-600">{r.client.email}</span>}
+                        <span className="font-normal">
+                          {r.client?.name || "—"}
+                        </span>
+                        {r.client?.email && (
+                          <span className="text-xs text-gray-600">
+                            {r.client.email}
+                          </span>
+                        )}
                       </div>
                     </td>
                     <td className="px-2 py-2">{r.destination?.name || "—"}</td>
@@ -232,24 +332,19 @@ export default async function ReservasPage({
                     </td>
                     <td className="px-2 py-2">
                       <span
-                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${
-                          r.status === "CONFIRMED"
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                            : r.status === "PENDING"
-                            ? "border-amber-200 bg-amber-50 text-amber-700"
-                            : r.status === "CANCELED"
-                            ? "border-gray-200 bg-gray-100 text-gray-600"
-                            : r.status === "COMPLETED"
-                            ? "border-blue-200 bg-blue-50 text-blue-700"
-                            : "border-gray-200 bg-white text-gray-700"
-                        }`}
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusClass}`}
                       >
                         {r.status}
                       </span>
                     </td>
-                    <td className="px-2 py-2">{fmtMoney(amount, r.currency)}</td>
+                    <td className="px-2 py-2">
+                      {fmtMoney(amount, r.currency)}
+                    </td>
                     <td className="px-2 py-2 text-right">
-                      <a href={`/dashboard-seller/reservas/${r.id}`} className="text-primary underline">
+                      <a
+                        href={`/dashboard-seller/reservas/${r.id}`}
+                        className="text-primary underline"
+                      >
                         Ver
                       </a>
                     </td>
@@ -264,13 +359,19 @@ export default async function ReservasPage({
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
-            {items.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}` : "0"} de{" "}
-            {total.toLocaleString("es-CO")}
+            {items.length > 0
+              ? `${(page - 1) * pageSize + 1}–${
+                  (page - 1) * pageSize + items.length
+                }`
+              : "0"}{" "}
+            de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page <= 1 ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page > 1
                   ? `/dashboard-seller/reservas${qstr({
@@ -289,7 +390,9 @@ export default async function ReservasPage({
             </a>
             <a
               aria-disabled={page >= totalPages}
-              className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page >= totalPages ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page < totalPages
                   ? `/dashboard-seller/reservas${qstr({

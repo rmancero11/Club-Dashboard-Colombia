@@ -95,7 +95,7 @@ async function main() {
     sellers.push(u);
   }
 
-  // 5) Users viajeros (8)
+  // 5) Users viajeros (8) => SOLO estos tendrán Client
   const usersData = [
     { name: 'Sofía Gómez', email: 'sofia@example.com', country: 'CO', phone: '+57 300000001' },
     { name: 'Carlos Díaz', email: 'carlos@example.com', country: 'CO', phone: '+57 300000002' },
@@ -128,46 +128,22 @@ async function main() {
     travelers.push(created);
   }
 
-  // 6) Clients (8 vinculados a User + 4 sueltos), asignados a sellers
+  // 6) Clients (1:1 con User role=USER) — NO creamos clientes “sueltos”
   const clients = [];
   for (let i = 0; i < travelers.length; i++) {
     const t = travelers[i];
-    const seller = sellers[i % sellers.length];
+    const seller = sellers[i % sellers.length]; // agente asignado
     const cl = await prisma.client.create({
       data: {
         businessId,
         sellerId: seller.id,
-        userId: t.id,
+        userId: t.id, // obligatorio: Client siempre ligado a un User (role USER)
         name: t.name || t.email,
         email: t.email,
         phone: usersData[i].phone || null,
         country: usersData[i].country || null,
         city: null,
         tags: i % 2 === 0 ? ['newsletter', 'vip'] : ['newsletter'],
-      },
-    });
-    clients.push(cl);
-  }
-  // 4 clientes adicionales sin user
-  const extraClientsData = [
-    { name: 'Hernán Páez', email: 'hernan@example.com', phone: '+57 300000010', country: 'CO' },
-    { name: 'Lucía Méndez', email: 'lucia@example.com', phone: '+52 550000010', country: 'MX' },
-    { name: 'Pablo Serra', email: 'pablo@example.com', phone: '+54 110000010', country: 'AR' },
-    { name: 'Nuria Gil', email: 'nuria@example.com', phone: '+34 600000010', country: 'ES' },
-  ];
-  for (let i = 0; i < extraClientsData.length; i++) {
-    const ec = extraClientsData[i];
-    const seller = sellers[i % sellers.length];
-    const cl = await prisma.client.create({
-      data: {
-        businessId,
-        sellerId: seller.id,
-        name: ec.name,
-        email: ec.email,
-        phone: ec.phone,
-        country: ec.country,
-        city: null,
-        tags: ['lead'],
       },
     });
     clients.push(cl);
@@ -229,7 +205,7 @@ async function main() {
         paxChildren: 0,
         currency: 'USD',
         totalAmount: String(amountUSD.toFixed(2)),
-        status,
+        status, // valores del enum nuevo
         notes: `Reserva para ${client.name} en ${dest.name} (${ymd(start)} → ${ymd(end)})`,
       },
     });
@@ -243,14 +219,14 @@ async function main() {
     // recientes / actuales
     { offset: -5, nights: 4, status: 'CONFIRMED', amount: 980 },
     { offset: 0, nights: 3, status: 'CONFIRMED', amount: 640 },
-    { offset: 2, nights: 6, status: 'PENDING', amount: 1600 },
+    { offset: 2, nights: 6, status: 'QUOTED', amount: 1600 },
     // futuras
-    { offset: 15, nights: 5, status: 'PENDING', amount: 1300 },
-    { offset: 25, nights: 7, status: 'DRAFT', amount: 0 },
+    { offset: 15, nights: 5, status: 'QUOTED', amount: 1300 },
+    { offset: 25, nights: 7, status: 'LEAD', amount: 0 },
     { offset: 40, nights: 8, status: 'CONFIRMED', amount: 2100 },
-    { offset: 55, nights: 4, status: 'PENDING', amount: 900 },
-    { offset: 70, nights: 10, status: 'DRAFT', amount: 0 },
-    { offset: 90, nights: 6, status: 'PENDING', amount: 1500 },
+    { offset: 55, nights: 4, status: 'QUOTED', amount: 900 },
+    { offset: 70, nights: 10, status: 'LEAD', amount: 0 },
+    { offset: 90, nights: 6, status: 'QUOTED', amount: 1500 },
   ];
 
   const reservations = [];
