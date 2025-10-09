@@ -48,6 +48,9 @@ export async function GET() {
         createdAt: true,
         avatar: true,
         businessId: true,
+        dniFile: true,      // 👈 nuevo
+        passport: true,     // 👈 nuevo
+        visa: true,         // 👈 nuevo
         clientProfile: {
           select: {
             id: true,
@@ -77,7 +80,7 @@ export async function GET() {
       );
     }
 
-    // Mapear a la forma que espera el frontend
+    // 👇 Mapeo actualizado
     const userShape = {
       id: user.id,
       name: user.name,
@@ -91,6 +94,9 @@ export async function GET() {
       createdAt: user.createdAt,
       avatar: user.avatar,
       businessId: user.businessId,
+      dniFile: user.dniFile,
+      passport: user.passport,
+      visa: user.visa,
       clientProfileId: user.clientProfile?.id ?? null,
       vendedor: user.clientProfile?.seller
         ? {

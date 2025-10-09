@@ -20,10 +20,7 @@ export async function POST(req: Request) {
     }
 
     const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
-
-    // Tu token puede traer el ID en `sub` o en `id`
-    const userId =
-      (payload?.sub as string | undefined) || (payload as any)?.id;
+    const userId = (payload?.sub as string) || (payload as any)?.id;
     if (!userId) {
       return NextResponse.json({ error: "Token inválido" }, { status: 401 });
     }
@@ -34,7 +31,8 @@ export async function POST(req: Request) {
     const phone = formData.get("phone") as string | null;
     const country = formData.get("country") as string | null;
     const dniFile = formData.get("dni") as File | null;
-    const otherFile = formData.get("other") as File | null;
+    const passportFile = formData.get("passport") as File | null;
+    const visaFile = formData.get("visa") as File | null;
 
     // 3️⃣ Crear carpeta uploads si no existe
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
@@ -52,9 +50,10 @@ export async function POST(req: Request) {
     };
 
     const dniUrl = await saveFile(dniFile, "dni");
-    const otherUrl = await saveFile(otherFile, "other");
+    const passportUrl = await saveFile(passportFile, "passport");
+    const visaUrl = await saveFile(visaFile, "visa");
 
-    // 5️⃣ Actualizar usuario en la base de datos
+    // 5️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
@@ -62,7 +61,8 @@ export async function POST(req: Request) {
         ...(phone && { phone }),
         ...(country && { country }),
         ...(dniUrl && { dniFile: dniUrl }),
-        ...(otherUrl && { otherFile: otherUrl }),
+        ...(passportUrl && { passport: passportUrl }),
+        ...(visaUrl && { visa: visaUrl }),
       },
     });
 

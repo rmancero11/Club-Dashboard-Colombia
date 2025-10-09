@@ -136,7 +136,8 @@ model User {
   timezone       String?
   commissionRate Decimal?   @db.Decimal(5, 2)
   dniFile   String?
-  otherFile String?
+  passport       String?
+  visa           String? 
   business   Business? @relation(fields: [businessId], references: [id])
   businessId String?
 

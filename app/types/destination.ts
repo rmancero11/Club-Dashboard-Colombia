@@ -1,3 +1,10 @@
+export interface TravelerDTO {
+  id: string;
+  name: string | null;
+  avatar: string | null;
+  country: string | null;
+}
+
 export interface DestinationDTO {
   id: string;
   businessId: string;
@@ -12,5 +19,6 @@ export interface DestinationDTO {
   updatedAt: string;
   imageUrl: string;
   price: number | null; // 💰 precio base
-  discountPrice?: number | null; // 💸 precio con descuento (opcional)
+  discountPrice?: number | null;
+  travelers?: TravelerDTO[]; // 💸 precio con descuento (opcional)
 }

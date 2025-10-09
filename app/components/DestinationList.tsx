@@ -1,59 +1,72 @@
-'use client'
+"use client";
 
-import { useEffect, useState } from 'react'
-import Image from 'next/image'
-import type { DestinationDTO } from '@/app/types/destination'
+import { useEffect, useState } from "react";
+import Image from "next/image";
+import type { DestinationDTO } from "@/app/types/destination";
 
 interface DestinationsListProps {
-  userDestino?: string
+  userDestino?: string;
 }
 
-export default function DestinationsList({ userDestino }: DestinationsListProps) {
-  const [destinos, setDestinos] = useState<DestinationDTO[]>([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState<string | null>(null)
+export default function DestinationsList({
+  userDestino,
+}: DestinationsListProps) {
+  const [destinos, setDestinos] = useState<DestinationDTO[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const normalize = (str: string) =>
-    str.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').trim()
+    str
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
 
   useEffect(() => {
     const fetchDestinos = async () => {
-      setLoading(true)
-      setError(null)
+      setLoading(true);
+      setError(null);
 
       try {
-        const res = await fetch('/api/destination', { cache: 'no-store' })
-        if (!res.ok) throw new Error('Error al cargar destinos')
+        const res = await fetch("/api/destination", { cache: "no-store" });
+        if (!res.ok) throw new Error("Error al cargar destinos");
 
-        const { items } = await res.json()
-        let sorted: DestinationDTO[] = items
+        const { items } = await res.json();
+        let sorted: DestinationDTO[] = items;
 
         if (userDestino) {
           sorted = sorted.sort((a, b) => {
-            const aMatch = normalize(a.name).includes(normalize(userDestino))
-            const bMatch = normalize(b.name).includes(normalize(userDestino))
-            if (aMatch && !bMatch) return -1
-            if (!aMatch && bMatch) return 1
-            return 0
-          })
+            const aMatch = normalize(a.name).includes(normalize(userDestino));
+            const bMatch = normalize(b.name).includes(normalize(userDestino));
+            if (aMatch && !bMatch) return -1;
+            if (!aMatch && bMatch) return 1;
+            return 0;
+          });
         }
 
-        setDestinos(sorted.slice(0, 6))
+        setDestinos(sorted.slice(0, 6));
       } catch (err: any) {
-        console.error(err)
-        setError(err.message || 'Error desconocido')
+        console.error(err);
+        setError(err.message || "Error desconocido");
       } finally {
-        setLoading(false)
+        setLoading(false);
       }
-    }
+    };
 
-    fetchDestinos()
-  }, [userDestino])
+    fetchDestinos();
+  }, [userDestino]);
 
-  if (loading) return <p className="text-gray-500 text-center mt-4">Cargando destinos...</p>
-  if (error) return <p className="text-red-500 text-center mt-4">⚠️ {error}</p>
+  if (loading)
+    return (
+      <p className="text-gray-500 text-center mt-4">Cargando destinos...</p>
+    );
+  if (error) return <p className="text-red-500 text-center mt-4">⚠️ {error}</p>;
   if (destinos.length === 0)
-    return <p className="text-gray-400 text-center mt-4">No hay destinos disponibles</p>
+    return (
+      <p className="text-gray-400 text-center mt-4">
+        No hay destinos disponibles
+      </p>
+    );
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
@@ -64,7 +77,7 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
         >
           <div className="relative w-full h-48">
             <Image
-              src={destino.imageUrl || '/images/placeholder.jpg'}
+              src={destino.imageUrl || "/images/placeholder.jpg"}
               alt={destino.name}
               fill
               className="object-cover"
@@ -72,13 +85,19 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
           </div>
 
           <div className="p-5">
-            <h2 className="text-xl font-semibold text-gray-800 mb-1">{destino.name}</h2>
+            <h2 className="text-xl font-semibold text-gray-800 mb-1">
+              {destino.name}
+            </h2>
             <p className="text-sm text-gray-500 mb-2">
-              {destino.city ? `${destino.city}, ${destino.country}` : destino.country}
+              {destino.city
+                ? `${destino.city}, ${destino.country}`
+                : destino.country}
             </p>
 
             {destino.description && (
-              <p className="text-gray-600 mb-3 line-clamp-2">{destino.description}</p>
+              <p className="text-gray-600 mb-3 line-clamp-2">
+                {destino.description}
+              </p>
             )}
 
             {destino.category && (
@@ -111,9 +130,45 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
                 Popularidad: {destino.popularityScore?.toFixed(1) || 0}
               </p>
             </div>
+
+            {/* 👥 Viajeros */}
+            {destino.travelers && destino.travelers.length > 0 && (
+              <div className="mt-5">
+                <p className="text-sm font-medium text-gray-700 mb-2">
+                  Viajan:
+                </p>
+                <div className="flex -space-x-3">
+                  {destino.travelers.slice(0, 6).map((viajero) => (
+                    <div
+                      key={viajero.id}
+                      className="relative group cursor-pointer"
+                    >
+                      <Image
+                        src={viajero.avatar || "/images/default-avatar.png"}
+                        alt={viajero.name || "Viajero"}
+                        width={40}
+                        height={40}
+                        className="rounded-full border-2 border-white shadow-sm transition-transform duration-200 group-hover:scale-110"
+                      />
+
+                      {/* 🏷 Tooltip con nombre */}
+                      <div className="absolute bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-900 text-white text-xs font-medium py-1 px-2 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
+                        {viajero.name || "Viajero"}
+                      </div>
+                    </div>
+                  ))}
+
+                  {destino.travelers.length > 6 && (
+                    <div className="flex items-center justify-center w-10 h-10 rounded-full bg-gray-200 text-gray-600 text-sm font-medium border-2 border-white shadow-sm">
+                      +{destino.travelers.length - 6}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
           </div>
         </div>
       ))}
     </div>
-  )
+  );
 }

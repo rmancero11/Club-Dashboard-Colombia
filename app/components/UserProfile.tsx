@@ -168,26 +168,6 @@ export default function UserProfile({ user }: { user: UserShape }) {
           )}
         </div>
       </div>
-
-
-      {/* Acceso rápido */}
-      <div className="mt-8 flex flex-wrap gap-3 justify-center">
-        {user.role === 'ADMIN' && (
-          <a href="/dashboard-admin" className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-black/90">
-            Ir al Dashboard Admin
-          </a>
-        )}
-        {user.role === 'SELLER' && (
-          <a href="/dashboard-seller" className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-black/90">
-            Ir al Dashboard Seller
-          </a>
-        )}
-        {user.role === 'USER' && (
-          <a href="/dashboard-user" className="rounded-lg bg-black px-4 py-2 text-sm text-white hover:bg-black/90">
-            Ir a mi Dashboard
-          </a>
-        )}
-      </div>
     </div>
   );
 }
