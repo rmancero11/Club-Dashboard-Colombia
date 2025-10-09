@@ -24,6 +24,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       body.city = formData.get("city");
       body.category = formData.get("category");
       body.description = formData.get("description");
+      body.price = formData.get("price");
+      body.discountPrice = formData.get("discountPrice");
       body.isActive = formData.get("isActive") === "true";
 
       const image = formData.get("image") as File | null;
@@ -52,6 +54,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (body.category === null || typeof body.category === "string") data.category = body.category ? body.category.trim() : null;
     if (body.description === null || typeof body.description === "string") data.description = body.description ? body.description.trim() : null;
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
+
+    // ✅ Nuevo campo price
+    if (body.price !== undefined) {
+      const parsedPrice = parseFloat(body.price);
+      if (!isNaN(parsedPrice)) {
+        data.price = parsedPrice;
+      }
+    }
+
+    // ✅ Nuevo campo discountPrice
+    if (body.discountPrice !== undefined) {
+      const parsedDiscountPrice = parseFloat(body.discountPrice);
+      if (!isNaN(parsedDiscountPrice)) {
+        data.discountPrice = parsedDiscountPrice;
+      } else {
+        data.discountPrice = null;
+      }
+    }
 
     const updated = await prisma.destination.update({
       where: { id: params.id, businessId: auth.businessId },

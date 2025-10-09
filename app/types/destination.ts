@@ -11,4 +11,6 @@ export interface DestinationDTO {
   createdAt: string; // o Date si lo parseas
   updatedAt: string;
   imageUrl: string;
+  price: number | null; // 💰 precio base
+  discountPrice?: number | null; // 💸 precio con descuento (opcional)
 }

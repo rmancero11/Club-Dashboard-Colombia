@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
+import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { uploadToCloudinary } from "@/app/lib/cloudinary";
 import { cookies } from "next/headers";
@@ -15,6 +16,12 @@ const DestinationSchema = z.object({
   description: z.string().optional(),
   category: z.string().optional(),
   isActive: z.boolean().optional().default(true),
+  price: z.string().regex(/^\d+(\.\d{1,2})?$/, "Precio inválido"),
+  discountPrice: z
+    .string()
+    .regex(/^\d+(\.\d{1,2})?$/, "Precio con descuento inválido")
+    .optional()
+    .nullable(),
 });
 
 async function getBusinessIdFromCookie(): Promise<string | null> {
@@ -37,14 +44,21 @@ export async function POST(req: Request) {
 
     const formData = await req.formData();
 
-   const body = DestinationSchema.parse({
-  name: formData.get("name") as string,
-  country: formData.get("country") as string,
-  city: (formData.get("city") as string) || undefined,
-  description: (formData.get("description") as string) || undefined,
-  category: (formData.get("category") as string) || undefined,
-  isActive: formData.get("isActive") === "true",
-});
+    const normalizeDecimal = (value?: string | null) => {
+      if (!value) return null;
+      return value.replace(",", ".").trim();
+    };
+
+    const body = DestinationSchema.parse({
+      name: formData.get("name") as string,
+      country: formData.get("country") as string,
+      city: (formData.get("city") as string) || undefined,
+      description: (formData.get("description") as string) || undefined,
+      category: (formData.get("category") as string) || undefined,
+      isActive: formData.get("isActive") === "true",
+      price: normalizeDecimal(formData.get("price") as string),
+      discountPrice: normalizeDecimal(formData.get("discountPrice") as string),
+    });
 
     let imageUrl = "";
     const image = formData.get("image");
@@ -63,6 +77,8 @@ export async function POST(req: Request) {
         category: body.category,
         isActive: body.isActive,
         imageUrl,
+        price: new Prisma.Decimal(body.price),
+        discountPrice: body.discountPrice ? new Prisma.Decimal(body.discountPrice) : null,
       },
     });
 

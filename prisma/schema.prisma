@@ -172,6 +172,8 @@ model Destination {
   isActive        Boolean @default(true)
   popularityScore Int     @default(0) // cache para "más populares"
   imageUrl        String?
+  price          Decimal?  @db.Decimal(10, 2)
+  discountPrice  Decimal?  @db.Decimal(10, 2)
 
   reservations Reservation[]
 

@@ -22,14 +22,12 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
       setError(null)
 
       try {
-        // Si quieres traer solo los activos puedes agregar ?active=true
         const res = await fetch('/api/destination', { cache: 'no-store' })
         if (!res.ok) throw new Error('Error al cargar destinos')
 
         const { items } = await res.json()
         let sorted: DestinationDTO[] = items
 
-        // Filtrado por nombre si userDestino está definido
         if (userDestino) {
           sorted = sorted.sort((a, b) => {
             const aMatch = normalize(a.name).includes(normalize(userDestino))
@@ -40,7 +38,6 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
           })
         }
 
-        // Limitar a máximo 6 destinos
         setDestinos(sorted.slice(0, 6))
       } catch (err: any) {
         console.error(err)
@@ -55,7 +52,8 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
 
   if (loading) return <p className="text-gray-500 text-center mt-4">Cargando destinos...</p>
   if (error) return <p className="text-red-500 text-center mt-4">⚠️ {error}</p>
-  if (destinos.length === 0) return <p className="text-gray-400 text-center mt-4">No hay destinos disponibles</p>
+  if (destinos.length === 0)
+    return <p className="text-gray-400 text-center mt-4">No hay destinos disponibles</p>
 
   return (
     <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6 p-4">
@@ -78,6 +76,7 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
             <p className="text-sm text-gray-500 mb-2">
               {destino.city ? `${destino.city}, ${destino.country}` : destino.country}
             </p>
+
             {destino.description && (
               <p className="text-gray-600 mb-3 line-clamp-2">{destino.description}</p>
             )}
@@ -88,6 +87,25 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
               </span>
             )}
 
+            {/* 🔹 Precios */}
+            <div className="mt-4 flex flex-wrap gap-2 items-center">
+              {destino.discountPrice ? (
+                <>
+                  <span className="px-3 py-1 bg-gray-200 text-gray-600 text-sm font-medium rounded-md line-through">
+                    ${Number(destino.price).toLocaleString()}
+                  </span>
+                  <span className="px-3 py-1 bg-primary text-white text-sm font-semibold rounded-md">
+                    ${Number(destino.discountPrice).toLocaleString()}
+                  </span>
+                </>
+              ) : (
+                <span className="px-3 py-1 bg-primary text-white text-sm font-semibold rounded-md">
+                  ${Number(destino.price).toLocaleString()}
+                </span>
+              )}
+            </div>
+
+            {/* Popularidad */}
             <div className="mt-3">
               <p className="text-purple-600 font-bold">
                 Popularidad: {destino.popularityScore?.toFixed(1) || 0}

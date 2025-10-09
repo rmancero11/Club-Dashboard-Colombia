@@ -29,9 +29,11 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
       city: true,
       category: true,
       description: true,
-      imageUrl: true, // <-- Traemos imageUrl
+      imageUrl: true,
       isActive: true,
       popularityScore: true,
+      price: true, // 👈 Decimal
+      discountPrice: true, // 👈 Decimal
       createdAt: true,
       updatedAt: true,
       _count: { select: { reservations: true } },
@@ -39,6 +41,10 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
   });
 
   if (!d) notFound();
+
+  // 👇 Convertimos Decimals a Number de forma segura
+  const price = d.price ? Number(d.price) : 0;
+  const discountPrice = d.discountPrice ? Number(d.discountPrice) : null;
 
   const recentReservations = await prisma.reservation.findMany({
     where: { businessId, destinationId: d.id },
@@ -65,7 +71,9 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
             {[d.city, d.country].filter(Boolean).join(", ") || d.country} · {d.category || "Sin categoría"}
           </p>
         </div>
-        <a href="/dashboard-admin/destinos" className="rounded-md border px-3 py-2 text-sm">← Volver</a>
+        <a href="/dashboard-admin/destinos" className="rounded-md border px-3 py-2 text-sm">
+          ← Volver
+        </a>
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
@@ -87,7 +95,9 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
               city: d.city,
               category: d.category,
               description: d.description,
-              imageUrl: d.imageUrl, // <-- Pasamos imageUrl al formulario
+              imageUrl: d.imageUrl,
+              price,
+              discountPrice,
             }}
           />
 
@@ -99,6 +109,18 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
           <div className="mt-3 text-xs text-gray-500">
             Popularidad: {d.popularityScore} · Creado: {new Date(d.createdAt).toLocaleString("es-CO")} ·{" "}
             Actualizado: {new Date(d.updatedAt).toLocaleString("es-CO")}
+          </div>
+
+          {/* 👇 mostramos precios actuales */}
+          <div className="mt-3 text-sm">
+            <p>
+              <strong>Precio:</strong>{" "}
+              {price ? money(price) : <span className="text-gray-400">No definido</span>}
+            </p>
+            <p>
+              <strong>Precio con descuento:</strong>{" "}
+              {discountPrice ? money(discountPrice) : <span className="text-gray-400">No definido</span>}
+            </p>
           </div>
         </div>
 
