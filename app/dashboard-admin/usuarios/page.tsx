@@ -86,6 +86,12 @@ export default async function AdminUsersPage({
         status: true,
         commissionRate: true,
         createdAt: true,
+        // NUEVOS CAMPOS
+        purchaseOrder: true,
+        flightTickets: true,
+        serviceVoucher: true,
+        medicalAssistanceCard: true,
+        travelTips: true,
       },
     }),
   ]);
@@ -187,6 +193,7 @@ export default async function AdminUsersPage({
                 <th className="px-2 py-2">Rol</th>
                 <th className="px-2 py-2">Estado</th>
                 <th className="px-2 py-2">Comisión</th>
+                <th className="px-2 py-2">Documentos</th> {/* NUEVA COLUMNA */}
                 <th className="px-2 py-2">Creado</th>
                 <th className="px-2 py-2"></th>
               </tr>
@@ -194,10 +201,7 @@ export default async function AdminUsersPage({
             <tbody>
               {items.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={7}
-                    className="px-2 py-10 text-center text-gray-400"
-                  >
+                  <td colSpan={8} className="px-2 py-10 text-center text-gray-400">
                     Sin resultados
                   </td>
                 </tr>
@@ -206,16 +210,12 @@ export default async function AdminUsersPage({
                 <tr key={u.id} className="border-t">
                   <td className="px-2 py-2">
                     <div className="font-medium">{u.name || "—"}</div>
-                    <div className="text-xs text-gray-600">
-                      {u.country || "—"}
-                    </div>
+                    <div className="text-xs text-gray-600">{u.country || "—"}</div>
                   </td>
                   <td className="px-2 py-2">
                     <div className="flex flex-col">
                       <span className="text-xs text-gray-600">{u.email}</span>
-                      {u.phone && (
-                        <span className="text-xs text-gray-600">{u.phone}</span>
-                      )}
+                      {u.phone && <span className="text-xs text-gray-600">{u.phone}</span>}
                     </div>
                   </td>
                   <td className="px-2 py-2">
@@ -236,19 +236,27 @@ export default async function AdminUsersPage({
                   </td>
                   <td className="px-2 py-2">
                     {u.role === "SELLER"
-                      ? `${
-                          u.commissionRate
-                            ? Number(u.commissionRate).toFixed(2)
-                            : "0.00"
-                        }%`
+                      ? `${u.commissionRate ? Number(u.commissionRate).toFixed(2) : "0.00"}%`
                       : "—"}
                   </td>
+
+                  {/* NUEVA COLUMNA DOCUMENTOS */}
+                  <td className="px-2 py-2">
+                    <details className="text-xs">
+                      <summary className="cursor-pointer underline">Ver documentos</summary>
+                      <ul className="mt-1 space-y-1">
+                        <li>Purchase Order: {u.purchaseOrder ? "Sí" : "No"}</li>
+                        <li>Flight Tickets: {u.flightTickets ? "Sí" : "No"}</li>
+                        <li>Service Voucher: {u.serviceVoucher ? "Sí" : "No"}</li>
+                        <li>Medical Assistance Card: {u.medicalAssistanceCard ? "Sí" : "No"}</li>
+                        <li>Travel Tips: {u.travelTips ? "Sí" : "No"}</li>
+                      </ul>
+                    </details>
+                  </td>
+
                   <td className="px-2 py-2">{fmtDate(u.createdAt)}</td>
                   <td className="px-2 py-2 text-right">
-                    <a
-                      href={`/dashboard-admin/usuarios/${u.id}`}
-                      className="text-primary underline"
-                    >
+                    <a href={`/dashboard-admin/usuarios/${u.id}`} className="text-primary underline">
                       Ver
                     </a>
                   </td>
@@ -263,18 +271,14 @@ export default async function AdminUsersPage({
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
             {items.length > 0
-              ? `${(page - 1) * pageSize + 1}–${
-                  (page - 1) * pageSize + items.length
-                }`
+              ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}`
               : "0"}{" "}
             de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${
-                page <= 1 ? "pointer-events-none opacity-50" : ""
-              }`}
+              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
               href={
                 page > 1
                   ? `/dashboard-admin/usuarios${qstr({
@@ -291,9 +295,7 @@ export default async function AdminUsersPage({
             </a>
             <a
               aria-disabled={page >= totalPages}
-              className={`rounded-md border px-3 py-2 text-sm ${
-                page >= totalPages ? "pointer-events-none opacity-50" : ""
-              }`}
+              className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
               href={
                 page < totalPages
                   ? `/dashboard-admin/usuarios${qstr({

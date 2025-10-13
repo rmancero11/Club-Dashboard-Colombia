@@ -38,7 +38,22 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { name, email, country, whatsapp, presupuesto, preferencia, destino, password, businessSlug } = body ?? {};
+    const { 
+  name,
+  email,
+  country,
+  whatsapp,
+  destino,
+  password,
+  businessSlug,
+  comentario,
+  soltero,
+  afirmacion,
+  gustos,
+  acepta_terminos,
+  flujo
+} = body ?? {};
+
 
     if (!email || !password) {
       return NextResponse.json(
@@ -65,17 +80,22 @@ export async function POST(req: Request) {
     // Crear usuario
     const newUser = await prisma.user.create({
       data: {
-        email,
-        name,
-        phone: whatsapp,
-        country,
-        budget: presupuesto,
-        preference: preferencia,
-        destino,
-        password: hashedPassword,
-        role: "USER",
-        businessId: business?.id ?? null,
-      },
+  email,
+  name,
+  phone: whatsapp,
+  country,
+  destino,
+  password: hashedPassword,
+  role: "USER",
+  businessId: business?.id ?? null,
+  comment: comentario,
+  singleStatus: soltero,          
+  affirmation: afirmacion,       
+  preference: gustos,            
+  acceptedTerms: acepta_terminos === "on",
+  flow: flujo,
+}
+,
       select: {
         id: true,
         email: true,
@@ -101,7 +121,7 @@ export async function POST(req: Request) {
         phone: whatsapp,
         country,
         destino,
-        preferencia,
+        preferencia: gustos,
         sellerDefaultId: SELLER_DEFAULT_ID,
       });
     }

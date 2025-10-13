@@ -137,7 +137,17 @@ model User {
   commissionRate Decimal?   @db.Decimal(5, 2)
   dniFile   String?
   passport       String?
-  visa           String? 
+  visa           String?
+  purchaseOrder        String? 
+  flightTickets        String? 
+  serviceVoucher       String? 
+  medicalAssistanceCard String? 
+  travelTips           String? 
+  comment        String? 
+  singleStatus   String?   
+  affirmation    String?     
+  acceptedTerms  Boolean?  
+  flow           String?   
   business   Business? @relation(fields: [businessId], references: [id])
   businessId String?
 

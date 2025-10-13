@@ -48,9 +48,22 @@ export async function GET() {
         createdAt: true,
         avatar: true,
         businessId: true,
-        dniFile: true,      // 👈 nuevo
-        passport: true,     // 👈 nuevo
-        visa: true,         // 👈 nuevo
+        dniFile: true,
+        passport: true,
+        visa: true,
+        comment: true,
+        singleStatus: true,
+        affirmation: true,
+        acceptedTerms: true,
+        flow: true,
+
+        // Archivos nuevos
+        purchaseOrder: true,
+        flightTickets: true,
+        serviceVoucher: true,
+        medicalAssistanceCard: true,
+        travelTips: true,
+
         clientProfile: {
           select: {
             id: true,
@@ -80,7 +93,7 @@ export async function GET() {
       );
     }
 
-    // 👇 Mapeo actualizado
+    // Mapeo actualizado con los archivos
     const userShape = {
       id: user.id,
       name: user.name,
@@ -97,6 +110,19 @@ export async function GET() {
       dniFile: user.dniFile,
       passport: user.passport,
       visa: user.visa,
+      comment: user.comment,
+      singleStatus: user.singleStatus,
+      affirmation: user.affirmation,
+      acceptedTerms: user.acceptedTerms,
+      flow: user.flow,
+
+      // Archivos nuevos
+      purchaseOrder: user.purchaseOrder,
+      flightTickets: user.flightTickets,
+      serviceVoucher: user.serviceVoucher,
+      medicalAssistanceCard: user.medicalAssistanceCard,
+      travelTips: user.travelTips,
+
       clientProfileId: user.clientProfile?.id ?? null,
       vendedor: user.clientProfile?.seller
         ? {
@@ -111,7 +137,7 @@ export async function GET() {
       { status: 200, headers: { "Cache-Control": "no-store" } }
     );
   } catch (err) {
-    console.error("Error en /api/user/me:", err);
+    console.error("Error en /api/auth/me:", err);
     return NextResponse.json(
       { error: "No autenticado" },
       { status: 401, headers: { "Cache-Control": "no-store" } }
