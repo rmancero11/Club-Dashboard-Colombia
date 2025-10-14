@@ -2,6 +2,7 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 import ToggleActive from "@/app/components/admin/destinations/ToggleActive";
+import Image from "next/image";
 
 // helpers
 function toInt(v: string | string[] | undefined, def: number) {
@@ -39,15 +40,10 @@ export default async function AdminDestinationsPage({
   const page = toInt(searchParams.page, 1);
   const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
+  // ⬇️ Buscador SOLO por nombre del destino
   const where: any = { businessId };
   if (q) {
-    where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { country: { contains: q, mode: "insensitive" } },
-      { city: { contains: q, mode: "insensitive" } },
-      { category: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-    ];
+    where.name = { contains: q, mode: "insensitive" };
   }
   if (active === "yes") where.isActive = true;
   if (active === "no") where.isActive = false;
@@ -85,7 +81,7 @@ export default async function AdminDestinationsPage({
         city: true,
         category: true,
         price: true,
-        discountPrice: true, // 👈 añadido
+        discountPrice: true,
         isActive: true,
         popularityScore: true,
         createdAt: true,
@@ -129,12 +125,13 @@ export default async function AdminDestinationsPage({
       <div className="rounded-xl border bg-white p-6">
         {/* filtros */}
         <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-6" method="GET">
-          <input name="q" defaultValue={q} className="rounded-md border px-3 py-2 text-sm" placeholder="Buscar por nombre, país, categoría..." />
-          <select name="active" defaultValue={active} className="rounded-md border px-3 py-2 text-sm">
-            <option value="">Estado (todos)</option>
-            <option value="yes">Activos</option>
-            <option value="no">Inactivos</option>
-          </select>
+          {/* ⬇️ Buscador: SOLO nombre del destino */}
+          <input
+            name="q"
+            defaultValue={q}
+            className="rounded-md border px-3 py-2 text-sm"
+            placeholder="Buscar por nombre del destino…"
+          />
           <select name="country" defaultValue={country} className="rounded-md border px-3 py-2 text-sm">
             <option value="">País (todos)</option>
             {countryOpts.map(c => (
@@ -152,14 +149,27 @@ export default async function AdminDestinationsPage({
             <option value="name_asc">Nombre (A–Z)</option>
             <option value="popularity_desc">Popularidad</option>
           </select>
+          <select name="pageSize" defaultValue={String(pageSize)} className="rounded-md border px-3 py-2 text-sm">
+            {[10, 20, 30, 50].map(n => (
+              <option key={n} value={n}>{n} / pág.</option>
+            ))}
+          </select>
+
           <div className="flex items-center gap-2">
-            <select name="pageSize" defaultValue={String(pageSize)} className="rounded-md border px-3 py-2 text-sm">
-              {[10, 20, 30, 50].map(n => (
-                <option key={n} value={n}>{n} / pág.</option>
-              ))}
-            </select>
             <input type="hidden" name="page" value="1" />
-            <button className="rounded-md border px-2 py-2 text-sm" type="submit">Aplicar</button>
+            <button className="rounded-md border px-3 py-2 text-sm" type="submit">Aplicar</button>
+
+            {/* ⬇️ Botón Borrar filtros */}
+            <a
+              className="rounded-md border px-3 py-2 text-sm"
+              href={`/dashboard-admin/destinos${qstr({
+                order: "createdAt_desc",
+                page: "1",
+                pageSize: String(pageSize),
+              })}`}
+            >
+              Borrar filtros
+            </a>
           </div>
         </form>
 
@@ -171,10 +181,9 @@ export default async function AdminDestinationsPage({
                 <th className="px-2 py-2">Destino</th>
                 <th className="px-2 py-2">Ubicación</th>
                 <th className="px-2 py-2">Categoría</th>
-                <th className="px-2 py-2">Precio</th> {/* 👈 nueva columna */}
+                <th className="px-2 py-2">Precio</th>
                 <th className="px-2 py-2">Reservas</th>
                 <th className="px-2 py-2">Popularidad</th>
-                <th className="px-2 py-2">Estado</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
@@ -191,7 +200,7 @@ export default async function AdminDestinationsPage({
                   <td className="px-2 py-2">
                     <div className="flex items-center gap-3">
                       {d.imageUrl && (
-                        <img src={d.imageUrl} alt={d.name} className="h-12 w-12 rounded-md object-cover border" />
+                        <Image src={d.imageUrl} alt={d.name} className="h-12 w-12 rounded-md object-cover border" width={150} height={150} />
                       )}
                       <div>
                         <div className="font-medium">{d.name}</div>
@@ -204,7 +213,6 @@ export default async function AdminDestinationsPage({
                   <td className="px-2 py-2">{[d.city, d.country].filter(Boolean).join(", ") || d.country}</td>
                   <td className="px-2 py-2">{d.category || "—"}</td>
 
-                  {/* precios */}
                   <td className="px-2 py-2">
                     {d.price != null && (
                       d.discountPrice != null ? (
@@ -224,20 +232,8 @@ export default async function AdminDestinationsPage({
                     )}
                   </td>
 
-
                   <td className="px-2 py-2">{d._count.reservations}</td>
                   <td className="px-2 py-2">{d.popularityScore}</td>
-                  <td className="px-2 py-2">
-                    <span
-                      className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${
-                        d.isActive
-                          ? "border-emerald-200 bg-emerald-50 text-emerald-700"
-                          : "border-gray-200 bg-gray-100 text-gray-600"
-                      }`}
-                    >
-                      {d.isActive ? "Activo" : "Inactivo"}
-                    </span>
-                  </td>
                   <td className="px-2 py-2 text-right">
                     <div className="flex gap-2">
                       <a href={`/dashboard-admin/destinos/${d.id}`} className="text-primary underline">

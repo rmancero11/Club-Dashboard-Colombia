@@ -10,6 +10,7 @@ import {
   CartesianGrid,
   Legend,
 } from 'recharts';
+import { useEffect, useMemo, useState } from 'react';
 
 type Props = {
   labels: string[];        // ["YYYY-MM", ...]
@@ -25,10 +26,31 @@ function formatMonth(ym: string) {
   const d = new Date(y, (m ?? 1) - 1, 1);
   return d.toLocaleDateString('es-CO', { month: 'short' }).replace('.', '');
 }
-
 function lastN<T>(arr: T[], n: number): T[] {
   if (!Array.isArray(arr)) return [];
   return arr.slice(Math.max(0, arr.length - n));
+}
+
+// --- mismo hook de breakpoints que la otra ---
+function useBreakpoint() {
+  const [bp, setBp] = useState<'mobile' | 'tablet' | 'desktop'>('desktop');
+  useEffect(() => {
+    const mqMobile = window.matchMedia('(max-width: 640px)');
+    const mqTablet = window.matchMedia('(min-width: 641px) and (max-width: 1024px)');
+    const update = () => {
+      if (mqMobile.matches) setBp('mobile');
+      else if (mqTablet.matches) setBp('tablet');
+      else setBp('desktop');
+    };
+    update();
+    mqMobile.addEventListener('change', update);
+    mqTablet.addEventListener('change', update);
+    return () => {
+      mqMobile.removeEventListener('change', update);
+      mqTablet.removeEventListener('change', update);
+    };
+  }, []);
+  return bp;
 }
 
 export default function ConfirmadosVsPerdidosChart({
@@ -39,6 +61,64 @@ export default function ConfirmadosVsPerdidosChart({
   subtitle,
   months = 6,
 }: Props) {
+  const bp = useBreakpoint();
+
+  // Mismas dimensiones/estilos que MonthlyLeadsChart
+  const {
+    chartHeight,
+    margin,
+    xTickAngle,
+    xTickAnchor,
+    xTickHeight,
+    yTickFontSize,
+    showLegend,
+    barCategoryGap,
+    barGap,
+    barSize,
+  } = useMemo(() => {
+    if (bp === 'mobile') {
+      return {
+        chartHeight: 260,
+        margin: { top: 10, right: 24, bottom: 30, left: 24 },
+        xTickAngle: 0 as const,
+        xTickAnchor: 'middle' as const,
+        xTickHeight: 22,
+        yTickFontSize: 11,
+        showLegend: false,      // esconder leyenda en móvil (hay 2 series pero priorizamos espacio)
+        barCategoryGap: '20%',
+        barGap: 2,
+        barSize: 18,
+      };
+    }
+    if (bp === 'tablet') {
+      return {
+        chartHeight: 320,
+        margin: { top: 8, right: 16, bottom: 40, left: 48 },
+        xTickAngle: -25 as const,
+        xTickAnchor: 'end' as const,
+        xTickHeight: 40,
+        yTickFontSize: 12,
+        showLegend: true,
+        barCategoryGap: '18%',
+        barGap: 4,
+        barSize: 22,
+      };
+    }
+    // desktop
+    return {
+      chartHeight: 380,
+      margin: { top: 10, right: 24, bottom: 48, left: 56 },
+      xTickAngle: -30 as const,
+      xTickAnchor: 'end' as const,
+      xTickHeight: 48,
+      yTickFontSize: 12,
+      showLegend: true,
+      barCategoryGap: '16%',
+      barGap: 6,
+      barSize: 24,
+    };
+  }, [bp]);
+
   // recorte defensivo
   const lN = lastN(labels, months);
   const cN = lastN(confirmed, months);
@@ -46,48 +126,51 @@ export default function ConfirmadosVsPerdidosChart({
   const len = Math.min(lN.length, cN.length, pN.length);
   const L = lN.slice(-len), C = cN.slice(-len), P = pN.slice(-len);
 
-  const data = L.map((ym, i) => ({
-    month: formatMonth(ym),          // solo mes
-    Confirmadas: C[i] ?? 0,
-    Perdidas: P[i] ?? 0,
-  }));
+  const data = useMemo(
+    () =>
+      L.map((ym, i) => ({
+        monthRaw: ym,
+        month: formatMonth(ym),
+        Confirmadas: Number.isFinite(C[i]) ? (C[i] ?? 0) : 0,
+        Perdidas: Number.isFinite(P[i]) ? (P[i] ?? 0) : 0,
+      })),
+    [L, C, P]
+  );
 
   const hasData = data.some(d => (d.Confirmadas ?? 0) > 0 || (d.Perdidas ?? 0) > 0);
 
   return (
-    <div className="rounded-xl border bg-white p-4">
+    <div className="rounded-xl border bg-white p-4" role="group" aria-label="Gráfico de reservas confirmadas y perdidas">
       <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
         <h2 className="text-lg font-semibold">{title}</h2>
-        <span className="text-xs text-gray-500">
-          {subtitle ?? `Últimos ${months} meses`}
-        </span>
+        <span className="text-xs text-gray-500">{subtitle ?? `Últimos ${months} meses`}</span>
       </div>
 
       {!hasData ? (
-        <div className="flex h-56 items-center justify-center text-sm text-gray-400">
-          Sin datos para mostrar
-        </div>
+        <div className="flex h-56 items-center justify-center text-sm text-gray-400">Sin datos para mostrar</div>
       ) : (
         <>
-          <div className="w-full h-[320px] sm:h-[360px] lg:h-[400px]">
+          <div className="w-full" style={{ height: chartHeight }}>
             <ResponsiveContainer width="100%" height="100%">
               <BarChart
                 data={data}
-                margin={{ top: 10, right: 24, bottom: 40, left: 48 }}
-                barCategoryGap="18%"
-                barGap={6}
+                margin={margin}
+                barCategoryGap={barCategoryGap}
+                barGap={barGap}
               >
                 <CartesianGrid strokeDasharray="3 3" />
                 <XAxis
                   dataKey="month"
+                  angle={xTickAngle}
+                  textAnchor={xTickAnchor}
                   interval={0}
-                  height={32}
+                  height={xTickHeight}
                   tick={{ fontSize: 12 }}
                 />
                 <YAxis
                   allowDecimals={false}
-                  width={48}
-                  tick={{ fontSize: 12 }}
+                  width={Math.max(36, (margin as any).left - 8)}
+                  tick={{ fontSize: yTickFontSize }}
                   label={{
                     value: 'Reservas',
                     angle: -90,
@@ -98,13 +181,17 @@ export default function ConfirmadosVsPerdidosChart({
                 />
                 <Tooltip
                   formatter={(v: any, name: any) => [v as number, name]}
-                  labelFormatter={(v) => v as string}
+                  labelFormatter={(v, payload) => {
+                    const p = Array.isArray(payload) ? payload[0] : undefined;
+                    const raw = p?.payload?.monthRaw as string | undefined;
+                    return raw ? formatMonth(raw) : (v as string);
+                  }}
                   contentStyle={{ fontSize: 12, borderRadius: 8 }}
                   labelStyle={{ fontSize: 12, fontWeight: 600 }}
                 />
-                <Legend wrapperStyle={{ fontSize: 12 }} verticalAlign="top" height={24} />
-                <Bar dataKey="Confirmadas" name="Confirmadas" fill="#3B82F6" radius={[6,6,0,0]} />
-                <Bar dataKey="Perdidas" name="Perdidas" fill="#F87171" radius={[6,6,0,0]} />
+                {showLegend && <Legend wrapperStyle={{ fontSize: 12 }} verticalAlign="top" height={24} />}
+                <Bar dataKey="Confirmadas" name="Confirmadas" fill="#3B82F6" radius={[6, 6, 0, 0]} maxBarSize={barSize} />
+                <Bar dataKey="Perdidas" name="Perdidas" fill="#F87171" radius={[6, 6, 0, 0]} maxBarSize={barSize} />
               </BarChart>
             </ResponsiveContainer>
           </div>
