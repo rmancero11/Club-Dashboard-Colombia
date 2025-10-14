@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import Image from 'next/image';
 import DestinationsList from './DestinationList';
 
+
 type Role = 'ADMIN' | 'SELLER' | 'USER';
 
 type UserShape = {
@@ -26,7 +27,7 @@ type UserShape = {
     whatsappNumber?: string | null;
     currentlyLink?: string | null;
   } | null;
-
+  
   // Archivos
   purchaseOrder?: string | null;
   flightTickets?: string | null;
@@ -97,7 +98,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
   ];
 
   return (
-    <div className="w-full max-w-5xl mx-auto px-4 md:px-6">
+    <div className="w-full max-w-5xl mx-auto px-4 md:px-6 font-roboto">
   {/* Header principal */}
   <div className="bg-white shadow-md p-6 flex flex-col items-center md:flex-row md:items-start gap-6 rounded-2xl">
     {/* Avatar con upload */}
@@ -286,9 +287,6 @@ export default function UserProfile({ user }: { user: UserShape }) {
     <h2 className="text-xl font-bold mb-4">Destinos recomendados</h2>
     <DestinationsList userDestino={user.destino ?? undefined} />
   </div>
-
-  {/* Vendedor asignado abajo */}
-  
 </div>
 
   );

@@ -15,6 +15,9 @@ const config: Config = {
       }
     },
     extend: {
+      fontFamily: {
+        roboto: ['Roboto', 'sans-serif'],
+      },
       colors: {
         primary: '#942B94',
         border: 'hsl(var(--border))',
