@@ -45,11 +45,11 @@ export default async function AdminClientsPage({
       { documentId: { contains: q, mode: "insensitive" } },
       { city: { contains: q, mode: "insensitive" } },
       { country: { contains: q, mode: "insensitive" } },
-      { tags: { has: q } }, // coincide tag exacto
+      { tags: { has: q } },
     ];
   }
 
-  // opciones de filtros
+  // Filtros
   const [sellers, countries] = await Promise.all([
     prisma.user.findMany({
       where: { businessId, role: "SELLER", status: "ACTIVE" },
@@ -65,6 +65,7 @@ export default async function AdminClientsPage({
   ]);
   const countryOpts = countries.map(c => c.country).filter(Boolean) as string[];
 
+  // Traer clientes + archivos del user
   const [total, items] = await Promise.all([
     prisma.client.count({ where }),
     prisma.client.findMany({
@@ -73,10 +74,27 @@ export default async function AdminClientsPage({
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
-        id: true, name: true, email: true, phone: true, country: true, city: true,
-        documentId: true, isArchived: true, createdAt: true, tags: true,
+        id: true,
+        name: true,
+        email: true,
+        phone: true,
+        country: true,
+        city: true,
+        documentId: true,
+        isArchived: true,
+        createdAt: true,
+        tags: true,
         seller: { select: { id: true, name: true } },
         _count: { select: { reservations: true } },
+        user: {
+          select: {
+            purchaseOrder: true,
+            flightTickets: true,
+            serviceVoucher: true,
+            medicalAssistanceCard: true,
+            travelTips: true,
+          },
+        },
       },
     }),
   ]);
@@ -102,6 +120,7 @@ export default async function AdminClientsPage({
       </header>
 
       <div className="rounded-xl border bg-white p-4">
+        {/* Filtros */}
         <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-6" method="GET">
           <input name="q" defaultValue={q} className="rounded-md border px-3 py-2 text-sm" placeholder="Nombre, email, doc, ciudad..." />
           <select name="sellerId" defaultValue={sellerId} className="rounded-md border px-3 py-2 text-sm">
@@ -137,12 +156,13 @@ export default async function AdminClientsPage({
                 <th className="px-2 py-2">Vendedor</th>
                 <th className="px-2 py-2">Reservas</th>
                 <th className="px-2 py-2">Estado</th>
+                <th className="px-2 py-2">Documentos</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
-                <tr><td colSpan={8} className="px-2 py-10 text-center text-gray-400">Sin resultados</td></tr>
+                <tr><td colSpan={9} className="px-2 py-10 text-center text-gray-400">Sin resultados</td></tr>
               )}
               {items.map(c => (
                 <tr key={c.id} className="border-t">
@@ -169,6 +189,19 @@ export default async function AdminClientsPage({
                     <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${
                       c.isArchived ? "border-gray-200 bg-gray-100 text-gray-600" : "border-emerald-200 bg-emerald-50 text-emerald-700"
                     }`}>{c.isArchived ? "Archivado" : "Activo"}</span>
+                  </td>
+                  {/* Nueva columna de documentos */}
+                  <td className="px-2 py-2">
+                    <details className="group">
+                      <summary className="cursor-pointer text-sm text-blue-600">Ver archivos</summary>
+                      <div className="mt-1 flex flex-col gap-1">
+                        {Object.entries(c.user || {}).map(([key, url]) =>
+                          url ? (
+                            <a key={key} href={url as string} target="_blank" className="text-xs underline text-gray-700">{key}</a>
+                          ) : null
+                        )}
+                      </div>
+                    </details>
                   </td>
                   <td className="px-2 py-2 text-right">
                     <div className="flex gap-2">
