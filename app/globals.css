@@ -88,7 +88,13 @@
     --ring: 212.7 26.8% 83.9%;
   }
 }
-
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
 @layer base {
   * {
     @apply border-border font-sans;
