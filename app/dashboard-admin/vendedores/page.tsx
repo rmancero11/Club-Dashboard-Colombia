@@ -261,7 +261,6 @@ export default async function AdminSellersPage({
                 <th className="px-2 py-2">Tareas Pendientes</th>
                 <th className="px-2 py-2">Reservas Totales</th>
                 <th className="px-2 py-2">Ventas Totales</th>
-                <th className="px-2 py-2">Comisión</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
@@ -331,11 +330,6 @@ export default async function AdminSellersPage({
                     </td>
                     <td className="px-2 py-2">{ra.count}</td>
                     <td className="px-2 py-2">{fmtMoney(ra.sum)}</td>
-                    <td className="px-2 py-2">
-                      {s.commissionRate
-                        ? `${Number(s.commissionRate).toFixed(2)}%`
-                        : "—"}
-                    </td>
                     <td className="px-2 py-2 text-right">
                       <div className="flex gap-1">
                         <a

@@ -36,7 +36,7 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
           <h1 className="text-2xl font-semibold">{user.name || "Usuario"}</h1>
           <p className="text-sm text-gray-500">{user.email}</p>
         </div>
-        <a href="/dashboard-admin/usuarios" className="rounded-md border px-3 py-2 text-sm">
+        <a href="/dashboard-admin/vendedores" className="rounded-md border px-3 py-2 text-sm">
           ← Volver
         </a>
       </header>

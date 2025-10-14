@@ -139,7 +139,7 @@ export default function AdminUserEditForm(props: { user: UserFormType }) {
         <button type="submit" disabled={loading} className="rounded-md bg-black px-4 py-2 text-sm text-white disabled:opacity-50">
           {loading ? "Guardando..." : "Guardar cambios"}
         </button>
-        <a href="/dashboard-admin/usuarios" className="rounded-md border px-4 py-2 text-sm">Cancelar</a>
+        <a href="/dashboard-admin/vendedores" className="rounded-md border px-4 py-2 text-sm">Cancelar</a>
       </div>
     </form>
   );

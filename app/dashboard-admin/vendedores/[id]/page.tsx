@@ -24,8 +24,33 @@ function daysBetween(a: Date, b: Date) {
     Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24))
   );
 }
+
 const RES_PENDING = ["LEAD", "QUOTED", "HOLD"] as const;
 const TASK_PENDING = ["OPEN", "IN_PROGRESS", "BLOCKED"] as const;
+
+// Mapas para mostrar en español (solo UI)
+const RES_STATUS_LABELS: Record<string, string> = {
+  LEAD: "Prospecto",
+  QUOTED: "Cotizado",
+  HOLD: "En espera",
+  CONFIRMED: "Confirmada",
+  TRAVELING: "En viaje",
+  COMPLETED: "Completada",
+  CANCELED: "Cancelada",
+  EXPIRED: "Vencida",
+};
+const TASK_STATUS_LABELS: Record<string, string> = {
+  OPEN: "Abierta",
+  IN_PROGRESS: "En progreso",
+  BLOCKED: "Bloqueada",
+  DONE: "Terminada",
+  CANCELLED: "Cancelada",
+};
+const TASK_PRIORITY_LABELS: Record<string, string> = {
+  HIGH: "Alta",
+  MEDIUM: "Media",
+  LOW: "Baja",
+};
 
 export default async function AdminSellerDetailPage({
   params,
@@ -118,7 +143,6 @@ export default async function AdminSellerDetailPage({
       by: ["priority"],
       _count: { _all: true },
     }),
-    // SIN orderBy/take en DB; lo hacemos en memoria para evitar error de tipos
     prisma.reservation.groupBy({
       where: { businessId, sellerId: seller.id },
       by: ["destinationId"],
@@ -211,7 +235,7 @@ export default async function AdminSellerDetailPage({
 
   return (
     <div className="space-y-6">
-      {/* Header */}
+      {/* Encabezado */}
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
@@ -261,14 +285,16 @@ export default async function AdminSellerDetailPage({
         <div className="min-w-0 rounded-xl border bg-white p-4">
           <div className="text-sm text-gray-500">Reservas (pendientes)</div>
           <div className="text-2xl font-semibold">{pendingResCount}</div>
-          <div className="text-[11px] text-amber-600">LEAD/QUOTED/HOLD</div>
+          <div className="text-[11px] text-amber-600">
+            {`${RES_STATUS_LABELS.LEAD}/${RES_STATUS_LABELS.QUOTED}/${RES_STATUS_LABELS.HOLD}`}
+          </div>
         </div>
 
         <div className="min-w-0 rounded-xl border bg-white p-4">
           <div className="text-sm text-gray-500">Tareas (pendientes)</div>
           <div className="text-2xl font-semibold">{tasksPendingCount}</div>
           <div className="text-[11px] text-sky-600">
-            OPEN/IN_PROGRESS/BLOCKED
+            {`${TASK_STATUS_LABELS.OPEN}/${TASK_STATUS_LABELS.IN_PROGRESS}/${TASK_STATUS_LABELS.BLOCKED}`}
           </div>
         </div>
 
@@ -310,7 +336,6 @@ export default async function AdminSellerDetailPage({
             ].map((st) => {
               const row = resByStatus.find((r) => r.status === st);
               const c = row?._count?._all ?? 0;
-              const sum = Number(row?._sum?.totalAmount ?? 0);
               const pill =
                 st === "COMPLETED"
                   ? "bg-emerald-50 border-emerald-200 text-emerald-700"
@@ -329,9 +354,10 @@ export default async function AdminSellerDetailPage({
                   : "bg-stone-50 border-stone-200 text-stone-700";
               return (
                 <li key={st} className={`rounded-lg border p-3 ${pill}`}>
-                  <div className="text-xs font-medium">{st}</div>
+                  <div className="text-xs font-medium">
+                    {RES_STATUS_LABELS[st] ?? st}
+                  </div>
                   <div className="mt-1 text-base font-semibold">{c}</div>
-                  <div className="text-[11px]">{fmtMoney(sum)}</div>
                 </li>
               );
             })}
@@ -357,7 +383,7 @@ export default async function AdminSellerDetailPage({
                         key={st}
                         className="flex items-center justify-between rounded-md border px-2 py-1"
                       >
-                        <span>{st}</span>
+                        <span>{TASK_STATUS_LABELS[st] ?? st}</span>
                         <span className="font-semibold">{c}</span>
                       </li>
                     );
@@ -378,7 +404,7 @@ export default async function AdminSellerDetailPage({
                       key={p}
                       className="flex items-center justify-between rounded-md border px-2 py-1"
                     >
-                      <span>{p}</span>
+                      <span>{TASK_PRIORITY_LABELS[p] ?? p}</span>
                       <span className="font-semibold">{c}</span>
                     </li>
                   );
@@ -428,7 +454,7 @@ export default async function AdminSellerDetailPage({
                           <span
                             className={`inline-flex items-center rounded-md border px-1.5 py-[1px] text-[10px] ${statusPill}`}
                           >
-                            {r.status}
+                            {RES_STATUS_LABELS[r.status] ?? r.status}
                           </span>
                         </div>
                         <div className="text-[11px] text-gray-400">
@@ -459,7 +485,8 @@ export default async function AdminSellerDetailPage({
                     <div>
                       <div className="font-medium">{t.title}</div>
                       <div className="text-xs text-gray-500">
-                        {t.status} · {t.priority}
+                        {TASK_STATUS_LABELS[t.status] ?? t.status} ·{" "}
+                        {TASK_PRIORITY_LABELS[t.priority] ?? t.priority}
                         {t.dueDate
                           ? ` · vence ${new Date(t.dueDate).toLocaleDateString(
                               "es-CO"
