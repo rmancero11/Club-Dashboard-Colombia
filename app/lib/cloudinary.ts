@@ -1,4 +1,9 @@
-import { v2 as cloudinary } from "cloudinary";
+import {
+  v2 as cloudinary,
+  type UploadApiResponse,
+  type UploadApiErrorResponse,
+  type UploadApiOptions,
+} from "cloudinary";
 
 cloudinary.config({
   cloud_name: process.env.CLOUDINARY_CLOUD_NAME!,
@@ -7,16 +12,24 @@ cloudinary.config({
   secure: true,
 });
 
-export async function uploadToCloudinary(file: File | Blob) {
+export default cloudinary;
+
+
+export async function uploadToCloudinary(
+  file: File | Blob,
+  options?: UploadApiOptions
+): Promise<UploadApiResponse> {
   const arrayBuffer = await file.arrayBuffer();
   const buffer = Buffer.from(arrayBuffer);
 
-  return new Promise((resolve, reject) => {
-    cloudinary.uploader
-      .upload_stream({ folder: "destinations" }, (error, result) => {
-        if (error) reject(error);
-        else resolve(result);
-      })
-      .end(buffer);
+  return new Promise<UploadApiResponse>((resolve, reject) => {
+    const stream = cloudinary.uploader.upload_stream(
+      options ?? {},
+      (error: UploadApiErrorResponse | undefined, result: UploadApiResponse | undefined) => {
+        if (error || !result) return reject(error);
+        resolve(result);
+      }
+    );
+    stream.end(buffer);
   });
 }

@@ -3,119 +3,98 @@ import { getAuth } from "@/app/lib/auth";
 import { NextResponse } from "next/server";
 import { uploadToCloudinary } from "@/app/lib/cloudinary";
 
-export const config = {
-  api: { bodyParser: false }, // necesario para recibir FormData
-};
+// ✅ App Router: reemplaza config.runtime por este export
+export const runtime = "nodejs"; // Prisma/Cloudinary no van en Edge
+// (Opcional) export const maxDuration = 60; // si necesitas más tiempo en Vercel
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const auth = await getAuth();
   if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // 🔹 Parsear FormData
+  // ✅ En App Router NO hace falta bodyParser:false; usa formData() directo
   const formData = await req.formData();
-  const sellerIdRaw = formData.get("sellerId") as string | null;
-  const isArchivedRaw = formData.get("isArchived") as string | null;
-  const notesRaw = formData.get("notes") as string | null;
 
-  const dataClient: any = {};
+  const roleRaw = formData.get("role") as string | null;
+  const statusRaw = formData.get("status") as string | null;
+  const commissionRateRaw = formData.get("commissionRate") as string | null;
 
-  // 🔹 Manejo de sellerId
-  if (sellerIdRaw === null) {
-    return NextResponse.json(
-      { error: "No se puede desasignar el vendedor: el modelo requiere sellerId." },
-      { status: 400 }
-    );
-  }
+  const data: any = {};
 
-  const sellerIdToSet =
-    typeof sellerIdRaw === "string" && sellerIdRaw.trim() !== "" ? sellerIdRaw : undefined;
+  // Validar rol y estado
+  if (roleRaw && ["ADMIN", "SELLER", "USER"].includes(roleRaw)) data.role = roleRaw;
+  if (statusRaw && ["ACTIVE", "INACTIVE"].includes(statusRaw)) data.status = statusRaw;
 
-  // 🔹 Validar vendedor si se intenta cambiar
-  if (sellerIdToSet) {
-    const seller = await prisma.user.findFirst({
-      where: { id: sellerIdToSet, businessId: auth.businessId, role: "SELLER" },
-      select: { id: true },
-    });
-    if (!seller) {
-      return NextResponse.json({ error: "Seller inválido" }, { status: 400 });
+  // Manejar comisión
+  if (data.role === "SELLER" && commissionRateRaw != null) {
+    const num = Number(commissionRateRaw);
+    if (Number.isNaN(num) || num < 0 || num > 100) {
+      return NextResponse.json(
+        { error: "commissionRate debe estar entre 0 y 100" },
+        { status: 400 }
+      );
     }
+    // 👇 si el campo en Prisma es Float/Decimal, guarda como número
+    data.commissionRate = Number(num.toFixed(2));
+  } else if (data.role) {
+    data.commissionRate = null;
   }
 
-  // 🔹 Campos normales de Client
-  if (typeof isArchivedRaw === "string")
-    dataClient.isArchived =
-      isArchivedRaw === "true" ? true : isArchivedRaw === "false" ? false : undefined;
-  if (typeof notesRaw === "string") dataClient.notes = notesRaw;
-
-  // 🔹 Buscar el cliente (para obtener userId y validar businessId)
-  const existingClient = await prisma.client.findFirst({
-    where: { id: params.id, businessId: auth.businessId },
-    select: { id: true, userId: true },
-  });
-
-  if (!existingClient) {
-    return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
-  }
-
-  // 🔹 Subir archivos y actualizar el User vinculado
+  // Subir archivos a Cloudinary
   const fileFields = [
     "purchaseOrder",
     "flightTickets",
     "serviceVoucher",
     "medicalAssistanceCard",
     "travelTips",
-  ];
-
-  const dataUser: any = {};
+  ] as const;
 
   for (const key of fileFields) {
     const file = formData.get(key) as File | null;
     if (file && file.size > 0) {
       try {
+        // Asegúrate de que uploadToCloudinary soporte Web File/ArrayBuffer
         const result: any = await uploadToCloudinary(file);
-        dataUser[key] = result.secure_url;
+        data[key] = result.secure_url;
       } catch {
         return NextResponse.json({ error: `Error subiendo ${key}` }, { status: 500 });
       }
     }
   }
 
-  // 🔹 Ejecutar ambas actualizaciones (Client + User)
-  try {
-    const [updatedClient, updatedUser] = await Promise.all([
-      prisma.client.update({
-        where: { id: params.id },
-        data: {
-          ...(sellerIdToSet ? { sellerId: sellerIdToSet } : {}),
-          ...dataClient,
-        },
-        select: { id: true, sellerId: true, isArchived: true, notes: true },
-      }),
-      Object.keys(dataUser).length > 0
-        ? prisma.user.update({
-            where: { id: existingClient.userId },
-            data: dataUser,
-            select: {
-              id: true,
-              purchaseOrder: true,
-              flightTickets: true,
-              serviceVoucher: true,
-              medicalAssistanceCard: true,
-              travelTips: true,
-            },
-          })
-        : Promise.resolve(null),
-    ]);
+  // Validar que el usuario pertenezca al mismo negocio
+  const existingUser = await prisma.user.findFirst({
+    where: { id: params.id, businessId: auth.businessId },
+  });
 
-    return NextResponse.json({
-      ok: true,
-      client: updatedClient,
-      userFiles: updatedUser,
+  if (!existingUser) {
+    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+  }
+
+  // Actualizar usuario
+  try {
+    const updated = await prisma.user.update({
+      where: { id: params.id },
+      data,
+      select: {
+        id: true,
+        role: true,
+        status: true,
+        commissionRate: true,
+        purchaseOrder: true,
+        flightTickets: true,
+        serviceVoucher: true,
+        medicalAssistanceCard: true,
+        travelTips: true,
+      },
     });
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json({ error: "No se pudo actualizar el cliente" }, { status: 400 });
+
+    return NextResponse.json({ user: updated });
+  } catch {
+    return NextResponse.json({ error: "No se pudo actualizar" }, { status: 400 });
   }
 }

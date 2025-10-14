@@ -3,18 +3,22 @@ import { getAuth } from "@/app/lib/auth";
 import { NextResponse } from "next/server";
 import { uploadToCloudinary } from "@/app/lib/cloudinary";
 
-export const config = {
-  api: { bodyParser: false }, // importante para recibir FormData
-};
+// ✅ App Router: reemplaza config.runtime por este export
+export const runtime = "nodejs"; // Prisma/Cloudinary no van en Edge
+// (Opcional) export const maxDuration = 60; // si necesitas más tiempo en Vercel
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const auth = await getAuth();
   if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // Parsear FormData del request
+  // ✅ En App Router NO hace falta bodyParser:false; usa formData() directo
   const formData = await req.formData();
+
   const roleRaw = formData.get("role") as string | null;
   const statusRaw = formData.get("status") as string | null;
   const commissionRateRaw = formData.get("commissionRate") as string | null;
@@ -28,9 +32,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   // Manejar comisión
   if (data.role === "SELLER" && commissionRateRaw != null) {
     const num = Number(commissionRateRaw);
-    if (Number.isNaN(num) || num < 0 || num > 100)
-      return NextResponse.json({ error: "commissionRate debe estar entre 0 y 100" }, { status: 400 });
-    data.commissionRate = num.toFixed(2);
+    if (Number.isNaN(num) || num < 0 || num > 100) {
+      return NextResponse.json(
+        { error: "commissionRate debe estar entre 0 y 100" },
+        { status: 400 }
+      );
+    }
+    // 👇 si el campo en Prisma es Float/Decimal, guarda como número
+    data.commissionRate = Number(num.toFixed(2));
   } else if (data.role) {
     data.commissionRate = null;
   }
@@ -42,12 +51,13 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     "serviceVoucher",
     "medicalAssistanceCard",
     "travelTips",
-  ];
+  ] as const;
 
   for (const key of fileFields) {
     const file = formData.get(key) as File | null;
     if (file && file.size > 0) {
       try {
+        // Asegúrate de que uploadToCloudinary soporte Web File/ArrayBuffer
         const result: any = await uploadToCloudinary(file);
         data[key] = result.secure_url;
       } catch {
@@ -56,7 +66,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
   }
 
-  // Buscar usuario para validar businessId
+  // Validar que el usuario pertenezca al mismo negocio
   const existingUser = await prisma.user.findFirst({
     where: { id: params.id, businessId: auth.businessId },
   });
