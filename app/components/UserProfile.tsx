@@ -26,7 +26,13 @@ type UserShape = {
   avatar?: string | null;
   businessId?: string | null;
   clientProfileId?: string | null;
-  vendedor?: { nombre: string; telefono?: string } | null;
+  vendedor?: {
+  nombre: string;
+  telefono?: string;
+  avatar?: string | null;         // avatar del vendedor
+  whatsappNumber?: string | null; // link de WhatsApp
+  currentlyLink?: string | null;  // link de Calendly
+} | null;
 
   // Archivos
   purchaseOrder?: string | null;
@@ -232,18 +238,55 @@ export default function UserProfile({ user }: { user: UserShape }) {
       </div>
 
       {/* Vendedor asignado */}
-      <div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
-        <div className="bg-white rounded-2xl shadow-md p-6 text-center text-gray-500">
-          {user.vendedor ? (
-            <p className="text-gray-700 font-medium">
-              Vendedor asignado: {user.vendedor.nombre}
-              {user.vendedor.telefono && <span> ({user.vendedor.telefono})</span>}
-            </p>
-          ) : (
-            <p className="text-gray-500">No tienes un vendedor asignado</p>
-          )}
-        </div>
+<div className="mt-8 grid grid-cols-1 md:grid-cols-2 gap-6">
+  {user.vendedor ? (
+    <div className="bg-white rounded-2xl shadow-md p-6 flex flex-col items-center gap-4">
+      {/* Avatar del vendedor */}
+      <div className="relative w-20 h-20">
+        <Image
+          src={user.vendedor.avatar || '/images/default-avatar.png'}
+          alt={user.vendedor.nombre}
+          fill
+          className="rounded-full object-cover border-2 border-gray-200"
+        />
       </div>
+
+      {/* Nombre del vendedor */}
+      <p className="text-gray-700 font-medium">{user.vendedor.nombre}</p>
+
+      {/* Botones de contacto */}
+      <div className="flex gap-4">
+        {user.vendedor.whatsappNumber && (
+          <a
+            href={user.vendedor.whatsappNumber}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-green-500 text-white px-4 py-2 rounded-lg hover:bg-green-600 transition"
+          >
+            <Image src="/favicons/whatsapp.svg" alt="WhatsApp" width={20} height={20} />
+            WhatsApp
+          </a>
+        )}
+        {user.vendedor.currentlyLink && (
+          <a
+            href={user.vendedor.currentlyLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="flex items-center gap-2 bg-blue-500 text-white px-4 py-2 rounded-lg hover:bg-blue-600 transition"
+          >
+            <Image src="/favicons/calendly.svg" alt="Calendly" width={20} height={20} />
+            Calendly
+          </a>
+        )}
+      </div>
+    </div>
+  ) : (
+    <div className="bg-white rounded-2xl shadow-md p-6 text-center text-gray-500">
+      <p>No tienes un vendedor asignado</p>
+    </div>
+  )}
+</div>
+
     </div>
   );
 }

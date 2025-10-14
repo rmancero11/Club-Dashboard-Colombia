@@ -1,10 +1,9 @@
-// components/seller/SellerSidebar.tsx
 "use client";
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useCallback } from "react";
-import Image from 'next/image'
+import Image from "next/image";
 
 type Role = "ADMIN" | "SELLER" | "USER";
 type SidebarUser = { id: string; name: string; email: string; role: Role; avatar?: string | null };
@@ -15,9 +14,10 @@ const NAV = [
   { href: "/dashboard-seller/destinos", label: "Destinos" },
   { href: "/dashboard-seller/reservas", label: "Reservas" },
   { href: "/dashboard-seller/reportes", label: "Reportes" },
+  { href: "/dashboard-seller/profile", label: "Perfil" }, // <-- Nuevo link al perfil
 ];
 
-export default function SellerSidebar({ user }: { user: SidebarUser }) {
+export default function SellerSidebar({ user, avatarUrl }: { user: SidebarUser; avatarUrl?: string | null }) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -34,8 +34,10 @@ export default function SellerSidebar({ user }: { user: SidebarUser }) {
     router.replace("/login");
   };
 
+  const avatarToShow = avatarUrl || user.avatar;
+
   return (
-    <div className="flex h-full flex-col">
+    <div className="flex h-full flex-col bg-gray-50">
       {/* Branding */}
       <div className="p-4">
         <Link href="/dashboard-seller" className="block text-xl font-semibold">
@@ -47,9 +49,9 @@ export default function SellerSidebar({ user }: { user: SidebarUser }) {
       {/* User card */}
       <div className="mx-2 mb-2 rounded-xl border bg-white p-3">
         <div className="flex items-center gap-3">
-          {user.avatar ? (
+          {avatarToShow ? (
             <Image
-              src={user.avatar}
+              src={avatarToShow}
               alt={user.name}
               className="h-10 w-10 rounded-full object-cover"
               width={150}
@@ -67,8 +69,8 @@ export default function SellerSidebar({ user }: { user: SidebarUser }) {
         </div>
       </div>
 
-      {/* Nav */}
-      <nav className="flex-1 px-3">
+      {/* Navigation */}
+      <nav className="flex-1 px-3 space-y-1">
         {NAV.map((item) => (
           <Link
             key={item.href}
@@ -84,7 +86,7 @@ export default function SellerSidebar({ user }: { user: SidebarUser }) {
         ))}
       </nav>
 
-      {/* Footer actions */}
+      {/* Footer */}
       <div className="border-t p-3">
         <button
           onClick={logout}

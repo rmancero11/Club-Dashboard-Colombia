@@ -33,51 +33,59 @@ export async function GET() {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: userId },
+  where: { id: userId },
+  select: {
+    id: true,
+    name: true,
+    email: true,
+    role: true,
+    status: true,
+    phone: true,
+    country: true,
+    budget: true,
+    preference: true,
+    destino: true,
+    createdAt: true,
+    avatar: true,
+    businessId: true,
+    dniFile: true,
+    passport: true,
+    visa: true,
+    comment: true,
+    singleStatus: true,
+    affirmation: true,
+    acceptedTerms: true,
+    flow: true,
+
+    // Archivos nuevos
+    purchaseOrder: true,
+    flightTickets: true,
+    serviceVoucher: true,
+    medicalAssistanceCard: true,
+    travelTips: true,
+
+    // Links del vendedor
+    whatsappNumber: true,     // <-- agregado
+    currentlyLink: true,      // <-- agregado
+
+    clientProfile: {
       select: {
         id: true,
-        name: true,
-        email: true,
-        role: true,
-        status: true,
-        phone: true,
-        country: true,
-        budget: true,
-        preference: true,
-        destino: true,
-        createdAt: true,
-        avatar: true,
-        businessId: true,
-        dniFile: true,
-        passport: true,
-        visa: true,
-        comment: true,
-        singleStatus: true,
-        affirmation: true,
-        acceptedTerms: true,
-        flow: true,
-
-        // Archivos nuevos
-        purchaseOrder: true,
-        flightTickets: true,
-        serviceVoucher: true,
-        medicalAssistanceCard: true,
-        travelTips: true,
-
-        clientProfile: {
+        seller: {
           select: {
             id: true,
-            seller: {
-              select: {
-                id: true,
-                name: true,
-                phone: true,
-              },
-            },
+            name: true,
+            phone: true,
+            avatar: true,             
+          whatsappNumber: true,     
+          currentlyLink: true,    
           },
         },
       },
-    });
+    },
+  },
+});
+
 
     if (!user) {
       return NextResponse.json(
@@ -95,42 +103,50 @@ export async function GET() {
 
     // Mapeo actualizado con los archivos
     const userShape = {
-      id: user.id,
-      name: user.name,
-      email: user.email,
-      role: user.role as Role,
-      phone: user.phone,
-      country: user.country,
-      budget: user.budget,
-      preference: user.preference,
-      destino: user.destino,
-      createdAt: user.createdAt,
-      avatar: user.avatar,
-      businessId: user.businessId,
-      dniFile: user.dniFile,
-      passport: user.passport,
-      visa: user.visa,
-      comment: user.comment,
-      singleStatus: user.singleStatus,
-      affirmation: user.affirmation,
-      acceptedTerms: user.acceptedTerms,
-      flow: user.flow,
+  id: user.id,
+  name: user.name,
+  email: user.email,
+  role: user.role as Role,
+  phone: user.phone,
+  country: user.country,
+  budget: user.budget,
+  preference: user.preference,
+  destino: user.destino,
+  createdAt: user.createdAt,
+  avatar: user.avatar,
+  businessId: user.businessId,
+  dniFile: user.dniFile,
+  passport: user.passport,
+  visa: user.visa,
+  comment: user.comment,
+  singleStatus: user.singleStatus,
+  affirmation: user.affirmation,
+  acceptedTerms: user.acceptedTerms,
+  flow: user.flow,
 
-      // Archivos nuevos
-      purchaseOrder: user.purchaseOrder,
-      flightTickets: user.flightTickets,
-      serviceVoucher: user.serviceVoucher,
-      medicalAssistanceCard: user.medicalAssistanceCard,
-      travelTips: user.travelTips,
+  // Archivos nuevos
+  purchaseOrder: user.purchaseOrder,
+  flightTickets: user.flightTickets,
+  serviceVoucher: user.serviceVoucher,
+  medicalAssistanceCard: user.medicalAssistanceCard,
+  travelTips: user.travelTips,
 
-      clientProfileId: user.clientProfile?.id ?? null,
-      vendedor: user.clientProfile?.seller
-        ? {
-            nombre: user.clientProfile.seller.name,
-            telefono: user.clientProfile.seller.phone,
-          }
-        : null,
-    };
+  // Links del vendedor
+  whatsappNumber: user.whatsappNumber,
+  currentlyLink: user.currentlyLink,
+
+  clientProfileId: user.clientProfile?.id ?? null,
+  vendedor: user.clientProfile?.seller
+    ? {
+        nombre: user.clientProfile.seller.name,
+        telefono: user.clientProfile.seller.phone,
+        avatar: user.clientProfile.seller.avatar,
+      whatsappNumber: user.clientProfile.seller.whatsappNumber,
+      currentlyLink: user.clientProfile.seller.currentlyLink,
+      }
+    : null,
+};
+
 
     return NextResponse.json(
       { user: userShape },

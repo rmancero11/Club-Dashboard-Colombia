@@ -160,6 +160,9 @@ model User {
   sellerReservations Reservation[] @relation("SellerReservations")
   sellerTasks        Task[]        @relation("SellerTasks")
 
+  whatsappNumber  String?
+  currentlyLink   String?
+
   // Perfil de cliente (solo si role = USER) — validado en la app
   clientProfile Client? @relation("ClientUser")
 
