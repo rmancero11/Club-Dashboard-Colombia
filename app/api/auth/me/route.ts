@@ -65,9 +65,10 @@ export async function GET() {
     travelTips: true,
 
     // Links del vendedor
-    whatsappNumber: true,     // <-- agregado
-    currentlyLink: true,      // <-- agregado
+    whatsappNumber: true,
+    currentlyLink: true,
 
+    // Perfil de cliente
     clientProfile: {
       select: {
         id: true,
@@ -76,15 +77,37 @@ export async function GET() {
             id: true,
             name: true,
             phone: true,
-            avatar: true,             
-          whatsappNumber: true,     
-          currentlyLink: true,    
+            avatar: true,
+            whatsappNumber: true,
+            currentlyLink: true,
+          },
+        },
+        // Próximo destino reservado
+        reservations: {
+          where: { status: { not: "CANCELED" } },
+          orderBy: { startDate: "asc" },
+          take: 1, // solo el próximo
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            destination: {
+              select: {
+                id: true,
+                name: true,
+                country: true,
+                city: true,
+                description: true,
+                imageUrl: true,
+              },
+            },
           },
         },
       },
     },
   },
 });
+
 
 
     if (!user) {
@@ -102,11 +125,11 @@ export async function GET() {
     }
 
     // Mapeo actualizado con los archivos
-    const userShape = {
+const userShape = {
   id: user.id,
   name: user.name,
   email: user.email,
-  role: user.role as Role,
+  role: user.role,
   phone: user.phone,
   country: user.country,
   budget: user.budget,
@@ -124,27 +147,27 @@ export async function GET() {
   acceptedTerms: user.acceptedTerms,
   flow: user.flow,
 
-  // Archivos nuevos
+  // Archivos
   purchaseOrder: user.purchaseOrder,
   flightTickets: user.flightTickets,
   serviceVoucher: user.serviceVoucher,
   medicalAssistanceCard: user.medicalAssistanceCard,
   travelTips: user.travelTips,
 
-  // Links del vendedor
-  whatsappNumber: user.whatsappNumber,
-  currentlyLink: user.currentlyLink,
-
-  clientProfileId: user.clientProfile?.id ?? null,
+  // Vendedor asignado
   vendedor: user.clientProfile?.seller
     ? {
         nombre: user.clientProfile.seller.name,
         telefono: user.clientProfile.seller.phone,
         avatar: user.clientProfile.seller.avatar,
-      whatsappNumber: user.clientProfile.seller.whatsappNumber,
-      currentlyLink: user.clientProfile.seller.currentlyLink,
+        whatsappNumber: user.clientProfile.seller.whatsappNumber,
+        currentlyLink: user.clientProfile.seller.currentlyLink,
       }
     : null,
+
+  // Próximo destino reservado
+  nextDestination:
+    user.clientProfile?.reservations?.[0]?.destination ?? null,
 };
 
 

@@ -22,3 +22,4 @@ export interface DestinationDTO {
   discountPrice?: number | null;
   travelers?: TravelerDTO[]; // 💸 precio con descuento (opcional)
 }
+

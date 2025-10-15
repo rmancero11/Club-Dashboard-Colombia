@@ -5,6 +5,7 @@ const JWT_SECRET = process.env.JWT_SECRET || "";
 const enc = new TextEncoder();
 
 export type AuthContext = {
+  
   userId: string;
   businessId: string | null;
   role: "ADMIN" | "SELLER" | "USER";
