@@ -76,22 +76,27 @@ export default async function AdminReservationsPage({
   let dateFilter: { gte?: Date; lte?: Date } = {};
   if (month) {
     const [y, m] = month.split("-");
-    const start = new Date(parseInt(y, 10), parseInt(m, 10) - 1, 1, 0, 0, 0, 0);
-    const end = new Date(parseInt(y, 10), parseInt(m, 10), 0, 23, 59, 59, 999);
-    dateFilter = { gte: start, lte: end };
+    const yy = parseInt(y || "", 10);
+    const mm = parseInt(m || "", 10);
+    if (Number.isFinite(yy) && Number.isFinite(mm) && mm >= 1 && mm <= 12) {
+      const start = new Date(yy, mm - 1, 1, 0, 0, 0, 0);
+      const end = new Date(yy, mm, 0, 23, 59, 59, 999);
+      dateFilter = { gte: start, lte: end };
+    }
   }
 
   const where: any = { businessId };
   if (status) where.status = status; // debe ser EXACTO al enum
   if (sellerId) where.sellerId = sellerId;
   if (destinationId) where.destinationId = destinationId;
-  if (month) where.startDate = dateFilter;
+  if (month && (dateFilter.gte || dateFilter.lte)) where.startDate = dateFilter;
 
   // ⬇️ Buscador SOLO por número de reserva (code) y nombre del cliente
   if (q) {
     where.OR = [
       { code: { contains: q, mode: "insensitive" } },
-      { client: { name: { contains: q, mode: "insensitive" } } },
+      // FIX: relación debe ir con "is: {...}"
+      { client: { is: { name: { contains: q, mode: "insensitive" } } } },
     ];
   }
 
@@ -141,7 +146,7 @@ export default async function AdminReservationsPage({
     redirect(`/dashboard-admin/reservas${qstr({ q, status, sellerId, destinationId, month, page: String(totalPages), pageSize: String(pageSize) })}`);
   }
 
-  const statusMap = Object.fromEntries(statusAgg.map(s => [s.status, s._count._all]));
+  const statusMap = Object.fromEntries(statusAgg.map(s => [s.status, s._count._all])) as Record<string, number>;
   const totalSum = Number(sumAgg._sum.totalAmount || 0);
 
   return (
@@ -276,7 +281,7 @@ export default async function AdminReservationsPage({
             <a
               aria-disabled={page >= totalPages}
               className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
-              href={page < totalPages ? `/dashboard-admin/reservas${qstr({ q, status, sellerId, destinationId, month, page: String(pageSize) ? String(page + 1) : "1", pageSize: String(pageSize) })}` : "#"}
+              href={page < totalPages ? `/dashboard-admin/reservas${qstr({ q, status, sellerId, destinationId, month, page: String(page + 1), pageSize: String(pageSize) })}` : "#"}
             >Siguiente →</a>
           </div>
         </div>
