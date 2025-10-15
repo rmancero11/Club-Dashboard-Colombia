@@ -44,6 +44,27 @@ function digitsOnly(s?: string | null) {
   return (s || "").replace(/\D/g, "");
 }
 
+// ---- Parser de timeline (notes como JSON) ----
+function parseTimeline(
+  raw?: string | null
+): Array<{ ts: string; text: string; author?: string; type?: string }> {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    return parsed
+      .map((it) => ({
+        ts: typeof it?.ts === "string" ? it.ts : new Date().toISOString(),
+        text: typeof it?.text === "string" ? it.text : "",
+        author: typeof it?.author === "string" ? it.author : "Sistema",
+        type: typeof it?.type === "string" ? it.type : "NOTE",
+      }))
+      .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
+  } catch {
+    return [];
+  }
+}
+
 export default async function AdminReservationDetailPage({
   params,
 }: { params: { id: string } }) {
@@ -67,7 +88,7 @@ export default async function AdminReservationDetailPage({
       notes: true,
       createdAt: true,
       updatedAt: true,
-      client: { select: { id: true, name: true, email: true, phone: true } }, // 👈 añadí phone
+      client: { select: { id: true, name: true, email: true, phone: true } },
       seller: { select: { id: true, name: true } },
       destination: { select: { id: true, name: true, country: true } },
     },
@@ -98,6 +119,8 @@ export default async function AdminReservationDetailPage({
   const statusLabel = RES_LABELS[r.status] ?? r.status;
   const waDigits = digitsOnly(r.client?.phone);
   const waUrl = waDigits ? `https://wa.me/${waDigits}` : "";
+
+  const timeline = parseTimeline(r.notes);
 
   return (
     <div className="space-y-6">
@@ -179,7 +202,7 @@ export default async function AdminReservationDetailPage({
         </div>
       </section>
 
-      {/* Contacto y notas */}
+      {/* Contacto + Timeline */}
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Contacto del cliente</h2>
@@ -214,13 +237,32 @@ export default async function AdminReservationDetailPage({
         </div>
 
         <div className="rounded-xl border bg-white p-4 lg:col-span-2">
-          <h2 className="mb-3 text-lg font-semibold">Notas</h2>
-          {r.notes ? (
-            <div className="whitespace-pre-wrap rounded-lg border bg-gray-50 p-3 text-sm text-gray-700">
+          <h2 className="mb-3 text-lg font-semibold">Timeline</h2>
+
+          {/* Si había una nota en formato antiguo, la mostramos una vez */}
+          {(!timeline.length && r.notes) ? (
+            <div className="mb-3 rounded-lg border bg-amber-50 p-3 text-xs text-amber-800">
               {r.notes}
             </div>
+          ) : null}
+
+          {timeline.length === 0 ? (
+            <div className="rounded-lg border p-3 text-sm text-gray-400">Sin eventos</div>
           ) : (
-            <div className="rounded-lg border p-3 text-sm text-gray-400">Sin notas</div>
+            <ol className="relative ml-3 border-l pl-4">
+              {timeline.map((it, idx) => (
+                <li key={`${it.ts}-${idx}`} className="mb-4">
+                  <div className="absolute -left-1.5 mt-1.5 h-3 w-3 rounded-full bg-gray-300" />
+                  <div className="text-xs text-gray-400">
+                    {new Date(it.ts).toLocaleString("es-CO")} · {it.author || "Sistema"}
+                  </div>
+                  <div className="text-[11px] uppercase tracking-wide text-gray-500">
+                    {it.type === "NOTE" ? "Nota" : it.type}
+                  </div>
+                  <div className="whitespace-pre-wrap text-sm text-gray-800">{it.text || "—"}</div>
+                </li>
+              ))}
+            </ol>
           )}
         </div>
       </section>
