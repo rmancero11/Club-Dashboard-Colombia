@@ -2,7 +2,7 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 
-// helpers
+// ===== Helpers comunes (mismo enfoque que la página de clientes) =====
 function toInt(v: string | string[] | undefined, def: number) {
   const n = Array.isArray(v) ? parseInt(v[0] || "", 10) : parseInt(v || "", 10);
   return Number.isFinite(n) && n > 0 ? n : def;
@@ -27,6 +27,55 @@ function fmtMoney(n: number, currency = "USD") {
   }
 }
 
+// --- Indicativos por país (mismo patrón que clientes; amplía si lo necesitas) ---
+const DIAL_BY_COUNTRY: Record<string, string> = {
+  // Américas
+  "Colombia": "57",
+  "México": "52",
+  "Estados Unidos": "1",
+  "United States": "1",
+  "Canadá": "1",
+  "Canada": "1",
+  "Perú": "51",
+  "Chile": "56",
+  "Argentina": "54",
+  "Ecuador": "593",
+  "Venezuela": "58",
+  "Brasil": "55",
+  // Europa
+  "España": "34",
+  "Portugal": "351",
+  "Francia": "33",
+  "Italia": "39",
+  "Alemania": "49",
+};
+
+function dialCodeForCountry(country?: string | null) {
+  if (!country) return "";
+  const key = country.trim();
+  return DIAL_BY_COUNTRY[key] ?? "";
+}
+function normalizePhone(raw?: string | null) {
+  return (raw || "").replace(/[^\d+]/g, ""); // deja + y dígitos
+}
+function digitsOnly(raw?: string) {
+  return (raw || "").replace(/\D/g, "");
+}
+function toE164(phone?: string | null, country?: string | null) {
+  const raw = normalizePhone(phone);
+  if (!raw) return "";
+  if (raw.startsWith("+")) return `+${digitsOnly(raw)}`; // ya viene con +
+  const dial = dialCodeForCountry(country || undefined);
+  const localDigits = digitsOnly(raw);
+  if (!localDigits) return "";
+  return dial ? `+${dial}${localDigits}` : `+${localDigits}`; // fallback sin país
+}
+function waLink(e164?: string) {
+  const d = digitsOnly(e164);
+  return d ? `https://wa.me/${d}` : "";
+}
+
+// =================== Página ===================
 export default async function AdminSellersPage({
   searchParams,
 }: {
@@ -41,7 +90,6 @@ export default async function AdminSellersPage({
   // ===== Filtros/Orden =====
   const q =
     (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
-  // reemplazamos "status" y "month" por órdenes de métricas
   const resPendOrder =
     (Array.isArray(searchParams.resPendOrder)
       ? searchParams.resPendOrder[0]
@@ -54,7 +102,7 @@ export default async function AdminSellersPage({
   const pageSizeRaw = toInt(searchParams.pageSize, 10);
   const pageSize = Math.min(pageSizeRaw, 50);
 
-  // WHERE: solo búsqueda por nombre y email
+  // WHERE: búsqueda por nombre y email (igual enfoque que clientes)
   const whereUser: any = { businessId, role: "SELLER" };
   if (q) {
     whereUser.OR = [
@@ -67,7 +115,7 @@ export default async function AdminSellersPage({
     prisma.user.count({ where: whereUser }),
     prisma.user.findMany({
       where: whereUser,
-      orderBy: { createdAt: "desc" }, // orden base; luego reordenamos en memoria según métricas si aplica
+      orderBy: { createdAt: "desc" },
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
@@ -99,9 +147,7 @@ export default async function AdminSellersPage({
   // ===== Métricas por vendedor (en lote) =====
   const sellerIds = sellers.map((s) => s.id);
 
-  // Reservas pendientes = LEAD | QUOTED | HOLD
   const PENDING_RES_STATUSES = ["LEAD", "QUOTED", "HOLD"] as const;
-  // Tareas pendientes = OPEN | IN_PROGRESS | BLOCKED
   const PENDING_TASK_STATUSES = ["OPEN", "IN_PROGRESS", "BLOCKED"] as const;
 
   let clientsBySeller: Record<string, number> = {};
@@ -159,7 +205,7 @@ export default async function AdminSellersPage({
     );
   }
 
-  // ===== Reordenamiento en memoria por métricas (si aplica) =====
+  // ===== Reordenamiento por métricas (si aplica) =====
   let sellersSorted = [...sellers];
   if (resPendOrder === "asc" || resPendOrder === "desc") {
     sellersSorted.sort((a, b) => {
@@ -196,7 +242,7 @@ export default async function AdminSellersPage({
             name="q"
             defaultValue={q}
             className="rounded-md border px-3 py-2 text-sm"
-            placeholder="Buscar por nombre o email"
+            placeholder="Buscar por nombre o email…"
           />
 
           {/* Orden por reservas pendientes (asc/desc) */}
@@ -255,7 +301,8 @@ export default async function AdminSellersPage({
             <thead>
               <tr className="text-left text-gray-500">
                 <th className="px-2 py-2">Vendedor</th>
-                <th className="px-2 py-2">Contacto</th>
+                <th className="px-2 py-2">Email</th>
+                <th className="px-2 py-2">Teléfono / WhatsApp</th>
                 <th className="px-2 py-2">Clientes</th>
                 <th className="px-2 py-2">Reservas Pendientes</th>
                 <th className="px-2 py-2">Tareas Pendientes</th>
@@ -281,29 +328,49 @@ export default async function AdminSellersPage({
                 const resPend = resPendingBySeller[s.id] ?? 0;
                 const tasksPend = tasksPendingBySeller[s.id] ?? 0;
 
+                const e164 = toE164(s.phone, s.country);
+                const wa = waLink(e164);
+
                 return (
                   <tr key={s.id} className="border-t">
                     <td className="px-2 py-2">
                       <div className="font-medium">{s.name || "—"}</div>
                       <div className="text-xs text-gray-600">
-                        Creado:{" "}
-                        {new Date(s.createdAt).toLocaleDateString("es-CO")}
+                        Creado: {new Date(s.createdAt).toLocaleDateString("es-CO")}
                       </div>
                     </td>
+
+                    {/* Email separado (como clientes) */}
                     <td className="px-2 py-2">
-                      <div className="flex flex-col">
-                        <span className="text-xs text-gray-600">{s.email}</span>
-                        {s.phone && (
-                          <span className="text-xs text-gray-600">
-                            {s.phone}
-                          </span>
-                        )}
-                        {s.country && (
-                          <span className="text-[11px] text-gray-400">
-                            {s.country}
-                          </span>
-                        )}
-                      </div>
+                      {s.email ? (
+                        <a
+                          href={`mailto:${s.email}`}
+                          className="text-xs text-blue-600 underline"
+                        >
+                          {s.email}
+                        </a>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
+                    </td>
+
+                    {/* Teléfono con indicativo + link WhatsApp (mismo patrón que clientes) */}
+                    <td className="px-2 py-2">
+                      {e164 ? (
+                        <a
+                          href={wa}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-green-700 underline"
+                          title="Abrir WhatsApp"
+                        >
+                          {e164}
+                        </a>
+                      ) : s.phone ? (
+                        <span className="text-xs text-gray-600">{s.phone}</span>
+                      ) : (
+                        <span className="text-xs text-gray-400">—</span>
+                      )}
                     </td>
                     <td className="px-2 py-2">{clients}</td>
                     <td className="px-2 py-2">
@@ -317,6 +384,7 @@ export default async function AdminSellersPage({
                         {resPend}
                       </span>
                     </td>
+
                     <td className="px-2 py-2">
                       <span
                         className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${
@@ -328,8 +396,10 @@ export default async function AdminSellersPage({
                         {tasksPend}
                       </span>
                     </td>
+
                     <td className="px-2 py-2">{ra.count}</td>
                     <td className="px-2 py-2">{fmtMoney(ra.sum)}</td>
+
                     <td className="px-2 py-2 text-right">
                       <div className="flex gap-1">
                         <a

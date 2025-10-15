@@ -68,6 +68,40 @@ function waLink(e164?: string) {
   return d ? `https://wa.me/${d}` : "";
 }
 
+// === Mapeo de estados de reserva (schema.prisma) ===
+const RES_STATUS_LABEL: Record<string, string> = {
+  LEAD: "Lead",
+  QUOTED: "Cotizada",
+  HOLD: "En hold",
+  CONFIRMED: "Confirmada",
+  TRAVELING: "Viajando",
+  COMPLETED: "Completada",
+  CANCELED: "Cancelada",
+  EXPIRED: "Expirada",
+};
+function resStatusBadgeClass(status?: string) {
+  switch (status) {
+    case "CONFIRMED":
+      return "border-emerald-200 bg-emerald-50 text-emerald-700";
+    case "TRAVELING":
+      return "border-indigo-200 bg-indigo-50 text-indigo-700";
+    case "COMPLETED":
+      return "border-slate-200 bg-slate-50 text-slate-700";
+    case "CANCELED":
+      return "border-rose-200 bg-rose-50 text-rose-700";
+    case "EXPIRED":
+      return "border-stone-200 bg-stone-50 text-stone-700";
+    case "QUOTED":
+      return "border-sky-200 bg-sky-50 text-sky-700";
+    case "HOLD":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "LEAD":
+      return "border-gray-200 bg-gray-50 text-gray-700";
+    default:
+      return "border-gray-200 bg-gray-50 text-gray-600";
+  }
+}
+
 export default async function AdminClientsPage({
   searchParams,
 }: {
@@ -126,7 +160,7 @@ export default async function AdminClientsPage({
   const countryOpts = (countries.map((c) => c.country).filter(Boolean) ||
     []) as string[];
 
-  // Traer clientes
+  // Traer clientes (incluye última reserva por createdAt)
   const [total, items] = await Promise.all([
     prisma.client.count({ where }),
     prisma.client.findMany({
@@ -147,6 +181,13 @@ export default async function AdminClientsPage({
         tags: true,
         seller: { select: { id: true, name: true } },
         _count: { select: { reservations: true } },
+        // 👇 Última reserva (para mostrar estado del cliente)
+        reservations: {
+          select: { status: true, createdAt: true },
+          orderBy: { createdAt: "desc" },
+          take: 1,
+        },
+        // Documentos (como ya tenías)
         user: {
           select: {
             purchaseOrder: true,
@@ -262,6 +303,7 @@ export default async function AdminClientsPage({
                 <th className="px-2 py-2">Ubicación</th>
                 <th className="px-2 py-2">Vendedor</th>
                 <th className="px-2 py-2">Reservas</th>
+                <th className="px-2 py-2">Estado (última reserva)</th>
                 <th className="px-2 py-2">Documentos</th>
                 <th className="px-2 py-2"></th>
               </tr>
@@ -280,6 +322,11 @@ export default async function AdminClientsPage({
               {items.map((c) => {
                 const e164 = toE164(c.phone || "", c.country || "");
                 const wa = waLink(e164);
+                const lastRes = c.reservations?.[0];
+                const lastStatus = lastRes?.status as keyof typeof RES_STATUS_LABEL | undefined;
+                const lastStatusLabel = lastStatus ? RES_STATUS_LABEL[lastStatus] : "—";
+                const badgeCls = resStatusBadgeClass(lastStatus);
+
                 return (
                   <tr key={c.id} className="border-t">
                     <td className="px-2 py-2">
@@ -333,11 +380,21 @@ export default async function AdminClientsPage({
                         <span className="text-xs text-gray-400">—</span>
                       )}
                     </td>
+
                     <td className="px-2 py-2">
                       {[c.city, c.country].filter(Boolean).join(", ") || "—"}
                     </td>
+
                     <td className="px-2 py-2">{c.seller?.name || "—"}</td>
+
                     <td className="px-2 py-2">{c._count.reservations}</td>
+
+                    {/* Estado (última reserva) */}
+                    <td className="px-2 py-2">
+                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${badgeCls}`}>
+                        {lastStatusLabel}
+                      </span>
+                    </td>
 
                     {/* Documentos */}
                     <td className="px-2 py-2">
