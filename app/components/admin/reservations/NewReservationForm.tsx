@@ -7,7 +7,18 @@ type Opt = { id: string; name: string | null; email?: string | null; country?: s
 
 export default function NewReservationForm({
   sellers, clients, destinations,
-}: { sellers: Opt[]; clients: Opt[]; destinations: Opt[] }) {
+  // ⬇️ Extras opcionales para que no falle el tipado si te los pasan desde el padre
+  initialValues,
+  statusOptions,
+  currencyOptions,
+}: {
+  sellers: Opt[];
+  clients: Opt[];
+  destinations: Opt[];
+  initialValues?: unknown;   // opcional, ignorado por la lógica
+  statusOptions?: unknown;   // opcional, ignorado por la lógica
+  currencyOptions?: unknown; // opcional, ignorado por la lógica
+}) {
   const [sellerId, setSellerId] = useState("");
   const [clientId, setClientId] = useState("");
   const [destinationId, setDestinationId] = useState("");

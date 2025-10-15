@@ -1,31 +1,85 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import countries from "i18n-iso-countries";
+import es from "i18n-iso-countries/langs/es.json";
+
+countries.registerLocale(es);
 
 type Biz = {
   id: string;
   Name: string;
   slug: string;
-  country: string | null;
+  country: string | null;       // Puede ser "Colombia" o "CO"
   Template: string | null;
   IconoWhite: string | null;
   Cover: string | null;
 };
 
 export default function BusinessSettingsForm({ business }: { business: Biz }) {
+  // ----- Lista de países (ES) ordenada -----
+  const countryOptions = useMemo(() => {
+    const entries = Object.entries(
+      countries.getNames("es", { select: "official" })
+    ) as Array<[string, string]>; // [ISO2, Nombre]
+    // [{ code:'CO', label:'Colombia' }, ...]
+    return entries
+      .map(([code, label]) => ({ code, label }))
+      .sort((a, b) => a.label.localeCompare(b.label, "es"));
+  }, []);
+
+  // ----- Resolver el valor actual de la BD a un label de la lista -----
+  const { resolvedCountryLabel, needsExtraOption } = useMemo(() => {
+    const dbRaw = (business.country || "").trim();
+    if (!dbRaw) return { resolvedCountryLabel: "", needsExtraOption: false };
+
+    // Caso 1: parece un ISO alpha-2 (2 letras)
+    if (/^[A-Za-z]{2}$/.test(dbRaw)) {
+      const label = countries.getName(dbRaw.toUpperCase(), "es");
+      if (label) return { resolvedCountryLabel: label, needsExtraOption: false };
+      // si no existe ese código, caemos a comparar por nombre
+    }
+
+    // Caso 2: comparar por nombre (case-insensitive) con las opciones oficiales
+    const lower = dbRaw.toLocaleLowerCase("es");
+    const match = countryOptions.find(
+      (o) => o.label.toLocaleLowerCase("es") === lower
+    );
+    if (match) return { resolvedCountryLabel: match.label, needsExtraOption: false };
+
+    // Caso 3: nombre no oficial/no estándar → mostramos una opción extra para que el select lo muestre
+    return { resolvedCountryLabel: dbRaw, needsExtraOption: true };
+  }, [business.country, countryOptions]);
+
+  // ----- Estado del formulario -----
   const [state, setState] = useState({
     Name: business.Name,
-    country: business.country || "",
+    country: resolvedCountryLabel, // siempre un label (o el valor crudo de BD)
     Template: business.Template || "",
   });
 
+  // Previews y archivos
   const [iconPreview, setIconPreview] = useState<string | null>(business.IconoWhite);
   const [coverPreview, setCoverPreview] = useState<string | null>(business.Cover);
   const [iconFile, setIconFile] = useState<File | null>(null);
   const [coverFile, setCoverFile] = useState<File | null>(null);
   const [saving, setSaving] = useState(false);
 
-  function onChange(e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) {
+  // Opciones para pintar en el <select> (si hace falta, agregamos la opción "extra" con el valor de BD)
+  const renderOptions = useMemo(() => {
+    if (!needsExtraOption || !state.country) return countryOptions;
+    // Insertamos una opción al inicio con el valor exacto de BD para que quede seleccionado visualmente.
+    // Evitamos duplicados si coincide con alguna etiqueta oficial.
+    const alreadyExists = countryOptions.some(
+      (o) => o.label.toLocaleLowerCase("es") === state.country.toLocaleLowerCase("es")
+    );
+    if (alreadyExists) return countryOptions;
+    return [{ code: "__DB__", label: state.country }, ...countryOptions];
+  }, [needsExtraOption, state.country, countryOptions]);
+
+  function onChange(
+    e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>
+  ) {
     const { name, value } = e.target;
     setState((s) => ({ ...s, [name]: value }));
   }
@@ -38,6 +92,7 @@ export default function BusinessSettingsForm({ business }: { business: Biz }) {
     try {
       const fd = new FormData();
       fd.append("Name", state.Name.trim());
+      // Guardamos el **nombre** del país (coherente con tu schema actual)
       fd.append("country", state.country.trim());
       fd.append("Template", state.Template.trim());
 
@@ -86,14 +141,23 @@ export default function BusinessSettingsForm({ business }: { business: Biz }) {
             className="rounded-md border px-3 py-2"
           />
         </label>
+
         <label className="grid gap-1 text-sm">
           <span className="font-medium">País</span>
-          <input
+          <select
             name="country"
             value={state.country}
             onChange={onChange}
             className="rounded-md border px-3 py-2"
-          />
+          >
+            <option value="">Selecciona un país</option>
+            {renderOptions.map((o) => (
+              // Guardamos el NOMBRE para no tocar backend; si luego quieres ISO: value={o.code}
+              <option key={o.code} value={o.label}>
+                {o.label}
+              </option>
+            ))}
+          </select>
         </label>
       </div>
 
