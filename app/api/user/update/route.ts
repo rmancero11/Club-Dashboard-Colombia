@@ -27,9 +27,11 @@ export async function POST(req: Request) {
 
     // 2️⃣ Leer el formulario
     const formData = await req.formData();
-    const name = formData.get("name") as string | null;
-    const phone = formData.get("phone") as string | null;
-    const country = formData.get("country") as string | null;
+    const name = (formData.get("name") as string)?.trim() || null;
+    const phone = (formData.get("phone") as string)?.trim() || null;
+    const country = (formData.get("country") as string)?.trim() || null;
+
+    // 🔑 Asegurarse de usar los nombres correctos de los inputs
     const dniFile = formData.get("dni") as File | null;
     const passportFile = formData.get("passport") as File | null;
     const visaFile = formData.get("visa") as File | null;
@@ -38,22 +40,25 @@ export async function POST(req: Request) {
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // 4️⃣ Guardar archivos en disco si existen
+    // 4️⃣ Función para guardar archivo
     const saveFile = async (file: File | null, field: string) => {
       if (!file) return null;
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const filename = `${userId}-${field}-${Date.now()}-${file.name}`;
+      // Sanitizar el nombre del archivo
+      const safeName = file.name.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_.-]/g, "");
+      const filename = `${userId}-${field}-${Date.now()}-${safeName}`;
       const filePath = path.join(uploadsDir, filename);
       await fs.writeFile(filePath, buffer);
       return `/uploads/${filename}`;
     };
 
+    // 5️⃣ Guardar archivos
     const dniUrl = await saveFile(dniFile, "dni");
     const passportUrl = await saveFile(passportFile, "passport");
     const visaUrl = await saveFile(visaFile, "visa");
 
-    // 5️⃣ Actualizar usuario
+    // 6️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: {
