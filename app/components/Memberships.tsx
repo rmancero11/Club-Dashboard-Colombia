@@ -24,28 +24,26 @@ export default function Memberships() {
               pero aún no han elegido destino.
             </p>
 
-            <ul className="space-y-2 text-gray-700 text-sm">
-              <li>
-                ✅ Acceso a precios preferenciales en todas las salidas del
-                Club.
-              </li>
-              <li>✅ Atención preferencial y prioridad de cupos.</li>
-              <li>
-                ✅ Descuentos en consumos dentro de la sede social del club.
-              </li>
-              <li>
-                ✅ Descuentos exclusivos en planes vacacionales (a solicitud).
-              </li>
-              <li>✅ Invitaciones a eventos presenciales y virtuales.</li>
-              <li>✅ Acceso anticipado a nuevas salidas y lanzamientos.</li>
-              <li>
-                ✅ Visualización completa de otros usuarios con membresía
-                PREMIUM.
-              </li>
-              <li>✅ Posibilidad de enviar y recibir Travel Points.</li>
-              <li>❌ No puede contactar directamente a miembros CLUB VIP.</li>
-              <li>❌ No puede ver perfiles completos de miembros CLUB VIP.</li>
-            </ul>
+           <ul className="space-y-2 text-gray-700 text-sm">
+  <li className="font-montserrat">
+    ✅ Acceso a precios preferenciales en todas las salidas del Club.
+  </li>
+  <li className="font-montserrat">✅ Atención preferencial y prioridad de cupos.</li>
+  <li className="font-montserrat">
+    ✅ Descuentos en consumos dentro de la sede social del club.
+  </li>
+  <li className="font-montserrat">
+    ✅ Descuentos exclusivos en planes vacacionales (a solicitud).
+  </li>
+  <li className="font-montserrat">✅ Invitaciones a eventos presenciales y virtuales.</li>
+  <li className="font-montserrat">✅ Acceso anticipado a nuevas salidas y lanzamientos.</li>
+  <li className="font-montserrat">
+    ✅ Visualización completa de otros usuarios con membresía PREMIUM.
+  </li>
+  <li className="font-montserrat">✅ Posibilidad de enviar y recibir Travel Points.</li>
+  <li className="font-montserrat">❌ No puede contactar directamente a miembros CLUB VIP.</li>
+  <li className="font-montserrat">❌ No puede ver perfiles completos de miembros CLUB VIP.</li>
+</ul>
 
             <p className="font-montserrat ext-sm text-gray-500 pt-3 border-t border-purple-100">
               Acceso a comunidad real, conectividad básica y beneficios sobre
@@ -76,19 +74,18 @@ export default function Memberships() {
             </p>
 
             <ul className="space-y-2 text-gray-700 text-sm">
-              <li>🏆 Todos los beneficios de la Membresía PREMIUM.</li>
-              <li>
-                ✅ Ver y contactar directamente a cualquier miembro del Club.
-              </li>
-              <li>✅ Acceso completo a perfiles 100% verificados.</li>
-              <li>✅ Invitación a eventos VIP exclusivos.</li>
-              <li>
-                ✅ Prioridad en salidas internacionales y asistencia
-                personalizada.
-              </li>
-              <li>✅ Etiqueta CLUB VIP visible en el perfil.</li>
-              <li>✅ Posibilidad de nominar a otros para acceso al CLUB.</li>
-            </ul>
+  <li className="font-montserrat">🏆 Todos los beneficios de la Membresía PREMIUM.</li>
+  <li className="font-montserrat">
+    ✅ Ver y contactar directamente a cualquier miembro del Club.
+  </li>
+  <li className="font-montserrat">✅ Acceso completo a perfiles 100% verificados.</li>
+  <li className="font-montserrat">✅ Invitación a eventos VIP exclusivos.</li>
+  <li className="font-montserrat">
+    ✅ Prioridad en salidas internacionales y asistencia personalizada.
+  </li>
+  <li className="font-montserrat">✅ Etiqueta CLUB VIP visible en el perfil.</li>
+  <li className="font-montserrat">✅ Posibilidad de nominar a otros para acceso al CLUB.</li>
+</ul>
 
             <p className="font-montserrat text-sm text-gray-500 pt-3 border-t border-yellow-100">
               Acceso total, comunidad élite y verificación de perfil.

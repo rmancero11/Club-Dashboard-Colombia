@@ -1,4 +1,4 @@
-"use client";
+'use client';
 
 import * as React from "react";
 import { useState, useEffect } from "react";
@@ -10,6 +10,11 @@ type UserShape = {
   name?: string | null;
   email: string;
   phone?: string | null;
+  birthday?: string | null;
+  gender?: string | null;
+  singleStatus?: string | null;
+  affirmation?: string | null;
+  security?: string | null;
   country?: string | null;
   destino?: string | null;
   avatar?: string | null;
@@ -116,13 +121,61 @@ export default function EditProfilePage() {
     <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-md mt-8">
       <h1 className="text-2xl font-bold mb-6 text-center">Editar perfil</h1>
 
-      <form
-        onSubmit={handleSubmit}
-        className="grid grid-cols-1 md:grid-cols-2 gap-6"
-      >
-        {/* Columna izquierda */}
-        <div className="space-y-4">
-          <div className="flex justify-center mb-4 md:justify-start">
+      <div className="space-y-8">
+        {/* Sección: Acerca de ti */}
+        <div className="border rounded-xl p-4">
+          <div className="flex items-center mb-4">
+            <h2 className="text-lg font-semibold mx-2">Acerca de ti</h2>
+            <Image
+                                src="/favicon/aboutme-club-solteros.svg"
+                                alt="Acerca de ti"
+                                width={25}
+                                height={25}
+                              />
+          </div>
+
+          <div className="space-y-2">
+            {[
+              { label: "Nombre", value: user.name },
+              { label: "Email", value: user.email },
+              { label: "Teléfono", value: user.phone },
+              { label: "Cumpleaños", value: user.birthday },
+              { label: "Ubicación", value: user.country },
+              { label: "Género", value: user.gender },
+              { label: "¿Soltero/a?", value: user.singleStatus },
+              { label: "Afirmación", value: user.affirmation },
+              { label: "Seguridad", value: user.security },
+            ].map((field) => (
+              <div
+                key={field.label}
+                className="flex justify-between items-center p-2 border-b last:border-none"
+              >
+                <span className="font-medium">{field.label}</span>
+                <div className="flex items-center space-x-2">
+                  <span className="text-gray-600">
+                    {field.value ?? "No especificado"}
+                  </span>
+                  
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Sección: Documentos de viaje */}
+        <div className="border rounded-xl p-4">
+          <div className="flex items-center mb-4">
+            
+            <h2 className="text-lg font-semibold mx-2">Documentos de viaje</h2>
+            <Image
+                                src="/favicon/maletin-club-solteros.svg"
+                                alt="Doc"
+                                width={25}
+                                height={25}
+                              />
+          </div>
+
+          <div className="flex justify-center mb-4">
             <Image
               src={user.avatar || "/images/default-avatar.png"}
               alt={user.name || "Avatar del usuario"}
@@ -132,27 +185,8 @@ export default function EditProfilePage() {
             />
           </div>
 
-          <p className="text-gray-600 font-medium">
-            Teléfono:{" "}
-            <span className="font-normal">
-              {user.phone ?? "No especificado"}
-            </span>
-          </p>
-          <p className="text-gray-600 font-medium">
-            País:{" "}
-            <span className="font-normal">
-              {user.country ?? "No especificado"}
-            </span>
-          </p>
-          <p className="text-gray-600 font-medium">
-            Destino de interés:{" "}
-            <span className="font-normal">
-              {user.destino ?? "No especificado"}
-            </span>
-          </p>
-
-          {/* Ver archivos subidos */}
-          <div className="mt-4">
+          {/* Botón mostrar archivos */}
+          <div className="mt-2">
             <button
               type="button"
               onClick={() => setShowFiles(!showFiles)}
@@ -187,86 +221,65 @@ export default function EditProfilePage() {
               </div>
             )}
           </div>
+
+          {/* Archivos para subir */}
+          <form
+            onSubmit={handleSubmit}
+            className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4"
+          >
+            <label className="block">
+              <span className="text-gray-700 font-medium">DNI</span>
+              <input
+                type="file"
+                onChange={(e) => setDniFile(e.target.files?.[0] || null)}
+                className="w-full mt-1 text-sm"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-gray-700 font-medium">Pasaporte</span>
+              <input
+                type="file"
+                onChange={(e) => setPassportFile(e.target.files?.[0] || null)}
+                className="w-full mt-1 text-sm"
+              />
+            </label>
+
+            <label className="block">
+              <span className="text-gray-700 font-medium">Visa</span>
+              <input
+                type="file"
+                onChange={(e) => setVisaFile(e.target.files?.[0] || null)}
+                className="w-full mt-1 text-sm"
+              />
+            </label>
+
+            <div className="flex flex-col sm:flex-row gap-3 mt-2 col-span-full">
+              <button
+                type="submit"
+                disabled={loading}
+                className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition disabled:bg-purple-300"
+              >
+                {loading ? "Guardando..." : "Guardar archivos"}
+              </button>
+
+              <button
+                type="button"
+                onClick={() => router.push("/dashboard-user")}
+                className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition"
+              >
+                Volver
+              </button>
+            </div>
+
+            {success && (
+              <p className="text-green-600 font-medium text-center mt-2 col-span-full">
+                Datos actualizados correctamente ✅
+              </p>
+            )}
+          </form>
         </div>
-
-        {/* Columna derecha */}
-        <div className="space-y-4">
-          <label className="block">
-            <span className="text-gray-700 font-medium">Nombre</span>
-            <input
-              type="text"
-              name="name"
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="w-full mt-1 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-gray-700 font-medium">Email</span>
-            <input
-              type="email"
-              name="email"
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="w-full mt-1 p-2 border rounded-md focus:outline-none focus:ring-2 focus:ring-purple-400"
-            />
-          </label>
-
-          {/* Archivos */}
-          <label className="block">
-            <span className="text-gray-700 font-medium">DNI</span>
-            <input
-              type="file"
-              onChange={(e) => setDniFile(e.target.files?.[0] || null)}
-              className="w-full mt-1 text-sm"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-gray-700 font-medium">Pasaporte</span>
-            <input
-              type="file"
-              onChange={(e) => setPassportFile(e.target.files?.[0] || null)}
-              className="w-full mt-1 text-sm"
-            />
-          </label>
-
-          <label className="block">
-            <span className="text-gray-700 font-medium">Visa</span>
-            <input
-              type="file"
-              onChange={(e) => setVisaFile(e.target.files?.[0] || null)}
-              className="w-full mt-1 text-sm"
-            />
-          </label>
-
-          {/* Botones */}
-          <div className="flex flex-col sm:flex-row gap-3 mt-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="flex-1 bg-purple-600 text-white py-2 px-4 rounded-md hover:bg-purple-700 transition disabled:bg-purple-300"
-            >
-              {loading ? "Guardando..." : "Guardar archivos"}
-            </button>
-
-            <button
-              type="button"
-              onClick={() => router.push("/dashboard-user")}
-              className="flex-1 bg-gray-200 text-gray-800 py-2 px-4 rounded-md hover:bg-gray-300 transition"
-            >
-              Volver
-            </button>
-          </div>
-
-          {success && (
-            <p className="text-green-600 font-medium text-center mt-2">
-              Datos actualizados correctamente ✅
-            </p>
-          )}
-        </div>
-      </form>
+      </div>
     </div>
   );
 }
