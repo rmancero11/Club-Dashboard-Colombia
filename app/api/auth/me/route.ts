@@ -56,6 +56,9 @@ export async function GET() {
     affirmation: true,
     acceptedTerms: true,
     flow: true,
+    birthday: true,        
+    gender: true,          
+    lookingFor: true,
 
     // Archivos nuevos
     purchaseOrder: true,
@@ -139,13 +142,16 @@ const userShape = {
   avatar: user.avatar,
   businessId: user.businessId,
   dniFile: user.dniFile,
-  passport: user.passport,
-  visa: user.visa,
+  passportFile: user.passport,
+  visaFile: user.visa,
   comment: user.comment,
   singleStatus: user.singleStatus,
   affirmation: user.affirmation,
   acceptedTerms: user.acceptedTerms,
   flow: user.flow,
+  birthday: user.birthday,    
+  gender: user.gender,         
+  lookingFor: user.lookingFor,
 
   // Archivos
   purchaseOrder: user.purchaseOrder,

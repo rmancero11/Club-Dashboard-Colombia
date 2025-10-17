@@ -150,6 +150,9 @@ model User {
   flow           String?   
   business   Business? @relation(fields: [businessId], references: [id])
   businessId String?
+  birthday   DateTime?
+  gender     String?
+  lookingFor String? 
 
   // Relaciones cuando es SELLER (agente)
   sellerClients       Client[]             @relation("SellerClients")

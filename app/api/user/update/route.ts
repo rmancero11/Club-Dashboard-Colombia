@@ -27,14 +27,23 @@ export async function POST(req: Request) {
 
     // 2️⃣ Leer el formulario
     const formData = await req.formData();
+
     const name = (formData.get("name") as string)?.trim() || null;
     const phone = (formData.get("phone") as string)?.trim() || null;
     const country = (formData.get("country") as string)?.trim() || null;
+    const birthdayRaw = formData.get("birthday") as string | null;
+    const gender = (formData.get("gender") as string)?.trim() || null;
+    const lookingFor = (formData.get("lookingFor") as string)?.trim() || null;
+    const singleStatus = (formData.get("singleStatus") as string)?.trim() || null;
+    const affirmation = (formData.get("affirmation") as string)?.trim() || null;
+    const security = (formData.get("security") as string)?.trim() || null;
 
-    // 🔑 Asegurarse de usar los nombres correctos de los inputs
-    const dniFile = formData.get("dni") as File | null;
-    const passportFile = formData.get("passport") as File | null;
-    const visaFile = formData.get("visa") as File | null;
+    const birthday = birthdayRaw ? new Date(birthdayRaw) : null;
+
+    // 🔑 Archivos
+    const dniFile = formData.get("dniFile") as File | null;
+    const passportFile = formData.get("passportFile") as File | null;
+    const visaFile = formData.get("visaFile") as File | null;
 
     // 3️⃣ Crear carpeta uploads si no existe
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
@@ -45,7 +54,6 @@ export async function POST(req: Request) {
       if (!file) return null;
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      // Sanitizar el nombre del archivo
       const safeName = file.name.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_.-]/g, "");
       const filename = `${userId}-${field}-${Date.now()}-${safeName}`;
       const filePath = path.join(uploadsDir, filename);
@@ -54,9 +62,9 @@ export async function POST(req: Request) {
     };
 
     // 5️⃣ Guardar archivos
-    const dniUrl = await saveFile(dniFile, "dni");
-    const passportUrl = await saveFile(passportFile, "passport");
-    const visaUrl = await saveFile(visaFile, "visa");
+    const dniUrl = await saveFile(dniFile, "dniFile");
+    const passportUrl = await saveFile(passportFile, "passportFile");
+    const visaUrl = await saveFile(visaFile, "visaFile");
 
     // 6️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
@@ -65,6 +73,12 @@ export async function POST(req: Request) {
         ...(name && { name }),
         ...(phone && { phone }),
         ...(country && { country }),
+        ...(birthday && { birthday }),
+        ...(gender && { gender }),
+        ...(lookingFor && { lookingFor }),
+        ...(singleStatus && { singleStatus }),
+        ...(affirmation && { affirmation }),
+        ...(security && { security }),
         ...(dniUrl && { dniFile: dniUrl }),
         ...(passportUrl && { passport: passportUrl }),
         ...(visaUrl && { visa: visaUrl }),
