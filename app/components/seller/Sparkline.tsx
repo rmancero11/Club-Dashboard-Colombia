@@ -1,4 +1,3 @@
-// Mini-gráfica SVG simple (sin librerías)
 type Props = {
   labels: string[]; // e.g. ["2025-01", ...]
   values: number[]; // mismo largo que labels

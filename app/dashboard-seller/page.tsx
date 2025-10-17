@@ -5,6 +5,7 @@ import Sparkline from "@/app/components/seller/Sparkline";
 import TopDestinationsTable from "@/app/components/seller/TopDestinationsTable";
 import TaskList from "@/app/components/seller/TaskList";
 import { notFound, redirect } from "next/navigation";
+import ReservationTrend from "../components/seller/ReservationTrend";
 
 // Util: primer día del mes (00:00)
 function startOfMonth(d = new Date()) {
@@ -15,14 +16,15 @@ function monthsAgo(n: number) {
   const d = new Date();
   d.setMonth(d.getMonth() - n);
   d.setDate(1);
-  d.setHours(0,0,0,0);
+  d.setHours(0, 0, 0, 0);
   return d;
 }
 
 export default async function SellerHomePage() {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "SELLER" && auth.role !== "ADMIN") redirect("/unauthorized");
+  if (auth.role !== "SELLER" && auth.role !== "ADMIN")
+    redirect("/unauthorized");
   if (!auth.businessId) {
     // sin empresa asociada, no hay datos que mostrar
     notFound();
@@ -49,9 +51,7 @@ export default async function SellerHomePage() {
 
   // Serie de reservas por mes (últimos 12 meses)
   // Usamos raw SQL para agrupar por mes (Postgres)
-  const seriesPromise = prisma.$queryRaw<
-    { ym: string; count: bigint }[]
-  >`
+  const seriesPromise = prisma.$queryRaw<{ ym: string; count: bigint }[]>`
     SELECT to_char(date_trunc('month', "startDate"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
@@ -97,20 +97,31 @@ export default async function SellerHomePage() {
   });
 
   const [[total, pending, confirmed, thisMonth], rawSeries, topDest, tasks] =
-    await Promise.all([kpisPromise, seriesPromise, topDestinationsPromise, tasksPromise]);
+    await Promise.all([
+      kpisPromise,
+      seriesPromise,
+      topDestinationsPromise,
+      tasksPromise,
+    ]);
 
   // Normaliza serie a 12 meses continuos (YYYY-MM)
   const labels: string[] = [];
   const counts: number[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = monthsAgo(i);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
+      2,
+      "0"
+    )}`;
     labels.push(ym);
-    const found = rawSeries.find((r: { ym: string; }) => r.ym === ym);
+    const found = rawSeries.find((r: { ym: string }) => r.ym === ym);
     counts.push(found ? Number(found.count) : 0);
   }
 
-  const topRows = topDest.map((r: { name: any; cnt: any; }) => ({ name: r.name, count: Number(r.cnt) }));
+  const topRows = topDest.map((r: { name: any; cnt: any }) => ({
+    name: r.name,
+    count: Number(r.cnt),
+  }));
 
   return (
     <div className="space-y-6">
@@ -130,13 +141,11 @@ export default async function SellerHomePage() {
       {/* Tendencia + Destinos */}
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border bg-white p-4">
-          <div className="mb-2 flex items-center justify-between">
-            <h2 className="text-lg font-semibold">Tendencia de reservas</h2>
-            <span className="text-xs text-gray-500">últimos 12 meses</span>
-          </div>
-          <div className="h-64">
-            <Sparkline labels={labels} values={counts} />
-          </div>
+          <ReservationTrend
+            businessId={businessId}
+            sellerId={sellerId}
+            months={6}
+          />
         </div>
 
         <div className="rounded-xl border bg-white p-4">
@@ -150,7 +159,10 @@ export default async function SellerHomePage() {
         <h2 className="mb-2 text-lg font-semibold">Tareas pendientes</h2>
         <TaskList tasks={tasks} />
         <div className="mt-3">
-          <a href="/dashboard-seller/tareas" className="text-sm text-primary underline">
+          <a
+            href="/dashboard-seller/tareas"
+            className="text-sm text-primary underline"
+          >
             Ver todas
           </a>
         </div>
@@ -158,10 +170,16 @@ export default async function SellerHomePage() {
 
       {/* Accesos rápidos */}
       <section className="flex flex-wrap gap-3">
-        <a href="/dashboard-seller/reservas/nueva" className="rounded-lg bg-black px-4 py-2 text-white">
+        <a
+          href="/dashboard-seller/reservas/nueva"
+          className="rounded-lg bg-black px-4 py-2 text-white"
+        >
           Nueva reserva
         </a>
-        <a href="/dashboard-seller/reservas" className="rounded-lg border px-4 py-2">
+        <a
+          href="/dashboard-seller/reservas"
+          className="rounded-lg border px-4 py-2"
+        >
           Buscar reserva
         </a>
       </section>
