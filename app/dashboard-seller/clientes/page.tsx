@@ -1,3 +1,4 @@
+/* eslint-disable @next/next/no-img-element */
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
@@ -25,9 +26,8 @@ function fmtDate(d: Date | string) {
   });
 }
 
-// --- Indicativos por país (amplía según mercados) ---
+// --- Indicativos por país ---
 const DIAL_BY_COUNTRY: Record<string, string> = {
-  // Américas
   Colombia: "57",
   México: "52",
   "Estados Unidos": "1",
@@ -40,14 +40,12 @@ const DIAL_BY_COUNTRY: Record<string, string> = {
   Ecuador: "593",
   Venezuela: "58",
   Brasil: "55",
-  // Europa
   España: "34",
   Portugal: "351",
   Francia: "33",
   Italia: "39",
   Alemania: "49",
 };
-
 function dialCodeForCountry(country?: string) {
   if (!country) return "";
   return DIAL_BY_COUNTRY[country.trim()] ?? "";
@@ -72,7 +70,7 @@ function waLink(e164?: string) {
   return d ? `https://wa.me/${d}` : "";
 }
 
-// === Mapeo de estados de reserva (schema.prisma) ===
+// === Estados de reserva ===
 const RES_STATUS_LABEL: Record<string, string> = {
   LEAD: "Lead",
   QUOTED: "Cotizada",
@@ -106,39 +104,207 @@ function resStatusBadgeClass(status?: string) {
   }
 }
 
-// === Etiquetas y render de Documentos ===
+// === Documentos permitidos ===
 const FILE_LABELS: Record<string, string> = {
+  dniFile: "Documento de identidad",
+  passport: "Pasaporte",
+  visa: "Visa",
   purchaseOrder: "Orden de compra",
   flightTickets: "Boletos de vuelo",
   serviceVoucher: "Voucher de servicio",
   medicalAssistanceCard: "Asistencia médica",
   travelTips: "Tips de viaje",
 };
+const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS);
 
+// ============ Helpers de preview ============
+function isProxyUrl(url: string) {
+  try {
+    const u = new URL(url, "http://localhost"); // base para URLs relativas
+    return u.pathname.startsWith("/api/file-proxy");
+  } catch {
+    return false;
+  }
+}
+function unwrapProxyUrl(url: string) {
+  if (!isProxyUrl(url)) return url;
+  try {
+    const u = new URL(url, "http://localhost");
+    const inner = u.searchParams.get("url");
+    return inner || url;
+  } catch {
+    return url;
+  }
+}
+function getExt(url: string) {
+  // Si es proxy con ?url=..., calculamos la extensión del recurso interno
+  const real = unwrapProxyUrl(url);
+  try {
+    const u = new URL(real);
+    const path = u.pathname.toLowerCase();
+    const qext = (u.searchParams.get("ext") || "").toLowerCase(); // permite ?ext=pdf
+    const m = path.match(/\.([a-z0-9]+)$/i);
+    return (qext || (m ? m[1] : "")).replace(/[^a-z0-9]/g, "");
+  } catch {
+    const m = real.toLowerCase().match(/\.([a-z0-9]+)(?:\?|#|$)/i);
+    return m ? m[1] : "";
+  }
+}
+const isImageExt = (ext: string) => ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(ext);
+const isPdfExt = (ext: string) => ext === "pdf";
+const isVideoExt = (ext: string) => ["mp4", "webm", "ogg"].includes(ext);
+
+// Genera nombre amigable para descarga/inline
+function filenameForKey(key: string) {
+  switch (key) {
+    case "dniFile": return "documento_identidad.pdf";
+    case "passport": return "pasaporte.pdf";
+    case "visa": return "visa.pdf";
+    case "purchaseOrder": return "orden_compra.pdf";
+    case "flightTickets": return "boletos_vuelo.pdf";
+    case "serviceVoucher": return "voucher_servicio.pdf";
+    case "medicalAssistanceCard": return "asistencia_medica.pdf";
+    case "travelTips": return "tips_viaje.pdf";
+    default: return "documento.pdf";
+  }
+}
+
+// Asegura que un PDF pase por el proxy (si no lo es ya)
+function ensureProxyPdf(url: string, filename: string) {
+  if (isProxyUrl(url)) {
+    // Si ya es el proxy, añadimos filename si no está
+    try {
+      const u = new URL(url, "http://localhost");
+      if (!u.searchParams.get("filename")) {
+        u.searchParams.set("filename", filename);
+        return u.pathname + "?" + u.searchParams.toString();
+      }
+      return url;
+    } catch {
+      return url;
+    }
+  }
+  return `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+}
+
+// ============ Render de previsualización ============
+function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
+  const ext = getExt(url);
+
+  if (isImageExt(ext)) {
+    return (
+      <div className="rounded-md border p-2">
+        <img
+          src={url}
+          alt="Documento"
+          loading="lazy"
+          className="max-h-56 w-auto rounded"
+          style={{ objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
+  if (isPdfExt(ext)) {
+    const filename = filenameForKey(fileKey || "documento");
+    const src = ensureProxyPdf(url, filename);
+    return (
+      <div className="rounded-md border p-2">
+        <embed src={src} type="application/pdf" className="h-64 w-full rounded" />
+      </div>
+    );
+  }
+
+  if (isVideoExt(ext)) {
+    return (
+      <div className="rounded-md border p-2">
+        <video src={url} controls className="h-64 w-full rounded" />
+      </div>
+    );
+  }
+
+  // Fallback
+  return (
+    <div className="rounded-md border p-3 text-xs text-gray-600">
+      <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
+      <div className="flex gap-2">
+        <a href={url} target="_blank" rel="noopener noreferrer" className="rounded-md border px-2 py-1 underline" title="Abrir en nueva pestaña">
+          Abrir
+        </a>
+        <a href={url} download className="rounded-md border px-2 py-1" title="Descargar archivo">
+          Descargar
+        </a>
+      </div>
+    </div>
+  );
+}
+
+// Lista de documentos con preview inline
 function DocList({ user }: { user?: Record<string, unknown> | null }) {
-  const entries = Object.entries(user || {}).filter(
-    ([, url]) => typeof url === "string" && url
-  ) as Array<[string, string]>;
+  if (!user) {
+    return <span className="text-xs text-gray-400">—</span>;
+  }
+
+  const entries: Array<{ key: string; label: string; url: string }> = [];
+  for (const key of ALLOWED_DOC_FIELDS) {
+    const v = user[key];
+    if (typeof v === "string" && v.trim()) {
+      entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
+    }
+  }
 
   if (entries.length === 0) {
     return <span className="text-xs text-gray-400">—</span>;
   }
 
   return (
-    <ul className="mt-1 flex flex-col gap-1">
-      {entries.map(([key, url]) => (
-        <li key={key}>
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs underline text-gray-700"
-            title="Abrir documento en una nueva pestaña"
-          >
-            {FILE_LABELS[key] || key}
-          </a>
-        </li>
-      ))}
+    <ul className="mt-1 space-y-2">
+      {entries.map(({ key, label, url }) => {
+        const ext = getExt(url);
+        const filename = filenameForKey(key);
+        // Para PDFs: aseguramos proxy con filename
+        const openUrl =
+          isPdfExt(ext) ? ensureProxyPdf(url, filename) : url;
+
+        const downloadUrl = openUrl; // descarga vía proxy con filename o directo si no es PDF
+
+        return (
+          <li key={key} className="rounded-md border p-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-medium text-gray-700">{label}</div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={openUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs underline text-blue-700"
+                  title="Abrir en nueva pestaña"
+                >
+                  Abrir
+                </a>
+                <a
+                  href={downloadUrl}
+                  download={filename}
+                  className="text-xs text-gray-700 underline"
+                  title="Descargar"
+                >
+                  Descargar
+                </a>
+              </div>
+            </div>
+
+            {/* Preview plegable */}
+            <details className="mt-2 group">
+              <summary className="cursor-pointer select-none text-xs text-gray-600 underline">
+                Previsualizar
+              </summary>
+              <div className="mt-2">
+                <FilePreview url={openUrl} fileKey={key} />
+              </div>
+            </details>
+          </li>
+        );
+      })}
     </ul>
   );
 }
@@ -155,7 +321,7 @@ export default async function SellerClientsPage({
   }
 
   const businessId = auth.businessId!;
-  const sellerId = auth.userId; // 👈 Solo clientes del vendedor autenticado
+  const sellerId = auth.userId; // Solo clientes del vendedor autenticado
 
   // --- Filtros desde la URL ---
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
@@ -181,7 +347,7 @@ export default async function SellerClientsPage({
     ];
   }
 
-  // --- Query principal: total + items (con conteo y última reserva) ---
+  // --- Query principal: total + items ---
   const [total, items] = await Promise.all([
     prisma.client.count({ where }),
     prisma.client.findMany({
@@ -206,9 +372,12 @@ export default async function SellerClientsPage({
           orderBy: { createdAt: "desc" },
           take: 1,
         },
-        // 👇 Asegura traer documentos del usuario
+        // Documentos del usuario
         user: {
           select: {
+            dniFile: true,
+            passport: true,
+            visa: true,
             purchaseOrder: true,
             flightTickets: true,
             serviceVoucher: true,
@@ -240,9 +409,6 @@ export default async function SellerClientsPage({
         <div>
           <h1 className="text-2xl font-semibold">Clientes</h1>
         </div>
-        <a href="/dashboard-seller/clientes/nuevo" className="rounded-lg bg-black px-4 py-2 text-white">
-          Nuevo cliente
-        </a>
       </header>
 
       <div className="rounded-xl border bg-white p-4">
@@ -254,20 +420,12 @@ export default async function SellerClientsPage({
             className="rounded-md border px-3 py-2 text-sm"
             placeholder="Buscar por nombre, email, teléfono, ciudad…"
           />
-          <select
-            name="status"
-            defaultValue={status}
-            className="rounded-md border px-3 py-2 text-sm"
-          >
+          <select name="status" defaultValue={status} className="rounded-md border px-3 py-2 text-sm">
             <option value="">Todos</option>
             <option value="active">Activos</option>
             <option value="archived">Archivados</option>
           </select>
-          <select
-            name="pageSize"
-            defaultValue={String(pageSize)}
-            className="rounded-md border px-3 py-2 text-sm"
-          >
+          <select name="pageSize" defaultValue={String(pageSize)} className="rounded-md border px-3 py-2 text-sm">
             {[10, 20, 30, 50].map((n) => (
               <option key={n} value={n}>
                 {n} / pág.
@@ -333,10 +491,7 @@ export default async function SellerClientsPage({
                       <div className="font-medium">{c.name}</div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(c.tags || []).map((t) => (
-                          <span
-                            key={t}
-                            className="rounded border px-1.5 py-0.5 text-[11px] text-gray-600"
-                          >
+                          <span key={t} className="rounded border px-1.5 py-0.5 text-[11px] text-gray-600">
                             {t}
                           </span>
                         ))}
@@ -392,7 +547,9 @@ export default async function SellerClientsPage({
                         <summary className="cursor-pointer text-sm text-blue-600">
                           {docCount > 0 ? `Ver archivos (${docCount})` : "Ver archivos"}
                         </summary>
-                        <DocList user={c.user as any} />
+                        <div className="mt-2">
+                          <DocList user={c.user as any} />
+                        </div>
                       </details>
                     </td>
 
@@ -401,10 +558,7 @@ export default async function SellerClientsPage({
 
                     {/* Acciones */}
                     <td className="px-2 py-2 text-right">
-                      <a
-                        href={`/dashboard-seller/clientes/${c.id}`}
-                        className="text-primary underline"
-                      >
+                      <a href={`/dashboard-seller/clientes/${c.id}`} className="text-primary underline">
                         Ver
                       </a>
                     </td>
@@ -419,10 +573,8 @@ export default async function SellerClientsPage({
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
-            {items.length > 0
-              ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}`
-              : "0"}{" "}
-            de {total.toLocaleString("es-CO")}
+            {items.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}` : "0"} de{" "}
+            {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a

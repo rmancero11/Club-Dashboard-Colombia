@@ -9,7 +9,23 @@ type DocKeys =
   | "flightTickets"
   | "serviceVoucher"
   | "medicalAssistanceCard"
-  | "travelTips";
+  | "travelTips"
+// Si luego tu formulario soporta identidad, descomenta y listo:
+// | "dniFile"
+// | "passport"
+// | "visa"
+;
+
+const ALLOWED_DOC_KEYS: DocKeys[] = [
+  "purchaseOrder",
+  "flightTickets",
+  "serviceVoucher",
+  "medicalAssistanceCard",
+  "travelTips",
+  // "dniFile",
+  // "passport",
+  // "visa",
+];
 
 export async function updateClientDocumentsAction(formData: FormData) {
   const auth = await getAuth();
@@ -30,14 +46,20 @@ export async function updateClientDocumentsAction(formData: FormData) {
   });
   if (!client) throw new Error("Cliente no encontrado o sin permisos");
 
-  // Tomar valores (URLs) de los campos del form
-  const payload: Partial<Record<DocKeys, string | null>> = {
-    purchaseOrder: (formData.get("purchaseOrder") as string) || null,
-    flightTickets: (formData.get("flightTickets") as string) || null,
-    serviceVoucher: (formData.get("serviceVoucher") as string) || null,
-    medicalAssistanceCard: (formData.get("medicalAssistanceCard") as string) || null,
-    travelTips: (formData.get("travelTips") as string) || null,
-  };
+  // Construir payload solo con keys permitidas
+  const payload: Partial<Record<DocKeys, string | null>> = {};
+  for (const k of ALLOWED_DOC_KEYS) {
+    const raw = formData.get(k);
+    if (typeof raw === "string") {
+      const url = raw.trim();
+      payload[k] = url.length > 0 ? url : null;
+    }
+  }
+
+  // No hacer update vacío: evita touch innecesario
+  if (Object.keys(payload).length === 0) {
+    return { ok: true, message: "Sin cambios" };
+  }
 
   await prisma.user.update({
     where: { id: client.userId },
