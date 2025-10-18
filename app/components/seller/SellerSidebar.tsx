@@ -14,6 +14,7 @@ const NAV = [
   { href: "/dashboard-seller/destinos", label: "Destinos" },
   { href: "/dashboard-seller/reservas", label: "Reservas" },
   { href: "/dashboard-seller/reportes", label: "Reportes" },
+  { href: "/dashboard-seller/tareas", label: "Tareas" },
   { href: "/dashboard-seller/profile", label: "Perfil" }, // <-- Nuevo link al perfil
 ];
 

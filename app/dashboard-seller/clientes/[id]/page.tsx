@@ -3,6 +3,7 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { notFound, redirect } from "next/navigation";
 import SellerClientDocumentsForm from "@/app/components/seller/SellerClientDocumentsform";
+import Link from "next/link";
 
 /** Utils */
 function fmtDate(d: Date | string) {
@@ -503,12 +504,12 @@ export default async function ClientDetailPage({
                     <div className="text-sm">
                       {money(Number(r.totalAmount), r.currency)}
                     </div>
-                    <a
+                    <Link
                       className="text-sm text-primary underline"
                       href={`/dashboard-seller/reservas/${r.id}`}
                     >
                       Ver
-                    </a>
+                    </Link>
                   </div>
                 </div>
               </li>

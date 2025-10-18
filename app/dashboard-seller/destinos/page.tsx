@@ -1,62 +1,72 @@
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
+import Image from "next/image";
 
-// helpers
+/* ========== Helpers UI ========== */
 function toInt(v: string | string[] | undefined, def: number) {
   const n = Array.isArray(v) ? parseInt(v[0] || "", 10) : parseInt(v || "", 10);
   return Number.isFinite(n) && n > 0 ? n : def;
 }
 function qstr(params: Record<string, string | undefined>) {
   const usp = new URLSearchParams();
-  Object.entries(params).forEach(([k, v]) => {
+  for (const [k, v] of Object.entries(params))
     if (v != null && v !== "") usp.set(k, v);
-  });
   const s = usp.toString();
   return s ? `?${s}` : "";
 }
-function formatDate(d: Date) {
-  return new Date(d).toLocaleDateString("es-CO", { year: "numeric", month: "short", day: "2-digit" });
-}
+const ORDER_OPTS = {
+  createdAt_desc: [{ createdAt: "desc" }] as const,
+  name_asc: [{ name: "asc" }] as const,
+  popularity_desc: [
+    { popularityScore: "desc" as const },
+    { createdAt: "desc" as const },
+  ],
+};
 
-export default async function DestinosPage({
+export default async function SellerDestinationsPage({
   searchParams,
 }: {
-  searchParams: { [key: string]: string | string[] | undefined };
+  searchParams: { [k: string]: string | string[] | undefined };
 }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "SELLER" && auth.role !== "ADMIN") redirect("/unauthorized");
   if (!auth.businessId) redirect("/unauthorized");
+  if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
   const businessId = auth.businessId!;
-  const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
-  const status = (Array.isArray(searchParams.status) ? searchParams.status[0] : searchParams.status) ?? ""; // "", "active", "inactive"
-  const country = (Array.isArray(searchParams.country) ? searchParams.country[0] : searchParams.country) ?? "";
-  const category = (Array.isArray(searchParams.category) ? searchParams.category[0] : searchParams.category) ?? "";
+
+  // Filtros (por defecto: solo activos para seller)
+  const q =
+    (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
+  const active =
+    (Array.isArray(searchParams.active)
+      ? searchParams.active[0]
+      : searchParams.active) ?? "yes";
+  const country =
+    (Array.isArray(searchParams.country)
+      ? searchParams.country[0]
+      : searchParams.country) ?? "";
+  const category =
+    (Array.isArray(searchParams.category)
+      ? searchParams.category[0]
+      : searchParams.category) ?? "";
+  const order =
+    (Array.isArray(searchParams.order)
+      ? searchParams.order[0]
+      : searchParams.order) ?? "createdAt_desc";
   const page = toInt(searchParams.page, 1);
-  const pageSizeRaw = toInt(searchParams.pageSize, 10);
-  const pageSize = Math.min(pageSizeRaw, 50);
+  const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
+  // Buscador por nombre + filtros
   const where: any = { businessId };
+  if (q) where.name = { contains: q, mode: "insensitive" };
+  if (active === "yes") where.isActive = true;
+  if (active === "no") where.isActive = false;
+  if (country) where.country = country;
+  if (category) where.category = category;
 
-  if (status === "active") where.isActive = true;
-  if (status === "inactive") where.isActive = false;
-  if (country) where.country = { equals: country, mode: "insensitive" };
-  if (category) where.category = { equals: category, mode: "insensitive" };
-
-  if (q) {
-    where.OR = [
-      { name: { contains: q, mode: "insensitive" } },
-      { country: { contains: q, mode: "insensitive" } },
-      { city: { contains: q, mode: "insensitive" } },
-      { category: { contains: q, mode: "insensitive" } },
-      { description: { contains: q, mode: "insensitive" } },
-    ];
-  }
-
-  // opciones de filtros (distinct)
-  const [countryRows, categoryRows] = await Promise.all([
+  const [countries, categories] = await Promise.all([
     prisma.destination.findMany({
       where: { businessId },
       select: { country: true },
@@ -70,14 +80,18 @@ export default async function DestinosPage({
       orderBy: { category: "asc" },
     }),
   ]);
-  const countries = countryRows.map(r => r.country).filter(Boolean) as string[];
-  const categories = categoryRows.map(r => r.category).filter(Boolean) as string[];
+  const countryOpts = (
+    countries.map((c) => c.country).filter(Boolean) as string[]
+  ).sort();
+  const categoryOpts = (
+    categories.map((c) => c.category).filter(Boolean) as string[]
+  ).sort();
 
   const [total, items] = await Promise.all([
     prisma.destination.count({ where }),
     prisma.destination.findMany({
       where,
-      orderBy: [{ popularityScore: "desc" }, { createdAt: "desc" }],
+      orderBy: (ORDER_OPTS as any)[order] ?? ORDER_OPTS.createdAt_desc,
       skip: (page - 1) * pageSize,
       take: pageSize,
       select: {
@@ -86,18 +100,30 @@ export default async function DestinosPage({
         country: true,
         city: true,
         category: true,
+        price: true,
+        discountPrice: true,
         isActive: true,
         popularityScore: true,
         createdAt: true,
+        imageUrl: true,
+        _count: { select: { reservations: true } },
       },
     }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
-  const safePage = Math.min(page, totalPages);
-  if (safePage !== page) {
-    const qs = qstr({ q, status, country, category, page: String(safePage), pageSize: String(pageSize) });
-    redirect(`/dashboard-seller/destinos${qs}`);
+  if (page > totalPages) {
+    redirect(
+      `/dashboard-seller/destinos${qstr({
+        q,
+        active,
+        country,
+        category,
+        order,
+        page: String(totalPages),
+        pageSize: String(pageSize),
+      })}`
+    );
   }
 
   return (
@@ -107,49 +133,97 @@ export default async function DestinosPage({
         <div>
           <h1 className="text-2xl font-semibold">Destinos</h1>
           <p className="text-sm text-gray-500">
-            Gestiona los destinos de tu empresa. Mostrando {items.length} de {total.toLocaleString("es-CO")}.
+            Mostrando {items.length} de {total.toLocaleString("es-CO")}.
           </p>
         </div>
-        <a href="/dashboard-seller/destinos/nuevo" className="rounded-lg bg-black px-4 py-2 text-white">
-          Nuevo destino
-        </a>
       </header>
 
       {/* Filtros */}
-      <div className="rounded-xl border bg-white p-4">
-        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5" method="GET">
+      <div className="rounded-xl border bg-white p-6">
+        <form
+          className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-7"
+          method="GET"
+        >
           <input
             name="q"
             defaultValue={q}
             className="rounded-md border px-3 py-2 text-sm"
-            placeholder="Buscar por nombre, país, ciudad..."
+            placeholder="Buscar por nombre del destino…"
           />
-          <select name="status" defaultValue={status} className="rounded-md border px-3 py-2 text-sm">
-            <option value="">Todos</option>
-            <option value="active">Activos</option>
-            <option value="inactive">Inactivos</option>
+          <select
+            name="country"
+            defaultValue={country}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">País (todos)</option>
+            {countryOpts.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
-          <select name="country" defaultValue={country} className="rounded-md border px-3 py-2 text-sm">
-            <option value="">País</option>
-            {countries.map(c => <option key={c} value={c}>{c}</option>)}
+          <select
+            name="category"
+            defaultValue={category}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">Categoría (todas)</option>
+            {categoryOpts.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
           </select>
-          <select name="category" defaultValue={category} className="rounded-md border px-3 py-2 text-sm">
-            <option value="">Categoría</option>
-            {categories.map(c => <option key={c} value={c}>{c}</option>)}
+          <select
+            name="active"
+            defaultValue={active}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="">Estado (todos)</option>
+            <option value="yes">Solo activos</option>
+            <option value="no">Solo inactivos</option>
           </select>
-          <div className="flex gap-2">
-            <select
-              name="pageSize"
-              defaultValue={String(pageSize)}
-              className="w-full rounded-md border px-3 py-2 text-sm"
+          <select
+            name="order"
+            defaultValue={order}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            <option value="createdAt_desc">Más recientes</option>
+            <option value="name_asc">Nombre (A–Z)</option>
+            <option value="popularity_desc">Popularidad</option>
+          </select>
+          <select
+            name="pageSize"
+            defaultValue={String(pageSize)}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
+            {[10, 20, 30, 50].map((n) => (
+              <option key={n} value={n}>
+                {n} / pág.
+              </option>
+            ))}
+          </select>
+
+          <div className="flex items-center gap-2">
+            <input type="hidden" name="page" value="1" />
+            <button
+              className="rounded-md border px-3 py-2 text-sm"
+              type="submit"
             >
-              {[10, 20, 30, 50].map(n => <option key={n} value={n}>{n} / pág.</option>)}
-            </select>
-            <button className="whitespace-nowrap rounded-md border px-3 py-2 text-sm" type="submit">
               Aplicar
             </button>
+            <a
+              className="rounded-md border px-3 py-2 text-sm"
+              href={`/dashboard-seller/destinos${qstr({
+                active: "yes",
+                order: "createdAt_desc",
+                page: "1",
+                pageSize: String(pageSize),
+              })}`}
+            >
+              Borrar filtros
+            </a>
           </div>
-          <input type="hidden" name="page" value="1" />
         </form>
 
         {/* Tabla */}
@@ -157,37 +231,92 @@ export default async function DestinosPage({
           <table className="min-w-full text-sm">
             <thead>
               <tr className="text-left text-gray-500">
-                <th className="px-2 py-2">Nombre</th>
+                <th className="px-2 py-2">Destino</th>
                 <th className="px-2 py-2">Ubicación</th>
                 <th className="px-2 py-2">Categoría</th>
-                <th className="px-2 py-2">Estado</th>
+                <th className="px-2 py-2">Precio</th>
+                <th className="px-2 py-2">Reservas</th>
                 <th className="px-2 py-2">Popularidad</th>
-                <th className="px-2 py-2">Creado</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
             <tbody>
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-2 py-10 text-center text-gray-400">Sin resultados</td>
+                  <td
+                    colSpan={8}
+                    className="px-2 py-10 text-center text-gray-400"
+                  >
+                    Sin resultados
+                  </td>
                 </tr>
               )}
-              {items.map(d => (
-                <tr key={d.id} className="border-top border-t">
-                  <td className="px-2 py-2 font-medium">{d.name}</td>
-                  <td className="px-2 py-2">{[d.city, d.country].filter(Boolean).join(", ") || "—"}</td>
-                  <td className="px-2 py-2">{d.category || "—"}</td>
+              {items.map((d) => (
+                <tr key={d.id} className="border-t">
                   <td className="px-2 py-2">
-                    <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${
-                      d.isActive ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-gray-200 bg-gray-100 text-gray-600"
-                    }`}>
-                      {d.isActive ? "Activo" : "Inactivo"}
-                    </span>
+                    <div className="flex items-center gap-3">
+                      {d.imageUrl && (
+                        <Image
+                          src={d.imageUrl}
+                          alt={d.name}
+                          className="h-12 w-12 rounded-md object-cover border"
+                          width={150}
+                          height={150}
+                        />
+                      )}
+                      <div>
+                        <div className="font-medium">{d.name}</div>
+                        <div className="text-xs text-gray-600">
+                          Creado:{" "}
+                          {new Date(d.createdAt).toLocaleDateString("es-CO")}
+                        </div>
+                      </div>
+                    </div>
                   </td>
+                  <td className="px-2 py-2">
+                    {[d.city, d.country].filter(Boolean).join(", ") ||
+                      d.country}
+                  </td>
+                  <td className="px-2 py-2">{d.category || "—"}</td>
+
+                  <td className="px-2 py-2">
+                    {d.price != null &&
+                      (d.discountPrice != null ? (
+                        <div className="flex flex-col">
+                          <span className="bg-gray-100 line-through text-gray-500 px-2 py-0.5 rounded-md text-xs">
+                            ${Number(d.price).toLocaleString()}
+                          </span>
+                          <span className="bg-primary text-white px-2 py-0.5 rounded-md text-xs font-semibold mt-1">
+                            ${Number(d.discountPrice).toLocaleString()}
+                          </span>
+                        </div>
+                      ) : (
+                        <span className="bg-primary text-white px-2 py-0.5 rounded-md text-xs font-semibold">
+                          ${Number(d.price).toLocaleString()}
+                        </span>
+                      ))}
+                  </td>
+
+                  <td className="px-2 py-2">{d._count.reservations}</td>
                   <td className="px-2 py-2">{d.popularityScore}</td>
-                  <td className="px-2 py-2">{formatDate(d.createdAt)}</td>
+
+                  {/* Acciones para SELLER: crear reserva (no puede editar/activar) */}
                   <td className="px-2 py-2 text-right">
-                    <a href={`/dashboard-seller/destinos/${d.id}`} className="text-primary underline">Ver</a>
+                    <div className="flex gap-2 justify-end">
+                      <a
+                        href={`/dashboard-seller/reservas/nueva?destinationId=${d.id}`}
+                        className="text-primary underline"
+                        title="Crear reserva con este destino"
+                      >
+                        Crear reserva
+                      </a>
+                      <a
+                        href={`/dashboard-seller/destinos/${d.id}`}
+                        className="text-gray-600 underline"
+                      >
+                        Ver
+                      </a>
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -199,16 +328,30 @@ export default async function DestinosPage({
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
-            {items.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}` : "0"}
-            {" "}de {total.toLocaleString("es-CO")}
+            {items.length > 0
+              ? `${(page - 1) * pageSize + 1}–${
+                  (page - 1) * pageSize + items.length
+                }`
+              : "0"}{" "}
+            de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page <= 1 ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page > 1
-                  ? `/dashboard-seller/destinos${qstr({ q, status, country, category, page: String(page - 1), pageSize: String(pageSize) })}`
+                  ? `/dashboard-seller/destinos${qstr({
+                      q,
+                      active,
+                      country,
+                      category,
+                      order,
+                      page: String(page - 1),
+                      pageSize: String(pageSize),
+                    })}`
                   : "#"
               }
             >
@@ -216,10 +359,20 @@ export default async function DestinosPage({
             </a>
             <a
               aria-disabled={page >= totalPages}
-              className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page >= totalPages ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page < totalPages
-                  ? `/dashboard-seller/destinos${qstr({ q, status, country, category, page: String(page + 1), pageSize: String(pageSize) })}`
+                  ? `/dashboard-seller/destinos${qstr({
+                      q,
+                      active,
+                      country,
+                      category,
+                      order,
+                      page: String(page + 1),
+                      pageSize: String(pageSize),
+                    })}`
                   : "#"
               }
             >
