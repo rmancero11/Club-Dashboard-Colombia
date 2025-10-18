@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from "react";
+import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { DestinationDTO } from "@/app/types/destination";
 
@@ -13,6 +14,7 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
+  const router = useRouter(); // ✅ para redireccionar
 
   const normalize = (str: string) =>
     str
@@ -146,7 +148,11 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
                   <p className="text-sm font-medium text-gray-700 mb-2">Viajan:</p>
                   <div className="flex -space-x-3">
                     {destino.travelers.slice(0, 6).map((viajero) => (
-                      <div key={viajero.id} className="relative group cursor-pointer">
+                      <div
+                        key={viajero.id}
+                        className="relative group cursor-pointer"
+                        onClick={() => router.push("/dashboard-user/match-viajes")} // ✅ redirige al componente nuevo
+                      >
                         <Image
                           src={viajero.avatar || "/images/default-avatar.png"}
                           alt={viajero.name || "Viajero"}
@@ -175,5 +181,3 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
     </div>
   );
 }
-
-

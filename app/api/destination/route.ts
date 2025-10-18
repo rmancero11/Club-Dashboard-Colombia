@@ -23,6 +23,8 @@ export async function GET() {
                     name: true,
                     avatar: true,
                     country: true,
+                    preference: true,
+                    birthday: true,
                   },
                 },
               },

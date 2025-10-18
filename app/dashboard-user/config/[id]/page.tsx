@@ -44,7 +44,13 @@ export default function EditProfilePage() {
       try {
         const res = await fetch("/api/auth/me", { credentials: "include" });
         const data = await res.json();
-        if (data.user) setUser(data.user);
+        if (data.user) {
+  const birthday =
+    data.user.birthday && data.user.birthday !== null
+      ? new Date(data.user.birthday).toISOString().split("T")[0]
+      : null;
+  setUser({ ...data.user, birthday });
+}
       } catch (err) {
         console.error(err);
       }

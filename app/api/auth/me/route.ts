@@ -154,7 +154,7 @@ const userShape = {
   affirmation: user.affirmation,
   acceptedTerms: user.acceptedTerms,
   flow: user.flow,
-  birthday: user.birthday,    
+  birthday: user.birthday,
   gender: user.gender,         
   lookingFor: user.lookingFor,
 

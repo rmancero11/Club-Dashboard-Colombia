@@ -3,6 +3,7 @@ export interface TravelerDTO {
   name: string | null;
   avatar: string | null;
   country: string | null;
+  preferences: string | null;
 }
 
 export interface DestinationDTO {
