@@ -3,11 +3,15 @@ import { getAuth } from "@/app/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import SellerUpdateReservationStatus from "@/app/components/seller/reservations/SellerUpdateReservationStatus";
 import SellerEditReservationForm from "@/app/components/seller/reservations/SellerEditReservationform";
+import { getCurrencyOptions } from "@/app/lib/currencyOptions";
 
 /* --- Helpers UI (mismos del admin) --- */
 function money(n: number, currency = "USD") {
-  try { return new Intl.NumberFormat("es-CO", { style: "currency", currency }).format(n); }
-  catch { return `${currency} ${Number(n).toFixed(2)}`; }
+  try {
+    return new Intl.NumberFormat("es-CO", { style: "currency", currency }).format(n);
+  } catch {
+    return `${currency} ${Number(n).toFixed(2)}`;
+  }
 }
 const RES_LABELS: Record<string, string> = {
   LEAD: "Prospecto",
@@ -55,7 +59,9 @@ function parseTimeline(
         type: typeof it?.type === "string" ? it.type : "NOTE",
       }))
       .sort((a, b) => new Date(a.ts).getTime() - new Date(b.ts).getTime());
-  } catch { return []; }
+  } catch {
+    return [];
+  }
 }
 
 export default async function SellerReservationDetailPage({
@@ -105,9 +111,15 @@ export default async function SellerReservationDetailPage({
   const waUrl = waDigits ? `https://wa.me/${waDigits}` : "";
   const timeline = parseTimeline(r.notes);
 
+  // Opciones para el selector de moneda (react-select en el form)
+  const currencyOptions = getCurrencyOptions();
+  // Si quisieras forzar una por defecto, puedes basarte en país del vendedor/negocio.
+  // Para edición, usamos la de la reserva; esto es solo "fallback" si faltara.
+  const defaultCurrency = "COP";
+
   return (
     <div className="space-y-6">
-      {/* Encabezado (idéntico al admin, cambiando enlace de volver) */}
+      {/* Encabezado */}
       <header className="flex items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
@@ -233,7 +245,7 @@ export default async function SellerReservationDetailPage({
         </div>
       </section>
 
-      {/* Formulario de edición (igual estilo, pero sin cambiar seller ni cliente) */}
+      {/* Formulario de edición */}
       <section className="rounded-xl border bg-white p-4">
         <h2 className="mb-3 text-lg font-semibold">Editar reserva</h2>
         <SellerEditReservationForm
@@ -249,6 +261,8 @@ export default async function SellerReservationDetailPage({
             notes: r.notes || "",
           }}
           destinations={destinations}
+          currencyOptions={currencyOptions}   
+          defaultCurrency={r.currency || defaultCurrency} 
         />
       </section>
     </div>

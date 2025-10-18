@@ -37,7 +37,7 @@ export default async function NewSellerTaskPage({
     <div className="space-y-4">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Nueva tarea</h1>
-        <a href="/dashboard-seller/clientes" className="rounded-md border px-3 py-2 text-sm">← Volver</a>
+        <a href="/dashboard-seller/tareas" className="rounded-md border px-3 py-2 text-sm">← Volver</a>
       </header>
 
       <div className="rounded-xl border bg-white p-4">

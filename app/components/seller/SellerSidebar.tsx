@@ -6,7 +6,13 @@ import { useCallback } from "react";
 import Image from "next/image";
 
 type Role = "ADMIN" | "SELLER" | "USER";
-type SidebarUser = { id: string; name: string; email: string; role: Role; avatar?: string | null };
+type SidebarUser = {
+  id: string;
+  name: string;
+  email: string;
+  role: Role;
+  avatar?: string | null;
+};
 
 const NAV = [
   { href: "/dashboard-seller", label: "Inicio", exact: true },
@@ -15,10 +21,18 @@ const NAV = [
   { href: "/dashboard-seller/reservas", label: "Reservas" },
   { href: "/dashboard-seller/reportes", label: "Reportes" },
   { href: "/dashboard-seller/tareas", label: "Tareas" },
-  { href: "/dashboard-seller/profile", label: "Perfil" }, // <-- Nuevo link al perfil
+  { href: "/dashboard-seller/profile", label: "Perfil" },
 ];
 
-export default function SellerSidebar({ user, avatarUrl }: { user: SidebarUser; avatarUrl?: string | null }) {
+export default function SellerSidebar({
+  user,
+  avatarUrl,
+  onNavigate,
+}: {
+  user: SidebarUser;
+  avatarUrl?: string | null;
+  onNavigate?: () => void;
+}) {
   const pathname = usePathname();
   const router = useRouter();
 
@@ -76,6 +90,7 @@ export default function SellerSidebar({ user, avatarUrl }: { user: SidebarUser; 
           <Link
             key={item.href}
             href={item.href}
+            onClick={onNavigate}
             className={`block rounded-md px-3 py-3 text-sm font-medium ${
               isActive(item.href, item.exact)
                 ? "bg-gray-100 text-gray-900"

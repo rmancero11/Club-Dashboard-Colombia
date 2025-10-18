@@ -19,9 +19,6 @@ export default function NewReservationForm({
   sellers,
   clients,
   destinations,
-  // Los siguientes props son opcionales y no afectan la lógica.
-  initialValues,
-  statusOptions,
   currencyOptions,
 }: {
   sellers: Opt[];
@@ -53,7 +50,6 @@ export default function NewReservationForm({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  // Opción seleccionada en react-select (a partir del código de moneda)
   const selectedCurrency =
     currencyOptionsAll.find((o) => o.value === currency) || null;
 
@@ -77,7 +73,6 @@ export default function NewReservationForm({
           paxChildren,
           currency,
           totalAmount: totalAmount ? Number(totalAmount) : 0,
-          // status: si quieres mandarlo aquí, agrégalo a la UI como select.
           notes: notes || null,
         }),
       });

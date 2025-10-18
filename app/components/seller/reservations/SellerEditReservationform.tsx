@@ -1,11 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
+import ReactSelect from "react-select";
+import { getCurrencyOptions, type CurrencyOption } from "@/app/lib/currencyOptions";
 
 export default function SellerEditReservationForm({
   reservation,
   destinations,
+  currencyOptions,      
+  defaultCurrency,      
 }: {
   reservation: {
     id: string;
@@ -19,9 +23,24 @@ export default function SellerEditReservationForm({
     notes: string;
   };
   destinations: { id: string; name: string; country?: string | null }[];
+  currencyOptions?: CurrencyOption[];
+  defaultCurrency?: string;
 }) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
+
+  // Opciones de moneda (si no vienen por props, se cargan del helper)
+  const currencyOptionsAll = useMemo<CurrencyOption[]>(
+    () => currencyOptions ?? getCurrencyOptions(),
+    [currencyOptions]
+  );
+
+  // Estado del selector de moneda
+  const [currency, setCurrency] = useState<string>(
+    defaultCurrency || reservation.currency || "USD"
+  );
+  const selectedCurrency =
+    currencyOptionsAll.find((o) => o.value === currency) || null;
 
   async function onSubmit(formData: FormData) {
     setLoading(true);
@@ -31,7 +50,7 @@ export default function SellerEditReservationForm({
       endDate: String(formData.get("endDate")),
       paxAdults: Number(formData.get("paxAdults") || 1),
       paxChildren: Number(formData.get("paxChildren") || 0),
-      currency: String(formData.get("currency") || "USD"),
+      currency: String(formData.get("currency") || "USD"), // ← viene del hidden
       totalAmount: Number(formData.get("totalAmount") || 0),
       notes: String(formData.get("notes") || ""),
     };
@@ -119,12 +138,36 @@ export default function SellerEditReservationForm({
       <div className="grid grid-cols-3 gap-3">
         <div className="grid gap-1">
           <label className="text-sm">Moneda</label>
-          <input
-            name="currency"
-            defaultValue={reservation.currency}
-            className="rounded-md border px-3 py-2 text-sm"
+          {/* ReactSelect controlado + hidden para enviar en FormData */}
+          <ReactSelect
+            inputId="currency"
+            instanceId="currency"
+            className="text-sm"
+            classNamePrefix="rs"
+            placeholder="Selecciona moneda…"
+            value={selectedCurrency}
+            onChange={(opt) =>
+              setCurrency(((opt as CurrencyOption) || { value: "USD" }).value)
+            }
+            options={currencyOptionsAll}
+            styles={{
+              control: (base) => ({
+                ...base,
+                borderRadius: 6,
+                minHeight: 38,
+                borderColor: "#e5e7eb",
+                boxShadow: "none",
+                ":hover": { borderColor: "#d1d5db" },
+              }),
+              valueContainer: (base) => ({ ...base, padding: "2px 8px" }),
+              indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
+              menu: (base) => ({ ...base, zIndex: 30 }),
+            }}
           />
+          {/* Hidden para que llegue al backend con FormData */}
+          <input type="hidden" name="currency" value={currency} />
         </div>
+
         <div className="grid gap-1 col-span-2">
           <label className="text-sm">Total</label>
           <input
@@ -138,7 +181,7 @@ export default function SellerEditReservationForm({
       </div>
 
       <div className="grid gap-1">
-        <label className="text-sm">Notas (JSON timeline o texto)</label>
+        <label className="text-sm">Notas</label>
         <textarea
           name="notes"
           defaultValue={reservation.notes}
@@ -155,7 +198,10 @@ export default function SellerEditReservationForm({
         >
           {loading ? "Guardando…" : "Guardar cambios"}
         </button>
-        <a href="/dashboard-seller/reservas" className="rounded-md border px-4 py-2 text-sm">
+        <a
+          href="/dashboard-seller/reservas"
+          className="rounded-md border px-4 py-2 text-sm"
+        >
           Cancelar
         </a>
       </div>

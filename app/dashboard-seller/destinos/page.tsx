@@ -228,43 +228,59 @@ export default async function SellerDestinationsPage({
 
         {/* Tabla */}
         <div className="overflow-auto">
-          <table className="min-w-full text-sm">
+          <table className="table-fixed min-w-[720px] sm:min-w-[900px] text-sm">
+            <colgroup>
+              <col className="w-[40%] sm:w-[35%]" /> {/* Destino */}
+              <col className="w-[28%] sm:w-[22%]" /> {/* Ubicación */}
+              <col className="hidden sm:table-column w-[12%]" />{" "}
+              {/* Categoría */}
+              <col className="w-[16%]" /> {/* Precio */}
+              <col className="hidden md:table-column w-[10%]" />{" "}
+              {/* Reservas */}
+              <col className="hidden lg:table-column w-[12%]" />{" "}
+              {/* Popularidad */}
+              <col className="w-[12%]" /> {/* Acciones */}
+            </colgroup>
+
             <thead>
               <tr className="text-left text-gray-500">
                 <th className="px-2 py-2">Destino</th>
                 <th className="px-2 py-2">Ubicación</th>
-                <th className="px-2 py-2">Categoría</th>
+                <th className="hidden sm:table-cell px-2 py-2">Categoría</th>
                 <th className="px-2 py-2">Precio</th>
-                <th className="px-2 py-2">Reservas</th>
-                <th className="px-2 py-2">Popularidad</th>
+                <th className="hidden md:table-cell px-2 py-2">Reservas</th>
+                <th className="hidden lg:table-cell px-2 py-2">Popularidad</th>
                 <th className="px-2 py-2"></th>
               </tr>
             </thead>
+
             <tbody>
               {items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={8}
+                    colSpan={7}
                     className="px-2 py-10 text-center text-gray-400"
                   >
                     Sin resultados
                   </td>
                 </tr>
               )}
+
               {items.map((d) => (
-                <tr key={d.id} className="border-t">
+                <tr key={d.id} className="border-t align-top">
+                  {/* DESTINO */}
                   <td className="px-2 py-2">
-                    <div className="flex items-center gap-3">
+                    <div className="flex items-start gap-3">
                       {d.imageUrl && (
                         <Image
                           src={d.imageUrl}
                           alt={d.name}
-                          className="h-12 w-12 rounded-md object-cover border"
+                          className="h-12 w-12 shrink-0 rounded-md border object-cover"
                           width={150}
                           height={150}
                         />
                       )}
-                      <div>
+                      <div className="min-w-0 break-words">
                         <div className="font-medium">{d.name}</div>
                         <div className="text-xs text-gray-600">
                           Creado:{" "}
@@ -273,36 +289,50 @@ export default async function SellerDestinationsPage({
                       </div>
                     </div>
                   </td>
-                  <td className="px-2 py-2">
+
+                  {/* UBICACIÓN */}
+                  <td className="px-2 py-2 break-words">
                     {[d.city, d.country].filter(Boolean).join(", ") ||
                       d.country}
                   </td>
-                  <td className="px-2 py-2">{d.category || "—"}</td>
 
-                  <td className="px-2 py-2">
+                  {/* CATEGORÍA (oculta en XS) */}
+                  <td className="hidden sm:table-cell px-2 py-2 break-words">
+                    {d.category || "—"}
+                  </td>
+
+                  {/* PRECIO (no cortar) */}
+                  <td className="px-2 py-2 whitespace-nowrap">
                     {d.price != null &&
                       (d.discountPrice != null ? (
                         <div className="flex flex-col">
-                          <span className="bg-gray-100 line-through text-gray-500 px-2 py-0.5 rounded-md text-xs">
+                          <span className="bg-gray-100 px-2 py-0.5 text-xs text-gray-500 line-through rounded-md">
                             ${Number(d.price).toLocaleString()}
                           </span>
-                          <span className="bg-primary text-white px-2 py-0.5 rounded-md text-xs font-semibold mt-1">
+                          <span className="mt-1 rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white">
                             ${Number(d.discountPrice).toLocaleString()}
                           </span>
                         </div>
                       ) : (
-                        <span className="bg-primary text-white px-2 py-0.5 rounded-md text-xs font-semibold">
+                        <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white">
                           ${Number(d.price).toLocaleString()}
                         </span>
                       ))}
                   </td>
 
-                  <td className="px-2 py-2">{d._count.reservations}</td>
-                  <td className="px-2 py-2">{d.popularityScore}</td>
+                  {/* RESERVAS (md+) */}
+                  <td className="hidden md:table-cell px-2 py-2 whitespace-nowrap">
+                    {d._count.reservations}
+                  </td>
 
-                  {/* Acciones para SELLER: crear reserva (no puede editar/activar) */}
-                  <td className="px-2 py-2 text-right">
-                    <div className="flex gap-2 justify-end">
+                  {/* POPULARIDAD (lg+) */}
+                  <td className="hidden lg:table-cell px-2 py-2 whitespace-nowrap">
+                    {d.popularityScore}
+                  </td>
+
+                  {/* ACCIONES */}
+                  <td className="px-2 py-2">
+                    <div className="flex justify-end gap-2">
                       <a
                         href={`/dashboard-seller/reservas/nueva?destinationId=${d.id}`}
                         className="text-primary underline"
@@ -324,7 +354,7 @@ export default async function SellerDestinationsPage({
           </table>
         </div>
 
-        {/* Paginación */}
+        {/* Paginación (igual) */}
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}

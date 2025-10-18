@@ -1,113 +1,252 @@
 "use client";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
 
-type Option = { id: string; name: string; country?: string };
+import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import ReactSelect from "react-select";
+import type { CurrencyOption } from "@/app/lib/currencyOptions";
+
+type Opt = {
+  id: string;
+  name: string | null;
+  country?: string | null;
+};
 
 export default function SellerNewReservationForm({
+  defaultClientId,
   clients,
   destinations,
-  defaultClientId,
+  currencyOptions,
+  defaultCurrency = "USD",
 }: {
-  clients: Option[];
-  destinations: Option[];
   defaultClientId: string | null;
+  clients: Opt[];
+  destinations: Opt[];
+  currencyOptions: CurrencyOption[];
+  defaultCurrency?: string;
 }) {
   const router = useRouter();
+
+  // Estado del formulario (sin vendedor: lo pone el backend usando la sesión)
+  const [clientId, setClientId] = useState(defaultClientId ?? "");
+  const [destinationId, setDestinationId] = useState("");
+  const [startDate, setStartDate] = useState("");
+  const [endDate, setEndDate] = useState("");
+  const [paxAdults, setPaxAdults] = useState(1);
+  const [paxChildren, setPaxChildren] = useState(0);
+  const [currency, setCurrency] = useState(defaultCurrency);
+  const [totalAmount, setTotalAmount] = useState("");
+  const [notes, setNotes] = useState("");
   const [loading, setLoading] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
-  async function onSubmit(formData: FormData) {
+  const selectedCurrency =
+    useMemo(() => currencyOptions.find((o) => o.value === currency) || null, [
+      currencyOptions,
+      currency,
+    ]);
+
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
     setLoading(true);
-    const payload = {
-      clientId: String(formData.get("clientId")),
-      destinationId: String(formData.get("destinationId")),
-      startDate: String(formData.get("startDate")),
-      endDate: String(formData.get("endDate")),
-      paxAdults: Number(formData.get("paxAdults") || 1),
-      paxChildren: Number(formData.get("paxChildren") || 0),
-      notes: String(formData.get("notes") || ""),
-      currency: "USD",
-      totalAmount: 0,
-    };
+    setErr(null);
 
-    const res = await fetch("/api/seller/reservations", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
+    try {
+      // Endpoint de seller: el backend obtiene sellerId desde el token/sesión
+      const res = await fetch("/api/seller/reservations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          clientId,
+          destinationId,
+          startDate,
+          endDate,
+          paxAdults,
+          paxChildren,
+          currency,
+          totalAmount: totalAmount ? Number(totalAmount) : 0,
+          notes: notes || null,
+        }),
+      });
 
-    setLoading(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err?.error || "No se pudo crear la reserva.");
-      return;
+      const data = await res.json();
+      if (!res.ok) {
+        setErr(data?.error || "No se pudo crear la reserva");
+      } else {
+        router.replace(`/dashboard-seller/reservas/${data.reservation.id}`);
+      }
+    } catch {
+      setErr("Error de red");
+    } finally {
+      setLoading(false);
     }
-    router.push(`/dashboard-seller/clientes/${payload.clientId}`);
   }
 
   return (
-    <form action={onSubmit} className="grid gap-3">
-      <div className="grid gap-1">
-        <label className="text-sm">Cliente</label>
-        <select
-          name="clientId"
-          defaultValue={defaultClientId || ""}
-          className="rounded-md border px-3 py-2 text-sm"
-          required
-        >
-          <option value="" disabled>Selecciona un cliente…</option>
-          {clients.map(c => (
-            <option key={c.id} value={c.id}>{c.name}</option>
-          ))}
-        </select>
-      </div>
+    <div className="mx-auto w-full max-w-2xl">
+      <form onSubmit={onSubmit} className="grid w-full gap-3">
+        {err && (
+          <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+            {err}
+          </div>
+        )}
 
-      <div className="grid gap-1">
-        <label className="text-sm">Destino</label>
-        <select name="destinationId" className="rounded-md border px-3 py-2 text-sm" required>
-          <option value="" disabled>Selecciona un destino…</option>
-          {destinations.map(d => (
-            <option key={d.id} value={d.id}>
-              {d.name}{d.country ? ` · ${d.country}` : ""}
-            </option>
-          ))}
-        </select>
-      </div>
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Cliente *</span>
+            <select
+              required
+              value={clientId}
+              onChange={(e) => setClientId(e.target.value)}
+              className="rounded-md border px-3 py-2"
+            >
+              <option value="">Selecciona...</option>
+              {clients.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </select>
+          </label>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="grid gap-1">
-          <label className="text-sm">Inicio</label>
-          <input type="date" name="startDate" className="rounded-md border px-3 py-2 text-sm" required />
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Destino *</span>
+            <select
+              required
+              value={destinationId}
+              onChange={(e) => setDestinationId(e.target.value)}
+              className="rounded-md border px-3 py-2"
+            >
+              <option value="">Selecciona...</option>
+              {destinations.map((d) => (
+                <option key={d.id} value={d.id}>
+                  {d.name}
+                  {d.country ? ` · ${d.country}` : ""}
+                </option>
+              ))}
+            </select>
+          </label>
         </div>
-        <div className="grid gap-1">
-          <label className="text-sm">Fin</label>
-          <input type="date" name="endDate" className="rounded-md border px-3 py-2 text-sm" required />
-        </div>
-      </div>
 
-      <div className="grid grid-cols-2 gap-3">
-        <div className="grid gap-1">
-          <label className="text-sm">Adultos</label>
-          <input type="number" min={1} name="paxAdults" defaultValue={1} className="rounded-md border px-3 py-2 text-sm" />
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Inicio *</span>
+            <input
+              required
+              type="date"
+              value={startDate}
+              onChange={(e) => setStartDate(e.target.value)}
+              className="rounded-md border px-3 py-2"
+            />
+          </label>
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Fin *</span>
+            <input
+              required
+              type="date"
+              value={endDate}
+              onChange={(e) => setEndDate(e.target.value)}
+              className="rounded-md border px-3 py-2"
+            />
+          </label>
         </div>
-        <div className="grid gap-1">
-          <label className="text-sm">Niños</label>
-          <input type="number" min={0} name="paxChildren" defaultValue={0} className="rounded-md border px-3 py-2 text-sm" />
+
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Adultos</span>
+            <input
+              type="number"
+              min={1}
+              value={paxAdults}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                setPaxAdults(Number.isFinite(n) && n >= 1 ? n : 1);
+              }}
+              className="rounded-md border px-3 py-2"
+            />
+          </label>
+
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Niños</span>
+            <input
+              type="number"
+              min={0}
+              value={paxChildren}
+              onChange={(e) => {
+                const n = parseInt(e.target.value, 10);
+                setPaxChildren(Number.isFinite(n) && n >= 0 ? n : 0);
+              }}
+              className="rounded-md border px-3 py-2"
+            />
+          </label>
+
+          <label className="grid gap-1 text-sm">
+            <span className="font-medium">Moneda</span>
+            <ReactSelect
+              inputId="currency"
+              instanceId="currency"
+              className="text-sm"
+              classNamePrefix="rs"
+              placeholder="Selecciona moneda…"
+              value={selectedCurrency}
+              onChange={(opt) =>
+                setCurrency(((opt as CurrencyOption) || { value: "USD" }).value)
+              }
+              options={currencyOptions}
+              styles={{
+                control: (base) => ({
+                  ...base,
+                  borderRadius: 6,
+                  minHeight: 38,
+                  borderColor: "#e5e7eb",
+                  boxShadow: "none",
+                  ":hover": { borderColor: "#d1d5db" },
+                }),
+                valueContainer: (base) => ({ ...base, padding: "2px 8px" }),
+                indicatorsContainer: (base) => ({ ...base, paddingRight: 6 }),
+                menu: (base) => ({ ...base, zIndex: 30 }),
+              }}
+            />
+          </label>
         </div>
-      </div>
 
-      <div className="grid gap-1">
-        <label className="text-sm">Notas</label>
-        <textarea name="notes" rows={3} className="rounded-md border px-3 py-2 text-sm" />
-      </div>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Total</span>
+          <input
+            type="number"
+            step="0.01"
+            value={totalAmount}
+            onChange={(e) => setTotalAmount(e.target.value)}
+            className="rounded-md border px-3 py-2"
+          />
+        </label>
 
-      <button
-        type="submit"
-        disabled={loading}
-        className="rounded-md bg-black px-4 py-2 text-white text-sm"
-      >
-        {loading ? "Creando…" : "Crear reserva"}
-      </button>
-    </form>
+        <label className="grid gap-1 text-sm">
+          <span className="font-medium">Notas</span>
+          <textarea
+            rows={3}
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+            className="rounded-md border px-3 py-2"
+          />
+        </label>
+
+        <div className="flex gap-2 pt-2">
+          <button
+            type="submit"
+            disabled={loading}
+            className="rounded-md bg-black px-4 py-2 text-sm text-white disabled:opacity-50"
+          >
+            {loading ? "Creando..." : "Crear reserva"}
+          </button>
+          <a
+            href="/dashboard-seller/reservas"
+            className="rounded-md border px-4 py-2 text-sm"
+          >
+            Cancelar
+          </a>
+        </div>
+      </form>
+    </div>
   );
 }

@@ -9,9 +9,6 @@
     "lint": "next lint",
     "postinstall": "prisma generate"
   },
-  "prisma": {
-    "seed": "node prisma/seed.js"
-  },
   "dependencies": {
     "@iconify/react": "^4.1.1",
     "@prisma/client": "^6.16.3",

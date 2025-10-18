@@ -1,4 +1,3 @@
-// app/dashboard-admin/reservas/nueva/page.tsx
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
