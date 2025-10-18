@@ -1,7 +1,12 @@
+export const dynamic = "force-dynamic";
+export const revalidate = 0;
+export const runtime = 'nodejs';
+
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import prisma from "@/app/lib/prisma";
+
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
