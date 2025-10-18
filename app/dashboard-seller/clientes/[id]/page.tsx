@@ -173,10 +173,10 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
     const downloadHref = src;
 
     return (
-      <div className="rounded-md border p-2">
-        <embed
+      <div className="rounded-md border p-2 overflow-auto">
+        <iframe
           src={src}
-          type="application/pdf"
+          title={filename}
           className="h-80 w-full rounded"
         />
         <div className="mt-2 flex gap-2">
@@ -453,12 +453,7 @@ export default async function ClientDetailPage({
               serviceVoucher: client.user?.serviceVoucher ?? null,
               medicalAssistanceCard: client.user?.medicalAssistanceCard ?? null,
               travelTips: client.user?.travelTips ?? null,
-              // Si más adelante agregas identidad al form:
-              // dniFile: client.user?.dniFile ?? null,
-              // passport: client.user?.passport ?? null,
-              // visa: client.user?.visa ?? null,
             }}
-            // uploadEndpoint="/api/upload"
           />
         </div>
       </div>

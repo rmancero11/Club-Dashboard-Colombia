@@ -26,7 +26,7 @@ function fmtDate(d: Date | string) {
   });
 }
 
-// --- Indicativos por país ---
+// --- Indicativos por país (amplía según mercados) ---
 const DIAL_BY_COUNTRY: Record<string, string> = {
   Colombia: "57",
   México: "52",
@@ -70,7 +70,7 @@ function waLink(e164?: string) {
   return d ? `https://wa.me/${d}` : "";
 }
 
-// === Estados de reserva ===
+// === Mapeo de estados de reserva (schema.prisma) ===
 const RES_STATUS_LABEL: Record<string, string> = {
   LEAD: "Lead",
   QUOTED: "Cotizada",
@@ -104,134 +104,194 @@ function resStatusBadgeClass(status?: string) {
   }
 }
 
-// === Documentos permitidos ===
+// === Documentos permitidos (del schema actual) ===
 const FILE_LABELS: Record<string, string> = {
+  // Identidad / viaje
   dniFile: "Documento de identidad",
   passport: "Pasaporte",
   visa: "Visa",
+  // Operativa
   purchaseOrder: "Orden de compra",
   flightTickets: "Boletos de vuelo",
   serviceVoucher: "Voucher de servicio",
   medicalAssistanceCard: "Asistencia médica",
   travelTips: "Tips de viaje",
 };
-const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS);
+const ALLOWED_DOC_FIELDS = Object.keys(
+  FILE_LABELS
+) as (keyof typeof FILE_LABELS)[];
 
-// ============ Helpers de preview ============
-function isProxyUrl(url: string) {
+/** Detección de extensión (tolerante con URLs sin .ext) */
+function getExt(url: string) {
   try {
-    const u = new URL(url, "http://localhost"); // base para URLs relativas
-    return u.pathname.startsWith("/api/file-proxy");
+    const u = new URL(url);
+    const path = u.pathname.toLowerCase();
+    const qext = (u.searchParams.get("ext") || "").toLowerCase();
+    const m = path.match(/\.([a-z0-9]+)$/i);
+    return (qext || (m ? m[1] : "")).replace(/[^a-z0-9]/g, "");
+  } catch {
+    const m = url.toLowerCase().match(/\.([a-z0-9]+)(?:\?|#|$)/i);
+    return m ? m[1] : "";
+  }
+}
+const isImg = (e: string) =>
+  ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(e);
+const isPdf = (e: string) => e === "pdf";
+const isVid = (e: string) => ["mp4", "webm", "ogg"].includes(e);
+
+// Helpers: Cloudinary + proxy igual que el archivo que funciona
+function isCloudinary(url: string) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === "res.cloudinary.com";
   } catch {
     return false;
   }
 }
-function unwrapProxyUrl(url: string) {
-  if (!isProxyUrl(url)) return url;
-  try {
-    const u = new URL(url, "http://localhost");
-    const inner = u.searchParams.get("url");
-    return inner || url;
-  } catch {
-    return url;
-  }
-}
-function getExt(url: string) {
-  // Si es proxy con ?url=..., calculamos la extensión del recurso interno
-  const real = unwrapProxyUrl(url);
-  try {
-    const u = new URL(real);
-    const path = u.pathname.toLowerCase();
-    const qext = (u.searchParams.get("ext") || "").toLowerCase(); // permite ?ext=pdf
-    const m = path.match(/\.([a-z0-9]+)$/i);
-    return (qext || (m ? m[1] : "")).replace(/[^a-z0-9]/g, "");
-  } catch {
-    const m = real.toLowerCase().match(/\.([a-z0-9]+)(?:\?|#|$)/i);
-    return m ? m[1] : "";
-  }
-}
-const isImageExt = (ext: string) => ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(ext);
-const isPdfExt = (ext: string) => ext === "pdf";
-const isVideoExt = (ext: string) => ["mp4", "webm", "ogg"].includes(ext);
 
-// Genera nombre amigable para descarga/inline
+
+/** Inserta flag de entrega en Cloudinary (soporta /upload y /raw/upload) */
+function injectCloudinaryFlag(url: string, flag: string) {
+  if (url.includes("/raw/upload/"))
+    return url.replace("/raw/upload/", `/raw/upload/${flag}/`);
+  if (url.includes("/upload/"))
+    return url.replace("/upload/", `/upload/${flag}/`);
+  return url;
+}
+
+/** Fuerza inline para visualizar PDF */
+function toInlineCloudinary(url: string) {
+  return injectCloudinaryFlag(url, "fl_inline");
+}
+
+/** Asegura que la URL termine en .pdf (útil para raw sin extensión) */
+function ensurePdfExt(url: string) {
+  return /\.pdf(\?|#|$)/i.test(url) ? url : `${url}.pdf`;
+}
+
+/** Construye un nombre de archivo amigable según la key */
 function filenameForKey(key: string) {
   switch (key) {
-    case "dniFile": return "documento_identidad.pdf";
-    case "passport": return "pasaporte.pdf";
-    case "visa": return "visa.pdf";
-    case "purchaseOrder": return "orden_compra.pdf";
-    case "flightTickets": return "boletos_vuelo.pdf";
-    case "serviceVoucher": return "voucher_servicio.pdf";
-    case "medicalAssistanceCard": return "asistencia_medica.pdf";
-    case "travelTips": return "tips_viaje.pdf";
-    default: return "documento.pdf";
+    case "dniFile":
+      return "documento_identidad.pdf";
+    case "passport":
+      return "pasaporte.pdf";
+    case "visa":
+      return "visa.pdf";
+    case "purchaseOrder":
+      return "orden_compra.pdf";
+    case "flightTickets":
+      return "boletos_vuelo.pdf";
+    case "serviceVoucher":
+      return "voucher_servicio.pdf";
+    case "medicalAssistanceCard":
+      return "asistencia_medica.pdf";
+    case "travelTips":
+      return "tips_viaje.pdf";
+    default:
+      return "documento.pdf";
   }
 }
 
-// Asegura que un PDF pase por el proxy (si no lo es ya)
-function ensureProxyPdf(url: string, filename: string) {
-  if (isProxyUrl(url)) {
-    // Si ya es el proxy, añadimos filename si no está
-    try {
-      const u = new URL(url, "http://localhost");
-      if (!u.searchParams.get("filename")) {
-        u.searchParams.set("filename", filename);
-        return u.pathname + "?" + u.searchParams.toString();
-      }
-      return url;
-    } catch {
-      return url;
-    }
-  }
-  return `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+/** Genera URL de descarga con filename en Cloudinary (fl_attachment:nombre.pdf) */
+function toDownloadCloudinary(url: string, filename: string) {
+  const encoded = `fl_attachment:${encodeURIComponent(filename)}`;
+  return injectCloudinaryFlag(url, encoded);
 }
 
-// ============ Render de previsualización ============
+/** Componente de previsualización (con PDF robusto) */
 function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
   const ext = getExt(url);
 
-  if (isImageExt(ext)) {
+
+
+  // IMAGEN
+  if (isImg(ext)) {
     return (
       <div className="rounded-md border p-2">
         <img
           src={url}
           alt="Documento"
           loading="lazy"
-          className="max-h-56 w-auto rounded"
+          className="max-h-72 w-auto rounded"
           style={{ objectFit: "contain" }}
         />
       </div>
     );
   }
 
-  if (isPdfExt(ext)) {
-    const filename = filenameForKey(fileKey || "documento");
-    const src = ensureProxyPdf(url, filename);
+  // VIDEO
+  if (isVid(ext)) {
     return (
       <div className="rounded-md border p-2">
-        <embed src={src} type="application/pdf" className="h-64 w-full rounded" />
+        <video src={url} controls className="h-80 w-full rounded" />
       </div>
     );
   }
 
-  if (isVideoExt(ext)) {
+  // PDF (o Cloudinary raw sin extensión)
+  const looksPdf =
+    isPdf(ext) ||
+    (isCloudinary(url) &&
+      (url.includes("/raw/upload/") || url.includes("/upload/")));
+
+  if (looksPdf) {
+    const filename = filenameForKey(fileKey || "document");
+
+    const src = url.includes("/api/file-proxy")
+      ? url // ya viene listo (pid/rt/type/fmt)
+      : `/api/file-proxy?url=${encodeURIComponent(
+          url
+        )}&filename=${encodeURIComponent(filename)}`;
+
+    const downloadHref = src;
+
     return (
-      <div className="rounded-md border p-2">
-        <video src={url} controls className="h-64 w-full rounded" />
+      <div className="rounded-md border p-2 overflow-auto">
+        <embed
+          src={src}
+          title={filename}
+          className="h-80 w-full rounded"
+        />
+        <div className="mt-2 flex gap-2">
+          <a
+            href={downloadHref}
+            download={filename}
+            className="text-xs underline"
+            title="Descargar PDF"
+          >
+            Descargar
+          </a>
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs underline"
+            title="Abrir en pestaña"
+          >
+            Abrir en pestaña
+          </a>
+        </div>
       </div>
     );
   }
 
-  // Fallback
+  // Fallback genérico
   return (
     <div className="rounded-md border p-3 text-xs text-gray-600">
-      <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
+      <div className="mb-2">
+        No se puede previsualizar este tipo de archivo.
+      </div>
       <div className="flex gap-2">
-        <a href={url} target="_blank" rel="noopener noreferrer" className="rounded-md border px-2 py-1 underline" title="Abrir en nueva pestaña">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border px-2 py-1 underline"
+        >
           Abrir
         </a>
-        <a href={url} download className="rounded-md border px-2 py-1" title="Descargar archivo">
+        <a href={url} download className="rounded-md border px-2 py-1">
           Descargar
         </a>
       </div>
@@ -239,34 +299,34 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
   );
 }
 
-// Lista de documentos con preview inline
-function DocList({ user }: { user?: Record<string, unknown> | null }) {
-  if (!user) {
-    return <span className="text-xs text-gray-400">—</span>;
-  }
+// --- Lista de documentos (misma lógica del detalle) ---
+function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
+  if (!user)
+    return <div className="text-xs text-gray-400">No hay documentos</div>;
 
-  const entries: Array<{ key: string; label: string; url: string }> = [];
+  const entries: { key: string; label: string; url: string }[] = [];
   for (const key of ALLOWED_DOC_FIELDS) {
-    const v = user[key];
+    const v = user[key as string];
     if (typeof v === "string" && v.trim()) {
       entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
     }
   }
 
   if (entries.length === 0) {
-    return <span className="text-xs text-gray-400">—</span>;
+    return <div className="text-xs text-gray-400">No hay documentos</div>;
   }
 
   return (
-    <ul className="mt-1 space-y-2">
+    <ul className="flex flex-col gap-2">
       {entries.map(({ key, label, url }) => {
-        const ext = getExt(url);
+        // Links “Abrir / Descargar” con manejo especial para Cloudinary PDF
         const filename = filenameForKey(key);
-        // Para PDFs: aseguramos proxy con filename
-        const openUrl =
-          isPdfExt(ext) ? ensureProxyPdf(url, filename) : url;
-
-        const downloadUrl = openUrl; // descarga vía proxy con filename o directo si no es PDF
+        const openUrl = isCloudinary(url)
+          ? `/api/file-proxy?url=${encodeURIComponent(
+              url
+            )}&filename=${encodeURIComponent(filename)}`
+          : url;
+        const downloadUrl = openUrl;
 
         return (
           <li key={key} className="rounded-md border p-2">
@@ -277,7 +337,7 @@ function DocList({ user }: { user?: Record<string, unknown> | null }) {
                   href={openUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-xs underline text-blue-700"
+                  className="text-xs text-blue-700 underline"
                   title="Abrir en nueva pestaña"
                 >
                   Abrir
@@ -293,13 +353,12 @@ function DocList({ user }: { user?: Record<string, unknown> | null }) {
               </div>
             </div>
 
-            {/* Preview plegable */}
             <details className="mt-2 group">
               <summary className="cursor-pointer select-none text-xs text-gray-600 underline">
                 Previsualizar
               </summary>
               <div className="mt-2">
-                <FilePreview url={openUrl} fileKey={key} />
+                <FilePreview url={url} fileKey={key} />
               </div>
             </details>
           </li>
@@ -321,12 +380,15 @@ export default async function SellerClientsPage({
   }
 
   const businessId = auth.businessId!;
-  const sellerId = auth.userId; // Solo clientes del vendedor autenticado
+  const sellerId = auth.userId;
 
   // --- Filtros desde la URL ---
-  const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
+  const q =
+    (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
   const status =
-    (Array.isArray(searchParams.status) ? searchParams.status[0] : searchParams.status) ?? ""; // "", "active", "archived"
+    (Array.isArray(searchParams.status)
+      ? searchParams.status[0]
+      : searchParams.status) ?? ""; // "", "active", "archived"
   const page = toInt(searchParams.page, 1);
   const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
@@ -413,19 +475,30 @@ export default async function SellerClientsPage({
 
       <div className="rounded-xl border bg-white p-4">
         {/* Filtros (GET) */}
-        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5" method="GET">
+        <form
+          className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5"
+          method="GET"
+        >
           <input
             name="q"
             defaultValue={q}
             className="rounded-md border px-3 py-2 text-sm"
             placeholder="Buscar por nombre, email, teléfono, ciudad…"
           />
-          <select name="status" defaultValue={status} className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="status"
+            defaultValue={status}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="">Todos</option>
             <option value="active">Activos</option>
             <option value="archived">Archivados</option>
           </select>
-          <select name="pageSize" defaultValue={String(pageSize)} className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="pageSize"
+            defaultValue={String(pageSize)}
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             {[10, 20, 30, 50].map((n) => (
               <option key={n} value={n}>
                 {n} / pág.
@@ -434,7 +507,10 @@ export default async function SellerClientsPage({
           </select>
           <input type="hidden" name="page" value="1" />
           <div className="flex items-center gap-2">
-            <button className="rounded-md border px-3 py-2 text-sm" type="submit">
+            <button
+              className="rounded-md border px-3 py-2 text-sm"
+              type="submit"
+            >
               Aplicar
             </button>
             <a
@@ -468,7 +544,10 @@ export default async function SellerClientsPage({
             <tbody>
               {items.length === 0 && (
                 <tr>
-                  <td colSpan={9} className="px-2 py-10 text-center text-gray-400">
+                  <td
+                    colSpan={9}
+                    className="px-2 py-10 text-center text-gray-400"
+                  >
                     Sin resultados
                   </td>
                 </tr>
@@ -478,11 +557,17 @@ export default async function SellerClientsPage({
                 const e164 = toE164(c.phone || "", c.country || "");
                 const wa = waLink(e164);
                 const lastRes = c.reservations?.[0];
-                const lastStatus = lastRes?.status as keyof typeof RES_STATUS_LABEL | undefined;
-                const lastStatusLabel = lastStatus ? RES_STATUS_LABEL[lastStatus] : "—";
+                const lastStatus = lastRes?.status as
+                  | keyof typeof RES_STATUS_LABEL
+                  | undefined;
+                const lastStatusLabel = lastStatus
+                  ? RES_STATUS_LABEL[lastStatus]
+                  : "—";
                 const badgeCls = resStatusBadgeClass(lastStatus);
 
-                const docCount = Object.values(c.user || {}).filter(Boolean).length;
+                const docCount = Object.values(c.user || {}).filter(
+                  Boolean
+                ).length;
 
                 return (
                   <tr key={c.id} className="border-t">
@@ -491,7 +576,10 @@ export default async function SellerClientsPage({
                       <div className="font-medium">{c.name}</div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {(c.tags || []).map((t) => (
-                          <span key={t} className="rounded border px-1.5 py-0.5 text-[11px] text-gray-600">
+                          <span
+                            key={t}
+                            className="rounded border px-1.5 py-0.5 text-[11px] text-gray-600"
+                          >
                             {t}
                           </span>
                         ))}
@@ -501,7 +589,10 @@ export default async function SellerClientsPage({
                     {/* Email */}
                     <td className="px-2 py-2">
                       {c.email ? (
-                        <a href={`mailto:${c.email}`} className="text-xs text-blue-600 underline">
+                        <a
+                          href={`mailto:${c.email}`}
+                          className="text-xs text-blue-600 underline"
+                        >
                           {c.email}
                         </a>
                       ) : (
@@ -529,14 +620,18 @@ export default async function SellerClientsPage({
                     </td>
 
                     {/* Ubicación */}
-                    <td className="px-2 py-2">{[c.city, c.country].filter(Boolean).join(", ") || "—"}</td>
+                    <td className="px-2 py-2">
+                      {[c.city, c.country].filter(Boolean).join(", ") || "—"}
+                    </td>
 
                     {/* Conteo de reservas */}
                     <td className="px-2 py-2">{c._count.reservations}</td>
 
                     {/* Estado última reserva */}
                     <td className="px-2 py-2">
-                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${badgeCls}`}>
+                      <span
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${badgeCls}`}
+                      >
                         {lastStatusLabel}
                       </span>
                     </td>
@@ -545,10 +640,12 @@ export default async function SellerClientsPage({
                     <td className="px-2 py-2">
                       <details className="group">
                         <summary className="cursor-pointer text-sm text-blue-600">
-                          {docCount > 0 ? `Ver archivos (${docCount})` : "Ver archivos"}
+                          {docCount > 0
+                            ? `Ver archivos (${docCount})`
+                            : "Ver archivos"}
                         </summary>
-                        <div className="mt-2">
-                          <DocList user={c.user as any} />
+                        <div className="mt-2 max-w-full">
+                          <DocumentList user={c.user as any} />
                         </div>
                       </details>
                     </td>
@@ -558,7 +655,10 @@ export default async function SellerClientsPage({
 
                     {/* Acciones */}
                     <td className="px-2 py-2 text-right">
-                      <a href={`/dashboard-seller/clientes/${c.id}`} className="text-primary underline">
+                      <a
+                        href={`/dashboard-seller/clientes/${c.id}`}
+                        className="text-primary underline"
+                      >
                         Ver
                       </a>
                     </td>
@@ -573,13 +673,19 @@ export default async function SellerClientsPage({
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
-            {items.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}` : "0"} de{" "}
-            {total.toLocaleString("es-CO")}
+            {items.length > 0
+              ? `${(page - 1) * pageSize + 1}–${
+                  (page - 1) * pageSize + items.length
+                }`
+              : "0"}{" "}
+            de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page <= 1 ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page > 1
                   ? `/dashboard-seller/clientes${qstr({
@@ -595,7 +701,9 @@ export default async function SellerClientsPage({
             </a>
             <a
               aria-disabled={page >= totalPages}
-              className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page >= totalPages ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page < totalPages
                   ? `/dashboard-seller/clientes${qstr({
