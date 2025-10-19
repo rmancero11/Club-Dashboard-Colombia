@@ -4,6 +4,9 @@ import { NextResponse } from "next/server";
 import fs from "fs";
 import path from "path";
 
+/**
+ * PATCH: Actualiza un destino existente
+ */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
@@ -43,7 +46,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
         data.imageUrl = `/uploads/${fileName}`;
       }
     } else {
-      // Si viene JSON normal (para toggle, etc.)
+      // Si viene JSON normal
       body = await req.json().catch(() => ({}));
     }
 
@@ -55,22 +58,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     if (body.description === null || typeof body.description === "string") data.description = body.description ? body.description.trim() : null;
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
 
-    // ✅ Nuevo campo price
+    // Campos numéricos
     if (body.price !== undefined) {
       const parsedPrice = parseFloat(body.price);
-      if (!isNaN(parsedPrice)) {
-        data.price = parsedPrice;
-      }
+      if (!isNaN(parsedPrice)) data.price = parsedPrice;
     }
 
-    // ✅ Nuevo campo discountPrice
     if (body.discountPrice !== undefined) {
       const parsedDiscountPrice = parseFloat(body.discountPrice);
-      if (!isNaN(parsedDiscountPrice)) {
-        data.discountPrice = parsedDiscountPrice;
-      } else {
-        data.discountPrice = null;
-      }
+      data.discountPrice = !isNaN(parsedDiscountPrice) ? parsedDiscountPrice : null;
     }
 
     const updated = await prisma.destination.update({
@@ -86,5 +82,45 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       return NextResponse.json({ error: "Conflicto de único (nombre/país/ciudad)" }, { status: 409 });
     }
     return NextResponse.json({ error: "No se pudo actualizar" }, { status: 400 });
+  }
+}
+
+/**
+ * DELETE: Elimina un destino existente
+ */
+export async function DELETE(req: Request, { params }: { params: { id: string } }) {
+  const auth = await getAuth();
+  if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
+    return NextResponse.json({ error: "No autorizado" }, { status: 401 });
+  }
+
+  try {
+    // Buscar el destino
+    const dest = await prisma.destination.findFirst({
+      where: { id: params.id, businessId: auth.businessId },
+      select: { id: true, imageUrl: true },
+    });
+
+    if (!dest) {
+      return NextResponse.json({ error: "Destino no encontrado" }, { status: 404 });
+    }
+
+    // Eliminar destino
+    await prisma.destination.delete({ where: { id: dest.id } });
+
+    // Eliminar imagen del sistema de archivos
+    if (dest.imageUrl?.startsWith("/uploads/")) {
+      const filePath = path.join(process.cwd(), "public", dest.imageUrl);
+      try {
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+      } catch (e) {
+        console.warn("No se pudo eliminar la imagen del disco:", e);
+      }
+    }
+
+    return NextResponse.json({ ok: true });
+  } catch (e: any) {
+    console.error("Error eliminando destino:", e);
+    return NextResponse.json({ error: "No se pudo eliminar" }, { status: 400 });
   }
 }

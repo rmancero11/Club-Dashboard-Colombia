@@ -8,6 +8,7 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
   if (!auth) redirect("/login");
   if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
 
+  // Sólo campos administrativos (nada de documentos de viaje)
   const user = await prisma.user.findFirst({
     where: { id: params.id, businessId: auth.businessId },
     select: {
@@ -20,11 +21,6 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
       status: true,
       commissionRate: true,
       createdAt: true,
-      purchaseOrder: true,
-      flightTickets: true,
-      serviceVoucher: true,
-      medicalAssistanceCard: true,
-      travelTips: true,
     },
   });
   if (!user) notFound();
@@ -42,7 +38,7 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
       </header>
 
       <div className="grid gap-6 lg:grid-cols-2">
-        {/* Perfil */}
+        {/* Perfil (solo info relevante a admin) */}
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Perfil</h2>
           <div className="grid gap-2 text-sm">
@@ -67,29 +63,23 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
               {new Date(user.createdAt).toLocaleString("es-CO")}
             </div>
             <div>
-              <span className="text-gray-500">Orden de compra: </span>
-              {user.purchaseOrder || "—"}
+              <span className="text-gray-500">Rol: </span>
+              {user.role}
             </div>
             <div>
-              <span className="text-gray-500">Tickets de vuelo: </span>
-              {user.flightTickets || "—"}
+              <span className="text-gray-500">Estado: </span>
+              {user.status}
             </div>
             <div>
-              <span className="text-gray-500">Voucher de servicio: </span>
-              {user.serviceVoucher || "—"}
-            </div>
-            <div>
-              <span className="text-gray-500">Asistencia médica: </span>
-              {user.medicalAssistanceCard || "—"}
-            </div>
-            <div>
-              <span className="text-gray-500">Tips de viaje: </span>
-              {user.travelTips || "—"}
+              <span className="text-gray-500">Comisión: </span>
+              {user.role === "SELLER"
+                ? (user.commissionRate != null ? `${user.commissionRate}%` : "—")
+                : "—"}
             </div>
           </div>
         </div>
 
-        {/* Formulario de edición */}
+        {/* Formulario de edición (solo admin fields) */}
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Editar</h2>
           <AdminUserEditForm
@@ -97,12 +87,7 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
               id: user.id,
               role: user.role,
               status: user.status,
-              commissionRate: user.commissionRate ? Number(user.commissionRate) : null,
-              purchaseOrder: user.purchaseOrder || "",
-              flightTickets: user.flightTickets || "",
-              serviceVoucher: user.serviceVoucher || "",
-              medicalAssistanceCard: user.medicalAssistanceCard || "",
-              travelTips: user.travelTips || "",
+              commissionRate: user.commissionRate != null ? Number(user.commissionRate) : null,
             }}
           />
         </div>

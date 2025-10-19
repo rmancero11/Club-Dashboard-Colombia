@@ -4,6 +4,21 @@ import { useState } from "react";
 
 type Seller = { id: string; name: string | null; email: string };
 
+// Campos de documentos permitidos
+const DOC_KEYS = [
+  "purchaseOrder",
+  "flightTickets",
+  "serviceVoucher",
+  "medicalAssistanceCard",
+  "travelTips",
+] as const;
+
+// Función para emitir evento de actualización de documentos
+function emitDocUpdated(key: typeof DOC_KEYS[number], url: string) {
+  if (!url) return;
+  window.dispatchEvent(new CustomEvent("client-doc-updated", { detail: { key, url } }));
+}
+
 export default function AdminClientEditForm({
   clientId,
   currentSellerId,
@@ -60,6 +75,15 @@ export default function AdminClientEditForm({
         setErr(data?.error || "No se pudo actualizar");
       } else {
         setMsg("Cliente actualizado correctamente.");
+
+        // Emite evento con URLs definitivas si tu API las devuelve
+        const updated = data?.updated ?? data?.user ?? data ?? {};
+        (DOC_KEYS as readonly string[]).forEach((k) => {
+          const url = updated[k];
+          if (typeof url === "string" && url.trim()) {
+            emitDocUpdated(k as any, url.trim());
+          }
+        });
       }
     } catch {
       setErr("Error de red");
@@ -121,30 +145,62 @@ export default function AdminClientEditForm({
       {/* Archivos */}
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Orden de compra</span>
-        <input type="file" onChange={(e) => setPurchaseOrder(e.target.files?.[0] ?? null)} />
+        <input
+          type="file"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setPurchaseOrder(f);
+            if (f) emitDocUpdated("purchaseOrder", URL.createObjectURL(f));
+          }}
+        />
       </label>
 
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Boletos de vuelo</span>
-        <input type="file" onChange={(e) => setFlightTickets(e.target.files?.[0] ?? null)} />
+        <input
+          type="file"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setFlightTickets(f);
+            if (f) emitDocUpdated("flightTickets", URL.createObjectURL(f));
+          }}
+        />
       </label>
 
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Voucher de servicio</span>
-        <input type="file" onChange={(e) => setServiceVoucher(e.target.files?.[0] ?? null)} />
+        <input
+          type="file"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setServiceVoucher(f);
+            if (f) emitDocUpdated("serviceVoucher", URL.createObjectURL(f));
+          }}
+        />
       </label>
 
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Asistencia médica</span>
         <input
           type="file"
-          onChange={(e) => setMedicalAssistanceCard(e.target.files?.[0] ?? null)}
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setMedicalAssistanceCard(f);
+            if (f) emitDocUpdated("medicalAssistanceCard", URL.createObjectURL(f));
+          }}
         />
       </label>
 
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Tips de viaje</span>
-        <input type="file" onChange={(e) => setTravelTips(e.target.files?.[0] ?? null)} />
+        <input
+          type="file"
+          onChange={(e) => {
+            const f = e.target.files?.[0] ?? null;
+            setTravelTips(f);
+            if (f) emitDocUpdated("travelTips", URL.createObjectURL(f));
+          }}
+        />
       </label>
 
       <div className="flex gap-2 pt-2">

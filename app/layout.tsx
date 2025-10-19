@@ -1,4 +1,3 @@
-// app/layout.tsx
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
@@ -6,7 +5,7 @@ import { Montserrat } from 'next/font/google';
 
 const montserrat = Montserrat({
   subsets: ['latin'],
-  weight: ['400','500','600','700'], // los pesos que quieras usar
+  weight: ['400','500','600','700'], 
   variable: '--font-montserrat',
 });
 

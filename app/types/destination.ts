@@ -16,11 +16,11 @@ export interface DestinationDTO {
   category?: string | null;
   isActive: boolean;
   popularityScore: number;
-  createdAt: string; // o Date si lo parseas
+  createdAt: string; 
   updatedAt: string;
   imageUrl: string;
-  price: number | null; // 💰 precio base
+  price: number | null; 
   discountPrice?: number | null;
-  travelers?: TravelerDTO[]; // 💸 precio con descuento (opcional)
+  travelers?: TravelerDTO[]; 
 }
 

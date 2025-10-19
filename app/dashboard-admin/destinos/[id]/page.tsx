@@ -80,13 +80,6 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
         {/* Info y edición */}
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Editar destino</h2>
-
-          {d.imageUrl && (
-            <div className="mb-3">
-              <img src={d.imageUrl} alt={d.name} className="w-full rounded-md object-cover max-h-48" />
-            </div>
-          )}
-
           <EditDestinationForm
             dest={{
               id: d.id,

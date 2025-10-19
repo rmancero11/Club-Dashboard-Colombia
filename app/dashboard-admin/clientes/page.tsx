@@ -24,24 +24,24 @@ function fmtDate(d: Date | string) {
 // --- Indicativos por país (amplía según tus mercados) ---
 const DIAL_BY_COUNTRY: Record<string, string> = {
   // Américas
-  "Colombia": "57",
-  "México": "52",
+  Colombia: "57",
+  México: "52",
   "Estados Unidos": "1",
   "United States": "1",
-  "Canadá": "1",
-  "Canada": "1",
-  "Perú": "51",
-  "Chile": "56",
-  "Argentina": "54",
-  "Ecuador": "593",
-  "Venezuela": "58",
-  "Brasil": "55",
+  Canadá: "1",
+  Canada: "1",
+  Perú: "51",
+  Chile: "56",
+  Argentina: "54",
+  Ecuador: "593",
+  Venezuela: "58",
+  Brasil: "55",
   // Europa
-  "España": "34",
-  "Portugal": "351",
-  "Francia": "33",
-  "Italia": "39",
-  "Alemania": "49",
+  España: "34",
+  Portugal: "351",
+  Francia: "33",
+  Italia: "39",
+  Alemania: "49",
 };
 
 function dialCodeForCountry(country?: string) {
@@ -102,6 +102,238 @@ function resStatusBadgeClass(status?: string) {
   }
 }
 
+/* ================================
+   Documentos (idéntico al seller)
+================================== */
+const FILE_LABELS: Record<string, string> = {
+  // Identidad / viaje
+  dniFile: "Documento de identidad",
+  passport: "Pasaporte",
+  visa: "Visa",
+  // Operativa
+  purchaseOrder: "Orden de compra",
+  flightTickets: "Boletos de vuelo",
+  serviceVoucher: "Voucher de servicio",
+  medicalAssistanceCard: "Asistencia médica",
+  travelTips: "Tips de viaje",
+};
+const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS) as (keyof typeof FILE_LABELS)[];
+
+function getExt(url: string) {
+  try {
+    const u = new URL(url);
+    const path = u.pathname.toLowerCase();
+    const qext = (u.searchParams.get("ext") || "").toLowerCase();
+    const m = path.match(/\.([a-z0-9]+)$/i);
+    return (qext || (m ? m[1] : "")).replace(/[^a-z0-9]/g, "");
+  } catch {
+    const m = url.toLowerCase().match(/\.([a-z0-9]+)(?:\?|#|$)/i);
+    return m ? m[1] : "";
+  }
+}
+const isImg = (e: string) =>
+  ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(e);
+const isPdf = (e: string) => e === "pdf";
+const isVid = (e: string) => ["mp4", "webm", "ogg"].includes(e);
+
+function isCloudinary(url: string) {
+  try {
+    const { hostname } = new URL(url);
+    return hostname === "res.cloudinary.com";
+  } catch {
+    return false;
+  }
+}
+function injectCloudinaryFlag(url: string, flag: string) {
+  if (url.includes("/raw/upload/"))
+    return url.replace("/raw/upload/", `/raw/upload/${flag}/`);
+  if (url.includes("/upload/"))
+    return url.replace("/upload/", `/upload/${flag}/`);
+  return url;
+}
+function filenameForKey(key: string) {
+  switch (key) {
+    case "dniFile":
+      return "documento_identidad.pdf";
+    case "passport":
+      return "pasaporte.pdf";
+    case "visa":
+      return "visa.pdf";
+    case "purchaseOrder":
+      return "orden_compra.pdf";
+    case "flightTickets":
+      return "boletos_vuelo.pdf";
+    case "serviceVoucher":
+      return "voucher_servicio.pdf";
+    case "medicalAssistanceCard":
+      return "asistencia_medica.pdf";
+    case "travelTips":
+      return "tips_viaje.pdf";
+    default:
+      return "documento.pdf";
+  }
+}
+
+/** Previsualizador (igual al seller) */
+function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
+  const ext = getExt(url);
+
+  // IMAGEN
+  if (isImg(ext)) {
+    return (
+      <div className="rounded-md border p-2">
+        <img
+          src={url}
+          alt="Documento"
+          loading="lazy"
+          className="max-h-72 w-auto rounded"
+          style={{ objectFit: "contain" }}
+        />
+      </div>
+    );
+  }
+
+  // VIDEO
+  if (isVid(ext)) {
+    return (
+      <div className="rounded-md border p-2">
+        <video src={url} controls className="h-80 w-full rounded" />
+      </div>
+    );
+  }
+
+  // PDF o Cloudinary sin extensión
+  const looksPdf =
+    isPdf(ext) ||
+    (isCloudinary(url) &&
+      (url.includes("/raw/upload/") || url.includes("/upload/")));
+
+  if (looksPdf) {
+    const filename = filenameForKey(fileKey || "document");
+    const src = url.includes("/api/file-proxy")
+      ? url
+      : `/api/file-proxy?url=${encodeURIComponent(
+          url
+        )}&filename=${encodeURIComponent(filename)}`;
+
+    return (
+      <div className="rounded-md border p-2 overflow-auto">
+        <embed src={src} title={filename} className="h-80 w-full rounded" />
+        <div className="mt-2 flex gap-2">
+          <a
+            href={src}
+            download={filename}
+            className="text-xs underline"
+            title="Descargar PDF"
+          >
+            Descargar
+          </a>
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs underline"
+            title="Abrir en pestaña"
+          >
+            Abrir en pestaña
+          </a>
+        </div>
+      </div>
+    );
+  }
+
+  // Fallback
+  return (
+    <div className="rounded-md border p-3 text-xs text-gray-600">
+      <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
+      <div className="flex gap-2">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border px-2 py-1 underline"
+        >
+          Abrir
+        </a>
+        <a href={url} download className="rounded-md border px-2 py-1">
+          Descargar
+        </a>
+      </div>
+    </div>
+  );
+}
+
+/** Lista de documentos (idéntica a la de seller) */
+function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
+  if (!user)
+    return <div className="text-xs text-gray-400">No hay documentos</div>;
+
+  const entries: { key: string; label: string; url: string }[] = [];
+  for (const key of ALLOWED_DOC_FIELDS) {
+    const v = user[key as string];
+    if (typeof v === "string" && v.trim()) {
+      entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
+    }
+  }
+
+  if (entries.length === 0) {
+    return <div className="text-xs text-gray-400">No hay documentos</div>;
+  }
+
+  return (
+    <ul className="flex flex-col gap-2">
+      {entries.map(({ key, label, url }) => {
+        const filename = filenameForKey(key);
+        const openUrl = isCloudinary(url)
+          ? `/api/file-proxy?url=${encodeURIComponent(
+              url
+            )}&filename=${encodeURIComponent(filename)}`
+          : url;
+        const downloadUrl = openUrl;
+
+        return (
+          <li key={key} className="rounded-md border p-2">
+            <div className="flex items-center justify-between gap-3">
+              <div className="text-xs font-medium text-gray-700">{label}</div>
+              <div className="flex items-center gap-2">
+                <a
+                  href={openUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-xs text-blue-700 underline"
+                  title="Abrir en nueva pestaña"
+                >
+                  Abrir
+                </a>
+                <a
+                  href={downloadUrl}
+                  download={filename}
+                  className="text-xs text-gray-700 underline"
+                  title="Descargar"
+                >
+                  Descargar
+                </a>
+              </div>
+            </div>
+
+            <details className="mt-2 group">
+              <summary className="cursor-pointer select-none text-xs text-gray-600 underline">
+                Previsualizar
+              </summary>
+              <div className="mt-2">
+                <FilePreview url={url} fileKey={key} />
+              </div>
+            </details>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/* ================================
+   Página: AdminClientsPage
+================================== */
 export default async function AdminClientsPage({
   searchParams,
 }: {
@@ -181,15 +413,18 @@ export default async function AdminClientsPage({
         tags: true,
         seller: { select: { id: true, name: true } },
         _count: { select: { reservations: true } },
-        // 👇 Última reserva (para mostrar estado del cliente)
+        // Última reserva (para mostrar estado del cliente)
         reservations: {
           select: { status: true, createdAt: true },
           orderBy: { createdAt: "desc" },
           take: 1,
         },
-        // Documentos (como ya tenías)
+        // Documentos (idéntico al seller)
         user: {
           select: {
+            dniFile: true,
+            passport: true,
+            visa: true,
             purchaseOrder: true,
             flightTickets: true,
             serviceVoucher: true,
@@ -323,9 +558,15 @@ export default async function AdminClientsPage({
                 const e164 = toE164(c.phone || "", c.country || "");
                 const wa = waLink(e164);
                 const lastRes = c.reservations?.[0];
-                const lastStatus = lastRes?.status as keyof typeof RES_STATUS_LABEL | undefined;
-                const lastStatusLabel = lastStatus ? RES_STATUS_LABEL[lastStatus] : "—";
+                const lastStatus = lastRes?.status as
+                  | keyof typeof RES_STATUS_LABEL
+                  | undefined;
+                const lastStatusLabel = lastStatus
+                  ? RES_STATUS_LABEL[lastStatus]
+                  : "—";
                 const badgeCls = resStatusBadgeClass(lastStatus);
+
+                const docCount = Object.values(c.user || {}).filter(Boolean).length;
 
                 return (
                   <tr key={c.id} className="border-t">
@@ -346,7 +587,7 @@ export default async function AdminClientsPage({
                       </div>
                     </td>
 
-                    {/* Email separado */}
+                    {/* Email */}
                     <td className="px-2 py-2">
                       {c.email ? (
                         <a
@@ -360,7 +601,7 @@ export default async function AdminClientsPage({
                       )}
                     </td>
 
-                    {/* Teléfono con indicativo y link a WhatsApp */}
+                    {/* Teléfono / WhatsApp */}
                     <td className="px-2 py-2">
                       {e164 ? (
                         <a
@@ -373,52 +614,47 @@ export default async function AdminClientsPage({
                           {e164}
                         </a>
                       ) : c.phone ? (
-                        <span className="text-xs text-gray-600">
-                          {c.phone}
-                        </span>
+                        <span className="text-xs text-gray-600">{c.phone}</span>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
                       )}
                     </td>
 
+                    {/* Ubicación */}
                     <td className="px-2 py-2">
                       {[c.city, c.country].filter(Boolean).join(", ") || "—"}
                     </td>
 
+                    {/* Vendedor */}
                     <td className="px-2 py-2">{c.seller?.name || "—"}</td>
 
+                    {/* Conteo de reservas */}
                     <td className="px-2 py-2">{c._count.reservations}</td>
 
-                    {/* Estado (última reserva) */}
+                    {/* Estado última reserva */}
                     <td className="px-2 py-2">
-                      <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${badgeCls}`}>
+                      <span
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${badgeCls}`}
+                      >
                         {lastStatusLabel}
                       </span>
                     </td>
 
-                    {/* Documentos */}
+                    {/* Documentos (misma UX que seller) */}
                     <td className="px-2 py-2">
                       <details className="group">
                         <summary className="cursor-pointer text-sm text-blue-600">
-                          Ver archivos
+                          {docCount > 0
+                            ? `Ver archivos (${docCount})`
+                            : "Ver archivos"}
                         </summary>
-                        <div className="mt-1 flex flex-col gap-1">
-                          {Object.entries(c.user || {}).map(([key, url]) =>
-                            url ? (
-                              <a
-                                key={key}
-                                href={url as string}
-                                target="_blank"
-                                className="text-xs underline text-gray-700"
-                              >
-                                {key}
-                              </a>
-                            ) : null
-                          )}
+                        <div className="mt-2 max-w-full">
+                          <DocumentList user={c.user as any} />
                         </div>
                       </details>
                     </td>
 
+                    {/* Acciones */}
                     <td className="px-2 py-2 text-right">
                       <div className="flex gap-2">
                         <a
@@ -436,6 +672,7 @@ export default async function AdminClientsPage({
           </table>
         </div>
 
+        {/* Paginación */}
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}

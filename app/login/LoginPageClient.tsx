@@ -158,7 +158,6 @@ export default function LoginPageClient({
 
           <div className="mt-4 flex items-center justify-center gap-2 text-primary">
             <p className="text-xs">Powered by</p>
-            {/* tu SVG */}
           </div>
         </div>
 

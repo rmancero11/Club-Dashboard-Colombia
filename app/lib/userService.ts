@@ -16,14 +16,12 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
   const { userId, businessId, name, email, phone, country, destino, preferencia, sellerDefaultId } = options;
 
   return prisma.$transaction(async (tx) => {
-    // Buscar un seller activo con menos clientes
     let seller = await tx.user.findFirst({
       where: { businessId, role: "SELLER", status: "ACTIVE" },
       orderBy: { sellerClients: { _count: "asc" } },
       select: { id: true },
     });
 
-    // Fallback a seller default
     if (!seller && sellerDefaultId) {
       const s = await tx.user.findUnique({
         where: { id: sellerDefaultId },
@@ -36,10 +34,9 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
 
     if (!seller) {
       console.warn("[assignSellerAutomatically] No SELLER activo disponible.");
-      return null; // No se crea client
+      return null; 
     }
 
-    // Buscar si ya existe el cliente
     const existingClient = await tx.client.findFirst({
       where: {
         businessId,
@@ -48,7 +45,6 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
       select: { id: true, userId: true },
     });
 
-    // Preparar tags y notas
     const tags: string[] = [];
     if (preferencia) tags.push(`pref:${preferencia}`);
     if (destino) tags.push(`dest:${destino}`);
@@ -94,7 +90,6 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
       clientId = created.id;
     }
 
-    // Crear ActivityLog
     await tx.activityLog.create({
       data: {
         businessId,

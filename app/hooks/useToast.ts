@@ -5,7 +5,7 @@ type ToastOptions = {
   title?: string;
   description?: string;
   variant?: ToastVariant;
-  duration?: number; // ms
+  duration?: number; 
 };
 
 const containerId = 'toaster-root';
