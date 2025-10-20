@@ -124,6 +124,10 @@ export default async function AdminReservationDetailPage({
 
   return (
     <div className="space-y-6">
+      {/* 🔒 Metas ocultas para que el componente cliente de estado lea fechas */}
+      <meta id="res-start" content={r.startDate.toISOString()} />
+      <meta id="res-end" content={r.endDate.toISOString()} />
+
       {/* Encabezado */}
       <header className="flex items-start justify-between gap-3">
         <div>

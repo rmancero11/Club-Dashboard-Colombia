@@ -218,7 +218,7 @@ export default async function AdminDestinationsPage({
               Aplicar
             </button>
             <a
-              className="rounded-md border px-3 py-2 text-sm"
+              className="rounded-md border px-2 py-2 text-sm"
               href={`/dashboard-admin/destinos${qstr({
                 order: "createdAt_desc",
                 page: "1",

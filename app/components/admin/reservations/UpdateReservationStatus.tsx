@@ -1,8 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 
-// 👉 Alineado al enum ReservationStatus del schema.prisma
 type Status =
   | "LEAD"
   | "QUOTED"
@@ -13,7 +12,6 @@ type Status =
   | "CANCELED"
   | "EXPIRED";
 
-// Etiquetas en español (solo UI)
 const LABELS_ES: Record<Status, string> = {
   LEAD: "Prospecto",
   QUOTED: "Cotizado",
@@ -25,7 +23,6 @@ const LABELS_ES: Record<Status, string> = {
   EXPIRED: "Vencida",
 };
 
-// (Opcional) Colores tipo “píldora” por estado (solo UI)
 const PILL_CLASS: Record<Status, string> = {
   LEAD: "border-gray-200 bg-gray-50 text-gray-700",
   QUOTED: "border-indigo-200 bg-indigo-50 text-indigo-700",
@@ -37,41 +34,58 @@ const PILL_CLASS: Record<Status, string> = {
   EXPIRED: "border-stone-200 bg-stone-50 text-stone-700",
 };
 
+const ALLOWED: Partial<Record<Status, Status[]>> = {
+  LEAD: ["QUOTED", "CANCELED"],
+  QUOTED: ["HOLD", "CONFIRMED", "CANCELED", "EXPIRED"],
+  HOLD: ["CONFIRMED", "QUOTED", "CANCELED", "EXPIRED"],
+  CONFIRMED: ["TRAVELING", "CANCELED"],
+  TRAVELING: ["COMPLETED"],
+  EXPIRED: ["QUOTED", "CANCELED"],
+  COMPLETED: [],
+  CANCELED: [],
+};
+
 const BASE_BTN =
   "rounded-md border px-3 py-1 text-sm hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-black/20";
 const SELECTED_BTN = "bg-black text-white border-black hover:bg-black";
 
+function canTransition(from: Status, to: Status, now: Date, start?: Date, end?: Date) {
+  if (!(ALLOWED[from] || []).includes(to)) {
+    return { ok: false, reason: "Transición no permitida" };
+  }
+  // Si no tengo fechas, no bloqueo por tiempo
+  if (!start || !end) return { ok: true };
+
+  if (to === "TRAVELING" && now < start) {
+    return { ok: false, reason: "El viaje no ha iniciado" };
+  }
+  if (to === "COMPLETED" && now < end) {
+    return { ok: false, reason: "El viaje no ha finalizado" };
+  }
+  if (from === "CONFIRMED" && to === "CANCELED" && now >= start) {
+    return { ok: false, reason: "No se puede cancelar luego del inicio" };
+  }
+  return { ok: true };
+}
+
 export default function UpdateReservationStatus({
   id,
   status,
-}: { id: string; status: Status }) {
+  startDate,
+  endDate,
+}: {
+  id: string;
+  status: Status;
+  startDate?: string; // ISO
+  endDate?: string;   // ISO
+}) {
   const [value, setValue] = useState<Status>(status);
   const [loading, setLoading] = useState(false);
 
-  async function update(newStatus: Status) {
-    if (loading || newStatus === value) return;
-    setLoading(true);
-    try {
-      const res = await fetch(`/api/admin/reservations/${id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        // 👇 Se envía el valor EXACTO del enum (lógica en inglés)
-        body: JSON.stringify({ status: newStatus }),
-      });
-      if (!res.ok) {
-        const data = await res.json().catch(() => ({}));
-        alert(data?.error || "No se pudo cambiar el estado");
-        return;
-      }
-      setValue(newStatus);
-      location.reload();
-    } finally {
-      setLoading(false);
-    }
-  }
+  const start = useMemo(() => (startDate ? new Date(startDate) : undefined), [startDate]);
+  const end = useMemo(() => (endDate ? new Date(endDate) : undefined), [endDate]);
+  const now = useMemo(() => new Date(), []); // recalcula al cambiar estado (opcional)
 
-  // Orden recomendado (embudo):
   const buttons: Status[] = [
     "LEAD",
     "QUOTED",
@@ -83,20 +97,53 @@ export default function UpdateReservationStatus({
     "EXPIRED",
   ];
 
+  async function update(newStatus: Status) {
+    if (loading || newStatus === value) return;
+    setLoading(true);
+    try {
+      const res = await fetch(`/api/admin/reservations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json().catch(() => ({} as any));
+      if (!res.ok) {
+        alert(data?.error || "No se pudo cambiar el estado");
+        return;
+      }
+      setValue(newStatus);
+    } finally {
+      setLoading(false);
+    }
+  }
+
   return (
     <div className="flex flex-wrap gap-2" aria-label="Actualizar estado de la reserva">
-      {buttons.map((s) => (
-        <button
-          key={s}
-          onClick={() => update(s)}
-          disabled={loading}
-          className={`${BASE_BTN} ${value === s ? SELECTED_BTN : ""} disabled:opacity-60 disabled:pointer-events-none`}
-          aria-pressed={value === s}
-          title={`Cambiar a: ${LABELS_ES[s]}`}
-        >
-          {LABELS_ES[s]}
-        </button>
-      ))}
+      {buttons.map((s) => {
+        const check = canTransition(value, s, now, start, end);
+        const isSelected = value === s;
+        const disabled = loading || (!isSelected && !check.ok);
+
+        return (
+          <button
+            key={s}
+            onClick={() => update(s)}
+            disabled={disabled}
+            className={`${BASE_BTN} ${isSelected ? SELECTED_BTN : ""} disabled:opacity-60 disabled:pointer-events-none`}
+            aria-pressed={isSelected}
+            title={
+              isSelected
+                ? `${LABELS_ES[s]} (actual)`
+                : check.ok
+                ? `Cambiar a: ${LABELS_ES[s]}`
+                : `No permitido: ${check.reason}`
+            }
+          >
+            {LABELS_ES[s]}
+          </button>
+        );
+      })}
     </div>
   );
 }
