@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import DestinationsList from "./DestinationList";
 import Memberships from "./Memberships";
 import DestinationCard from "./DestinationCard";
+import { div } from "framer-motion/client";
 
 type Role = "ADMIN" | "SELLER" | "USER";
 
@@ -22,6 +23,7 @@ type UserShape = {
   country?: string | null;
   destino?: Destination;
   preference?: Preference;
+  verified?: boolean;
   vendedor?: {
     nombre: string;
     telefono?: string;
@@ -152,155 +154,187 @@ export default function UserProfile({ user }: { user: UserShape }) {
         </div>
 
         {/* Avatar */}
-{/* Desktop */}
-<div className="hidden md:flex flex-col items-center md:col-span-1">
-  <Image
-    src={avatarPreview}
-    alt={user.name ?? "User profile"}
-    className="w-48 h-48 rounded-full border-4 border-purple-500 object-cover"
-    width={144}
-    height={144}
-  />
-  <label
-    htmlFor="avatar-upload"
-    className="mt-3 text-sm text-white bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md cursor-pointer font-montserrat"
-  >
-    {loading ? "Subiendo..." : "Cambiar foto"}
-  </label>
-</div>
-
-{/* Mobile */}
-<div className="flex md:hidden flex-col items-center md:col-span-1 relative">
-  <Image
-    src={avatarPreview}
-    alt={user.name ?? "User profile"}
-    className="w-48 h-48 rounded-full border-4 border-purple-500 object-cover cursor-pointer"
-    width={144}
-    height={144}
-    onClick={() => setIsAvatarModalOpen(true)}
-  />
-</div>
-
-{/* Input compartido */}
-<input
-  id="avatar-upload"
-  type="file"
-  accept="image/*"
-  onChange={handleAvatarChange}
-  className="hidden"
-/>
-
-{/* Modal para mobile */}
-<AnimatePresence>
-  {isAvatarModalOpen && (
-    <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 bg-black/50 flex justify-center items-center md:hidden"
-      onClick={() => setIsAvatarModalOpen(false)}
-    >
-      <motion.div
-        initial={{ scale: 0.8 }}
-        animate={{ scale: 1 }}
-        exit={{ scale: 0.8 }}
-        className="bg-white rounded-2xl w-[90%] max-w-sm h-[80%] relative flex flex-col items-center overflow-hidden"
-        onClick={(e) => e.stopPropagation()} // evitar cierre al click dentro
-      >
-        <Image
-          src={avatarPreview}
-          alt={user.name ?? "User profile"}
-          className="w-full h-full object-cover"
-          fill
-        />
-
-        {/* Overlay info arriba izquierda */}
-        <div className="absolute top-4 left-4 text-white font-montserrat space-y-1">
-          <h2 className="text-lg font-semibold">{user.name}</h2>
-          {gustos.length > 0 ? (
-    <ul className="flex flex-wrap gap-3 font-montserrat">
-      {gustos.map((g, i) => {
-        // Determinar los iconos según el gusto
-        const icons: string[] = [];
-        if (g.toLowerCase() === "playa")
-          icons.push("/favicon/playa-club-solteros.svg");
-        if (g.toLowerCase() === "aventura")
-          icons.push("/favicon/aventura-club-solteros.svg");
-        if (g.toLowerCase() === "cultura")
-          icons.push("/favicon/cultura-club-solteros.svg");
-        if (g.toLowerCase() === "mixto")
-          icons.push(
-            "/favicon/playa-club-solteros.svg",
-            "/favicon/aventura-club-solteros.svg",
-            "/favicon/cultura-club-solteros.svg"
-          );
-
-        return (
-          <li key={i} className="flex items-center gap-1">
-            {icons.map((icon, idx) => (
-              <Image
-                key={idx}
-                src={icon}
-                alt={g}
-                width={20}
-                height={20}
-              />
-            ))}
-          </li>
-        );
-      })}
-    </ul>
-  ) : (
-    <p className="text-gray-500 text-sm font-montserrat">
-      No especificado
-    </p>
-  )}
-          {user.country && <p>{user.country}</p>}
+        {/* Avatar Desktop */}
+        <div className="hidden md:flex flex-col items-center md:col-span-1 relative">
+          <div className="relative w-48 h-48 rounded-full border-4 border-purple-500 overflow-visible">
+            <Image
+              src={avatarPreview}
+              alt={user.name ?? "User profile"}
+              className="w-full h-full object-cover rounded-full"
+              width={192}
+              height={192}
+            />
+            {user.verified && (
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-10">
+                <Image
+                  src="/favicon/check-aprobacion-club-solteros.svg"
+                  alt="Verificado"
+                  width={36}
+                  height={36}
+                />
+              </div>
+            )}
+          </div>
+          <label
+            htmlFor="avatar-upload"
+            className="mt-3 text-sm text-white bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md cursor-pointer font-montserrat"
+          >
+            {loading ? "Subiendo..." : "Cambiar foto"}
+          </label>
         </div>
 
-        {/* Botón cambiar foto abajo */}
-        <div className="absolute bottom-4 w-full flex justify-center">
-  <label
-    htmlFor="avatar-upload"
-    className={`flex items-center justify-center w-14 h-14 bg-white rounded-full cursor-pointer transition`}
-  >
-    {loading ? (
-      <span className="text-white text-lg font-bold">...</span>
-    ) : (
-      <Image
-        src="/favicon/camara-subir-fotos-club-solteros.svg"
-        alt="Cambiar avatar"
-        width={100}
-        height={100}
-      />
-    )}
-  </label>
-  <input
-    id="avatar-upload"
-    type="file"
-    accept="image/*"
-    onChange={handleAvatarChange}
-    className="hidden"
-  />
-</div>
+        {/* Avatar Mobile */}
+        <div className="flex md:hidden flex-col items-center relative">
+          <div className="relative w-48 h-48 rounded-full border-4 border-purple-500 overflow-visible cursor-pointer">
+            <Image
+              src={avatarPreview}
+              alt={user.name ?? "User profile"}
+              className="w-full h-full object-cover rounded-full"
+              width={192}
+              height={192}
+              onClick={() => setIsAvatarModalOpen(true)}
+            />
+            {user.verified && (
+              <div className="absolute bottom-0 left-1/2 transform -translate-x-1/2 translate-y-1/2 z-10">
+                <Image
+                  src="/favicon/check-aprobacion-club-solteros.svg"
+                  alt="Verificado"
+                  width={36}
+                  height={36}
+                />
+              </div>
+            )}
+          </div>
+        </div>
 
+        {/* Input compartido */}
+        <input
+          id="avatar-upload"
+          type="file"
+          accept="image/*"
+          onChange={handleAvatarChange}
+          className="hidden"
+        />
 
+        {/* Modal para mobile */}
+        <AnimatePresence>
+          {isAvatarModalOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 bg-black/50 flex justify-center items-center md:hidden"
+              onClick={() => setIsAvatarModalOpen(false)}
+            >
+              <motion.div
+                initial={{ scale: 0.8 }}
+                animate={{ scale: 1 }}
+                exit={{ scale: 0.8 }}
+                className="bg-white rounded-2xl w-[90%] max-w-sm h-[80%] relative flex flex-col items-center overflow-hidden"
+                onClick={(e) => e.stopPropagation()} // evitar cierre al click dentro
+              >
+                <Image
+                  src={avatarPreview}
+                  alt={user.name ?? "User profile"}
+                  className="w-full h-full object-cover"
+                  fill
+                />
 
-        {/* Botón cerrar */}
-        <button
-          onClick={() => setIsAvatarModalOpen(false)}
-          className="absolute top-2 right-2 text-white text-2xl font-bold"
-        >
-          ✕
-        </button>
-      </motion.div>
-    </motion.div>
-  )}
-</AnimatePresence>
+                {/* Overlay info arriba izquierda */}
+                <div className="absolute text-left top-4 left-4 text-white font-montserrat space-y-1">
+                  <div className="flex items-center gap-2">
+                    <h2 className="text-lg font-semibold">{user.name}</h2>
+                    {user.verified && (
+                      <Image
+                        src="/favicon/check-aprobacion-club-solteros.svg"
+                        alt="Verificado"
+                        width={20}
+                        height={20}
+                      />
+                    )}
+                  </div>
 
+                  {/* País alineado a la izquierda */}
+                  {user.country && <p className="text-sm">{user.country}</p>}
 
+                  {/* Gustos */}
+                  {gustos.length > 0 ? (
+                    <ul className="flex flex-wrap gap-3 font-montserrat">
+                      {gustos.map((g, i) => {
+                        const icons: string[] = [];
+                        if (g.toLowerCase() === "playa")
+                          icons.push("/favicon/playa-club-solteros.svg");
+                        if (g.toLowerCase() === "aventura")
+                          icons.push("/favicon/aventura-club-solteros.svg");
+                        if (g.toLowerCase() === "cultura")
+                          icons.push("/favicon/cultura-club-solteros.svg");
+                        if (g.toLowerCase() === "mixto")
+                          icons.push(
+                            "/favicon/playa-club-solteros.svg",
+                            "/favicon/aventura-club-solteros.svg",
+                            "/favicon/cultura-club-solteros.svg"
+                          );
 
+                        return (
+                          <li key={i} className="flex items-center gap-1">
+                            {icons.map((icon, idx) => (
+                              <Image
+                                key={idx}
+                                src={icon}
+                                alt={g}
+                                width={20}
+                                height={20}
+                              />
+                            ))}
+                          </li>
+                        );
+                      })}
+                    </ul>
+                  ) : (
+                    <p className="text-gray-500 text-sm font-montserrat">
+                      No especificado
+                    </p>
+                  )}
+                </div>
+                {user.country && <p>{user.country}</p>}
 
+                {/* Botón cambiar foto abajo */}
+                <div className="absolute bottom-4 w-full flex justify-center">
+                  <label
+                    htmlFor="avatar-upload"
+                    className={`flex items-center justify-center w-14 h-14 bg-white rounded-full cursor-pointer transition`}
+                  >
+                    {loading ? (
+                      <span className="text-white text-lg font-bold">...</span>
+                    ) : (
+                      <Image
+                        src="/favicon/camara-subir-fotos-club-solteros.svg"
+                        alt="Cambiar avatar"
+                        width={100}
+                        height={100}
+                      />
+                    )}
+                  </label>
+                  <input
+                    id="avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    onChange={handleAvatarChange}
+                    className="hidden"
+                  />
+                </div>
+
+                {/* Botón cerrar */}
+                <button
+                  onClick={() => setIsAvatarModalOpen(false)}
+                  className="absolute top-2 right-2 text-white text-2xl font-bold"
+                >
+                  ✕
+                </button>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
 
         {/* Centro */}
         <div className="flex flex-col items-center justify-center md:items-start md:justify-start md:col-span-1 mt-4 md:mt-0">
@@ -315,83 +349,79 @@ export default function UserProfile({ user }: { user: UserShape }) {
               : "Administrador"}
           </span>
 
-{/* Destinos de interés */}
-<div className="mt-5 w-full text-left">
-  <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
-    Destinos de interés
-  </h2>
-  {destinos.length > 0 ? (
-    <ul
-      className={`grid gap-3 text-sm text-gray-600 font-montserrat ${
-        destinos.length === 1
-          ? "grid-cols-1 sm:grid-cols-1 justify-start" // un solo destino, alineado a la izquierda
-          : "grid-cols-1 sm:grid-cols-2" // 2 columnas en escritorio, 1 en mobile
-      }`}
-    >
-      {destinos.map((d, i) => (
-        <li
-          key={i}
-          className="bg-gray-100 rounded-xl py-2 px-3 text-left max-w-fit"
-        >
-          {d}
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p className="text-gray-500 text-sm font-montserrat">
-      No especificado
-    </p>
-  )}
-</div>
-
-
-
+          {/* Destinos de interés */}
+          <div className="mt-5 w-full text-left">
+            <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
+              Destinos de interés
+            </h2>
+            {destinos.length > 0 ? (
+              <ul
+                className={`grid gap-3 text-sm text-gray-600 font-montserrat ${
+                  destinos.length === 1
+                    ? "grid-cols-1 sm:grid-cols-1 justify-start" // un solo destino, alineado a la izquierda
+                    : "grid-cols-1 sm:grid-cols-2" // 2 columnas en escritorio, 1 en mobile
+                }`}
+              >
+                {destinos.map((d, i) => (
+                  <li
+                    key={i}
+                    className="bg-gray-100 rounded-xl py-2 px-3 text-left max-w-fit"
+                  >
+                    {d}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="text-gray-500 text-sm font-montserrat">
+                No especificado
+              </p>
+            )}
+          </div>
 
           {/* Tus gustos */}
-<div className="mt-6 w-full text-left">
-  <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
-    Tus gustos
-  </h2>
-  {gustos.length > 0 ? (
-    <ul className="flex flex-wrap gap-3 font-montserrat">
-      {gustos.map((g, i) => {
-        // Determinar los iconos según el gusto
-        const icons: string[] = [];
-        if (g.toLowerCase() === "playa")
-          icons.push("/favicon/playa-club-solteros.svg");
-        if (g.toLowerCase() === "aventura")
-          icons.push("/favicon/aventura-club-solteros.svg");
-        if (g.toLowerCase() === "cultura")
-          icons.push("/favicon/cultura-club-solteros.svg");
-        if (g.toLowerCase() === "mixto")
-          icons.push(
-            "/favicon/playa-club-solteros.svg",
-            "/favicon/aventura-club-solteros.svg",
-            "/favicon/cultura-club-solteros.svg"
-          );
+          <div className="mt-6 w-full text-left">
+            <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
+              Tus gustos
+            </h2>
+            {gustos.length > 0 ? (
+              <ul className="flex flex-wrap gap-3 font-montserrat">
+                {gustos.map((g, i) => {
+                  // Determinar los iconos según el gusto
+                  const icons: string[] = [];
+                  if (g.toLowerCase() === "playa")
+                    icons.push("/favicon/playa-club-solteros.svg");
+                  if (g.toLowerCase() === "aventura")
+                    icons.push("/favicon/aventura-club-solteros.svg");
+                  if (g.toLowerCase() === "cultura")
+                    icons.push("/favicon/cultura-club-solteros.svg");
+                  if (g.toLowerCase() === "mixto")
+                    icons.push(
+                      "/favicon/playa-club-solteros.svg",
+                      "/favicon/aventura-club-solteros.svg",
+                      "/favicon/cultura-club-solteros.svg"
+                    );
 
-        return (
-          <li key={i} className="flex items-center gap-2">
-            {icons.map((icon, idx) => (
-              <Image
-                key={idx}
-                src={icon}
-                alt={g}
-                width={50}
-                height={50}
-              />
-            ))}
-          </li>
-        );
-      })}
-    </ul>
-  ) : (
-    <p className="text-gray-500 text-sm font-montserrat">
-      No especificado
-    </p>
-  )}
-</div>
-
+                  return (
+                    <li key={i} className="flex items-center gap-2">
+                      {icons.map((icon, idx) => (
+                        <Image
+                          key={idx}
+                          src={icon}
+                          alt={g}
+                          width={50}
+                          height={50}
+                        />
+                      ))}
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-gray-500 text-sm font-montserrat">
+                No especificado
+              </p>
+            )}
+          </div>
         </div>
       </div>
 
@@ -451,6 +481,12 @@ export default function UserProfile({ user }: { user: UserShape }) {
         ) : (
           <div className="bg-white rounded-2xl shadow-md p-6 text-center text-gray-500 font-montserrat">
             <p>No tienes un vendedor asignado</p>
+            <Image
+              src="/favicon/finuser-28.svg"
+              alt="Calendly"
+              width={16}
+              height={16}
+            />
           </div>
         )}
       </div>
@@ -492,9 +528,17 @@ export default function UserProfile({ user }: { user: UserShape }) {
               {nextDestination ? (
                 <DestinationCard destino={nextDestination} />
               ) : (
-                <p className="text-gray-500 text-center font-montserrat">
-                  Todavía no has reservado un destino.
-                </p>
+                <div className="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 h-full">
+                  <Image
+                    src="/favicon/iconoproximosdestinos.svg"
+                    alt=""
+                    width={280}
+                    height={280}
+                  />
+                  <p className="text-gray-500 font-montserrat text-center md:text-left">
+                    Todavía no has reservado un destino.
+                  </p>
+                </div>
               )}
             </>
           )}

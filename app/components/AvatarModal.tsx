@@ -3,6 +3,7 @@
 import * as React from "react";
 import Image from "next/image";
 import { AnimatePresence, motion } from "framer-motion";
+import PremiumModal from "./PremiumModal";
 
 type AvatarModalProps = {
   isOpen: boolean;
@@ -14,6 +15,7 @@ type AvatarModalProps = {
   nextDestination?: string;
   loading?: boolean;
   onChangeAvatar?: (file: File) => void;
+  verified?: boolean;
 };
 
 export default function AvatarModal({
@@ -24,10 +26,11 @@ export default function AvatarModal({
   country,
   preferences = [],
   nextDestination,
+  verified,
   loading = false,
   onChangeAvatar,
 }: AvatarModalProps) {
-  const [isChatOpen, setIsChatOpen] = React.useState(false);
+  const [isPremiumOpen, setIsPremiumOpen] = React.useState(false);
 
   return (
     <AnimatePresence>
@@ -50,35 +53,37 @@ export default function AvatarModal({
             <Image src={avatar} alt={name ?? "Avatar"} fill className="object-cover" />
 
             {/* Overlay info */}
-            <div className="absolute top-4 left-4 text-white font-montserrat space-y-2">
-              <div className="flex items-center gap-2">
-                <Image
-                  src="/favicon/check-aprobacion-club-solteros.svg"
-                  alt="Verificado"
-                  width={20}
-                  height={20}
-                />
-                <h2 className="text-lg font-semibold">{name}</h2>
-              </div>
+<div className="absolute top-4 left-4 text-white font-montserrat space-y-2">
+  <div className="flex items-center gap-2">
+    <h2 className="text-lg font-semibold">{name}</h2>
+    {verified && (
+      <Image
+        src="/favicon/check-aprobacion-club-solteros.svg"
+        alt="Verificado"
+        width={20}
+        height={20}
+      />
+    )}
+  </div>
 
-              {country && (
-                <div className="flex items-center gap-2">
-                  <p>🌍 {country}</p>
-                </div>
-              )}
+  {country && (
+    <div className="flex items-center gap-2">
+      <p>{country}</p>
+    </div>
+  )}
 
-              {preferences.length > 0 ? (
-                <ul className="flex flex-wrap gap-3">
-                  {preferences.map((g, i) => (
-                    <li key={i} className="flex items-center gap-1">
-                      <p className="text-xs bg-white px-2 py-0.5 rounded">{g}</p>
-                    </li>
-                  ))}
-                </ul>
-              ) : (
-                <p className="text-gray-500 text-sm">No especificado</p>
-              )}
-            </div>
+  {preferences.length > 0 ? (
+    <ul className="flex flex-wrap gap-3">
+      {preferences.map((g, i) => (
+        <li key={i} className="flex items-center gap-1">
+          <p className="text-xs bg-white px-2 py-0.5 rounded">{g}</p>
+        </li>
+      ))}
+    </ul>
+  ) : (
+    <p className="text-gray-500 text-sm">No especificado</p>
+  )}
+</div>
 
             {/* Sección inferior */}
             <div className="absolute bottom-4 w-full flex flex-col items-center gap-2">
@@ -96,7 +101,7 @@ export default function AvatarModal({
               {/* Botón chatear */}
               <button
                 className="mt-2 w-12 h-12 bg-white rounded-full flex items-center justify-center transition"
-                onClick={() => setIsChatOpen(true)}
+                onClick={() => setIsPremiumOpen(true)}
               >
                 <Image
                   src="/favicon/mensajes-club-solteros.svg"
@@ -117,13 +122,13 @@ export default function AvatarModal({
 
             {/* Modal de chat */}
             <AnimatePresence>
-              {isChatOpen && (
+              {isPremiumOpen && (
                 <motion.div
                   initial={{ opacity: 0, y: 50 }}
                   animate={{ opacity: 1, y: 0 }}
                   exit={{ opacity: 0, y: 50 }}
                   className="absolute inset-0 z-50 bg-black/70 flex justify-center items-center"
-                  onClick={() => setIsChatOpen(false)}
+                  onClick={() => setIsPremiumOpen(false)}
                 >
                   <motion.div
                     initial={{ scale: 0.8 }}
@@ -132,10 +137,9 @@ export default function AvatarModal({
                     className="bg-white rounded-xl w-[80%] max-w-xs p-4 relative"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <h3 className="text-lg font-semibold mb-2">Chat con {name}</h3>
-                    <p className="text-sm text-gray-700">Aquí iría tu componente de chat o formulario.</p>
+                    <PremiumModal isOpen={isPremiumOpen} onClose={() => setIsPremiumOpen(false)} />
                     <button
-                      onClick={() => setIsChatOpen(false)}
+                      onClick={() => setIsPremiumOpen(false)}
                       className="absolute top-2 right-2 text-black text-xl font-bold"
                     >
                       ✕

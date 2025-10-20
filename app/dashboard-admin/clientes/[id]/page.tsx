@@ -252,6 +252,7 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
           serviceVoucher: true,
           medicalAssistanceCard: true,
           travelTips: true,
+          verified: true,
         },
       },
     },
@@ -320,6 +321,14 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
               <span className="text-gray-500">Estado: </span>
               {client.isArchived ? "Archivado" : "Activo"}
             </div>
+            <div>
+  <span className="text-gray-500">Verificado: </span>
+  {client.user?.verified ? (
+    <span className="text-green-600 font-medium">Sí</span>
+  ) : (
+    <span className="text-red-600 font-medium">No</span>
+  )}
+</div>
 
             <div className="mt-2">
               <div className="text-gray-500">Tags:</div>
@@ -354,7 +363,9 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
                   Ver archivos
                 </summary>
                 <div className="mt-2">
-                  <ClientDocuments initialUser={client.user as any} />
+                  <ClientDocuments initialUser={client.user as any}
+  currentVerified={client.user?.verified || false}
+  clientId={client.id} />
                 </div>
               </details>
             </div>
@@ -370,6 +381,7 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
             currentArchived={client.isArchived}
             currentNotes={client.notes || ""}
             sellers={sellers}
+            
           />
         </div>
       </div>

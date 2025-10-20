@@ -42,15 +42,24 @@ function isCloudinary(url: string) {
 }
 function filenameForKey(key: string) {
   switch (key) {
-    case "dniFile": return "documento_identidad.pdf";
-    case "passport": return "pasaporte.pdf";
-    case "visa": return "visa.pdf";
-    case "purchaseOrder": return "orden_compra.pdf";
-    case "flightTickets": return "boletos_vuelo.pdf";
-    case "serviceVoucher": return "voucher_servicio.pdf";
-    case "medicalAssistanceCard": return "asistencia_medica.pdf";
-    case "travelTips": return "tips_viaje.pdf";
-    default: return "documento.pdf";
+    case "dniFile":
+      return "documento_identidad.pdf";
+    case "passport":
+      return "pasaporte.pdf";
+    case "visa":
+      return "visa.pdf";
+    case "purchaseOrder":
+      return "orden_compra.pdf";
+    case "flightTickets":
+      return "boletos_vuelo.pdf";
+    case "serviceVoucher":
+      return "voucher_servicio.pdf";
+    case "medicalAssistanceCard":
+      return "asistencia_medica.pdf";
+    case "travelTips":
+      return "tips_viaje.pdf";
+    default:
+      return "documento.pdf";
   }
 }
 
@@ -95,7 +104,13 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
           <a href={src} download={filename} className="text-xs underline" title="Descargar">
             Descargar
           </a>
-          <a href={src} target="_blank" rel="noopener noreferrer" className="text-xs underline" title="Abrir en pestaña">
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs underline"
+            title="Abrir en pestaña"
+          >
             Abrir en pestaña
           </a>
         </div>
@@ -107,7 +122,12 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
     <div className="rounded-md border p-3 text-xs text-gray-600">
       <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
       <div className="flex gap-2">
-        <a href={url} target="_blank" rel="noopener noreferrer" className="rounded-md border px-2 py-1 underline">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border px-2 py-1 underline"
+        >
           Abrir
         </a>
         <a href={url} download className="rounded-md border px-2 py-1">
@@ -118,7 +138,11 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
   );
 }
 
-type Props = { initialUser?: Record<string, unknown> | null };
+type Props = {
+  initialUser?: Record<string, unknown> | null;
+  currentVerified?: boolean;
+  clientId: string;
+};
 
 /**
  * ClientDocuments mantiene estado local de los URLs de archivos.
@@ -128,7 +152,7 @@ type Props = { initialUser?: Record<string, unknown> | null };
  * Dispara ese evento desde tu form:
  * window.dispatchEvent(new CustomEvent("client-doc-updated", { detail: { key: "passport", url: "<nuevo-url>" }}))
  */
-export default function ClientDocuments({ initialUser }: Props) {
+export default function ClientDocuments({ initialUser, currentVerified = false, clientId }: Props) {
   const initialEntries = useMemo(() => {
     const arr: { key: string; label: string; url: string }[] = [];
     if (initialUser) {
@@ -143,6 +167,8 @@ export default function ClientDocuments({ initialUser }: Props) {
   }, [initialUser]);
 
   const [entries, setEntries] = useState(initialEntries);
+  const [verified, setVerified] = useState(currentVerified);
+  const [loadingVerify, setLoadingVerify] = useState(false);
 
   useEffect(() => {
     const handler = (ev: Event) => {
@@ -163,6 +189,28 @@ export default function ClientDocuments({ initialUser }: Props) {
     return () => window.removeEventListener("client-doc-updated", handler as EventListener);
   }, []);
 
+  const toggleVerified = async () => {
+  try {
+    setLoadingVerify(true);
+    const formData = new FormData();
+    formData.append("verified", (!verified).toString());
+
+    const res = await fetch(`/api/admin/clients/${clientId}`, {
+      method: "PATCH",
+      body: formData,
+    });
+
+    if (!res.ok) throw new Error("Error al actualizar verificación");
+    setVerified((prev) => !prev);
+  } catch (err) {
+    console.error(err);
+    alert("No se pudo actualizar el estado de verificación");
+  } finally {
+    setLoadingVerify(false);
+  }
+};
+
+
   if (!entries.length) return <div className="text-xs text-gray-400">No hay documentos</div>;
 
   return (
@@ -178,7 +226,25 @@ export default function ClientDocuments({ initialUser }: Props) {
           <li key={key} className="rounded-md border p-2">
             <div className="flex items-center justify-between gap-3">
               <div className="text-xs font-medium text-gray-700">{label}</div>
+
               <div className="flex items-center gap-2">
+                {key === "dniFile" && (
+                  <button
+                    onClick={toggleVerified}
+                    disabled={loadingVerify}
+                    className={`text-xs px-2 py-1 rounded ${
+                      verified
+                        ? "bg-green-100 text-green-700 border border-green-400"
+                        : "bg-gray-100 text-gray-600 border border-gray-300"
+                    }`}
+                  >
+                    {loadingVerify
+                      ? "Actualizando..."
+                      : verified
+                      ? "✅ Verificado"
+                      : "❌ No verificado"}
+                  </button>
+                )}
                 <a
                   href={openUrl}
                   target="_blank"

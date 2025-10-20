@@ -28,6 +28,7 @@ type UserShape = {
   serviceVoucher?: string | null;
   medicalAssistanceCard?: string | null;
   travelTips?: string | null;
+  verified?: boolean | null;
 };
 
 export default function EditProfilePage() {
@@ -40,23 +41,30 @@ export default function EditProfilePage() {
   const [tempFile, setTempFile] = useState<File | null>(null);
 
   useEffect(() => {
-    async function fetchUser() {
-      try {
-        const res = await fetch("/api/auth/me", { credentials: "include" });
-        const data = await res.json();
-        if (data.user) {
-  const birthday =
-    data.user.birthday && data.user.birthday !== null
-      ? new Date(data.user.birthday).toISOString().split("T")[0]
-      : null;
-  setUser({ ...data.user, birthday });
-}
-      } catch (err) {
-        console.error(err);
+  async function fetchUser() {
+    try {
+      const res = await fetch("/api/auth/me", { credentials: "include" });
+      const data = await res.json();
+
+      if (data.user) {
+        const birthday =
+          data.user.birthday && data.user.birthday !== null
+            ? new Date(data.user.birthday).toISOString().split("T")[0]
+            : null;
+
+        // Forzamos verified a booleano real
+        const verified = data.user.verified === true || data.user.verified === 1 || data.user.verified === "true";
+
+        setUser({ ...data.user, birthday, verified });
       }
+    } catch (err) {
+      console.error(err);
     }
-    fetchUser();
-  }, []);
+  }
+
+  fetchUser();
+}, []);
+
 
   const openEditor = (field: string, value: string | null) => {
     setEditingField(field);
@@ -180,6 +188,55 @@ export default function EditProfilePage() {
         </div>
       </div>
 
+      <div className="border rounded-xl p-4 mb-6">
+  <div className="flex items-center mb-4 gap-2">
+    <h2 className="text-lg font-semibold">Identificación</h2> 
+  </div>
+
+  {user.verified ? (
+    <div className="flex justify-between items-center">
+      {/* Texto + ícono */}
+      <div className="flex items-center gap-2">
+        <span className="font-medium">Perfil verificado</span>
+        <Image
+          src="/favicon/check-aprobacion-club-solteros.svg"
+          alt="Verificado"
+          width={24}
+          height={24}
+        />
+      </div>
+
+      {/* Botón a la derecha */}
+      {user.dniFile && (
+        <a
+          href={user.dniFile}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+        >
+          Ver identificación
+        </a>
+      )}
+    </div>
+  ) : (
+    <div className="flex justify-between items-center">
+      {/* Texto de no verificado */}
+      <span className="font-medium">Perfil no verificado</span>
+
+      {/* Botón a la derecha */}
+      <button
+        onClick={() => openEditor("dniFile", null)}
+        className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+      >
+        Subir DNI
+      </button>
+    </div>
+  )}
+
+
+
+</div>
+
       <div className="space-y-8">
         {/* Sección: Acerca de ti */}
         <div className="border rounded-xl p-4">
@@ -219,51 +276,54 @@ export default function EditProfilePage() {
         </div>
 
         {/* Sección: Archivos */}
-        <div className="border rounded-xl p-4">
-          <div className="flex items-center mb-4 gap-2">
-            <h2 className="text-lg font-semibold">Documentos</h2>
-            <Image
-              src="/favicon/maletin-club-solteros.svg"
-              alt="Ícono"
-              width={24}
-              height={24}
-            />
-          </div>
+<div className="border rounded-xl p-4">
+  <div className="flex items-center mb-4 gap-2">
+    <h2 className="text-lg font-semibold">Documentos</h2>
+    <Image
+      src="/favicon/maletin-club-solteros.svg"
+      alt="Ícono"
+      width={24}
+      height={24}
+    />
+  </div>
 
-          <div className="space-y-2">
-            {fileList.map((file) => (
-              <div
-                key={file.key}
-                className="flex justify-between items-center p-2 border-b last:border-none"
+  <div className="space-y-2">
+    {fileList
+      .filter(file => file.key !== "dniFile") // <-- filtramos el DNI
+      .map((file) => (
+        <div
+          key={file.key}
+          className="flex justify-between items-center p-2 border-b last:border-none"
+        >
+          <span className="font-medium flex items-center gap-2">
+            {file.label}
+          </span>
+
+          <div className="flex items-center space-x-2">
+            {file.url ? (
+              <a
+                href={file.url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm text-purple-600 hover:underline"
               >
-                <span className="font-medium flex items-center gap-2">
-                  {file.label}
-                </span>
-
-                <div className="flex items-center space-x-2">
-                  {file.url ? (
-                    <a
-                      href={file.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="text-sm text-purple-600 hover:underline"
-                    >
-                      Ver
-                    </a>
-                  ) : (
-                    <span className="text-sm text-gray-400">No subido</span>
-                  )}
-                  <button
-                    className="text-purple-600 hover:text-purple-800 text-sm"
-                    onClick={() => openEditor(file.key, null)}
-                  >
-                    ✏️
-                  </button>
-                </div>
-              </div>
-            ))}
+                Ver
+              </a>
+            ) : (
+              <span className="text-sm text-gray-400">No subido</span>
+            )}
+            <button
+              className="text-purple-600 hover:text-purple-800 text-sm"
+              onClick={() => openEditor(file.key, null)}
+            >
+              ✏️
+            </button>
           </div>
         </div>
+      ))}
+  </div>
+</div>
+
       </div>
 
       {/* Modal */}

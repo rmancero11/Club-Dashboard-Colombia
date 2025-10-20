@@ -1,4 +1,4 @@
-'use client';
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
@@ -9,7 +9,9 @@ interface DestinationsListProps {
   userDestino?: string;
 }
 
-export default function DestinationsList({ userDestino }: DestinationsListProps) {
+export default function DestinationsList({
+  userDestino,
+}: DestinationsListProps) {
   const [destinos, setDestinos] = useState<DestinationDTO[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -66,10 +68,16 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
   };
 
   if (loading)
-    return <p className="text-gray-500 text-center mt-4">Cargando destinos...</p>;
+    return (
+      <p className="text-gray-500 text-center mt-4">Cargando destinos...</p>
+    );
   if (error) return <p className="text-red-500 text-center mt-4">⚠️ {error}</p>;
   if (destinos.length === 0)
-    return <p className="text-gray-400 text-center mt-4">No hay destinos disponibles</p>;
+    return (
+      <p className="text-gray-400 text-center mt-4">
+        No hay destinos disponibles
+      </p>
+    );
 
   return (
     <div className="relative">
@@ -111,11 +119,15 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
                 {destino.name}
               </h2>
               <p className="text-sm text-gray-500 mb-2">
-                {destino.city ? `${destino.city}, ${destino.country}` : destino.country}
+                {destino.city
+                  ? `${destino.city}, ${destino.country}`
+                  : destino.country}
               </p>
 
               {destino.description && (
-                <p className="text-gray-600 mb-3 line-clamp-2">{destino.description}</p>
+                <p className="text-gray-600 mb-3 line-clamp-2">
+                  {destino.description}
+                </p>
               )}
 
               {destino.category && (
@@ -140,18 +152,36 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
                     ${Number(destino.price).toLocaleString()}
                   </span>
                 )}
+                <a
+                  href=""
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center justify-center gap-2 bg-white text-green-600 border border-green-500 px-4 py-1.5 rounded-lg hover:bg-green-50 transition text-sm font-montserrat"
+                >
+                  <Image
+                    src="/favicon/whatsapp.svg"
+                    alt="WhatsApp"
+                    width={16}
+                    height={16}
+                  />
+                  WhatsApp
+                </a>
               </div>
 
               {/* Viajeros */}
               {destino.travelers && destino.travelers.length > 0 && (
                 <div className="mt-5">
-                  <p className="text-sm font-medium text-gray-700 mb-2">Viajan:</p>
+                  <p className="text-sm font-medium text-gray-700 mb-2">
+                    Viajan:
+                  </p>
                   <div className="flex -space-x-3">
                     {destino.travelers.slice(0, 6).map((viajero) => (
                       <div
                         key={viajero.id}
                         className="relative group cursor-pointer"
-                        onClick={() => router.push("/dashboard-user/match-viajes")} // ✅ redirige al componente nuevo
+                        onClick={() =>
+                          router.push("/dashboard-user/match-viajes")
+                        } // ✅ redirige al componente nuevo
                       >
                         <Image
                           src={viajero.avatar || "/images/default-avatar.png"}

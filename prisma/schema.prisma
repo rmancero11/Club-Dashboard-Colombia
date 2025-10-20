@@ -131,6 +131,7 @@ model User {
   password       String
   role           Role       @default(USER) // USER | ADMIN | SELLER
   status         UserStatus @default(ACTIVE)
+  verified   Boolean   @default(false)
   createdAt      DateTime   @default(now())
   avatar         String     @default("/images/default-avatar.png")
   timezone       String?
