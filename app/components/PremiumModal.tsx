@@ -30,7 +30,7 @@ export default function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
             {/* Imagen de fondo */}
             <div className="relative h-64 w-full">
               <Image
-                src="/premium-bg.jpg" // reemplazar con tu imagen real
+                src="/images/imagenmodalpremium.jpg" // reemplazar con tu imagen real
                 alt="Premium"
                 fill
                 className="object-cover"
