@@ -193,21 +193,27 @@ export default function EditProfilePage() {
     <h2 className="text-lg font-semibold">Identificación</h2> 
   </div>
 
-  {user.verified ? (
-    <div className="flex justify-between items-center">
-      {/* Texto + ícono */}
-      <div className="flex items-center gap-2">
-        <span className="font-medium">Perfil verificado</span>
-        <Image
-          src="/favicon/check-aprobacion-club-solteros.svg"
-          alt="Verificado"
-          width={24}
-          height={24}
-        />
-      </div>
+  <div className="flex justify-between items-center">
+    {/* Texto a la izquierda */}
+    <div className="flex items-center gap-2">
+      {user.verified ? (
+        <>
+          <span className="font-medium">Perfil verificado</span>
+          <Image
+            src="/favicon/check-aprobacion-club-solteros.svg"
+            alt="Verificado"
+            width={24}
+            height={24}
+          />
+        </>
+      ) : (
+        <span className="font-medium text-gray-600">Perfil no verificado</span>
+      )}
+    </div>
 
-      {/* Botón a la derecha */}
-      {user.dniFile && (
+    {/* Botón a la derecha */}
+    <div>
+      {user.dniFile ? (
         <a
           href={user.dniFile}
           target="_blank"
@@ -216,22 +222,18 @@ export default function EditProfilePage() {
         >
           Ver identificación
         </a>
+      ) : (
+        <button
+          onClick={() => openEditor("dniFile", null)}
+          className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+        >
+          Subir DNI
+        </button>
       )}
     </div>
-  ) : (
-    <div className="flex justify-between items-center">
-      {/* Texto de no verificado */}
-      <span className="font-medium">Perfil no verificado</span>
+  </div>
 
-      {/* Botón a la derecha */}
-      <button
-        onClick={() => openEditor("dniFile", null)}
-        className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
-      >
-        Subir DNI
-      </button>
-    </div>
-  )}
+
 
 
 
