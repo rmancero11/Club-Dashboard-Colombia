@@ -5,22 +5,35 @@ import { getAuth } from "@/app/lib/auth";
 import SellerMobileNav from "@/app/components/seller/MobileNav";
 import SellerCollapsibleSidebar from "@/app/components/seller/CollapsibleSidebar";
 
+type SidebarRole = "ADMIN" | "SELLER" | "USER";
+
 export default async function SellerLayout({ children }: { children: ReactNode }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "SELLER" && auth.role !== "ADMIN") redirect("/unauthorized");
+
+  // Este layout es SOLO para vendedores
+  if (auth.role !== "SELLER") redirect("/unauthorized");
 
   const user = await prisma.user.findUnique({
     where: { id: auth.userId },
     select: { id: true, name: true, email: true, role: true, avatar: true },
   });
 
-  const sidebarUser = {
-    id: user?.id || "",
-    name: user?.name || "Vendedor",
-    email: user?.email || "",
-    role: (user?.role || "SELLER") as "ADMIN" | "SELLER" | "USER",
-    avatar: user?.avatar || "/images/default-avatar.png",
+  // Si el usuario no existe en DB, forzamos re-login
+  if (!user) redirect("/login");
+
+  const sidebarUser: {
+    id: string;
+    name: string;
+    email: string;
+    role: SidebarRole;
+    avatar: string;
+  } = {
+    id: user.id,
+    name: user.name ?? "Vendedor",
+    email: user.email ?? "",
+    role: (user.role as SidebarRole) ?? "SELLER",
+    avatar: user.avatar ?? "/images/default-avatar.png",
   };
 
   return (

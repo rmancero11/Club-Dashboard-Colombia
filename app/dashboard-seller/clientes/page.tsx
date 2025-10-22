@@ -3,6 +3,16 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 
+// Telefónía por librería
+import countries from "i18n-iso-countries";
+import esLocale from "i18n-iso-countries/langs/es.json";
+import enLocale from "i18n-iso-countries/langs/en.json";
+import { CountryCode, parsePhoneNumberFromString } from "libphonenumber-js";
+
+// Registrar locales para mapear nombres de países → ISO2
+countries.registerLocale(esLocale as any);
+countries.registerLocale(enLocale as any);
+
 // Desactiva caché para ver cambios de documentos al instante
 export const revalidate = 0; // opcional: export const dynamic = "force-dynamic";
 
@@ -26,47 +36,28 @@ function fmtDate(d: Date | string) {
   });
 }
 
-// --- Indicativos por país (amplía según mercados) ---
-const DIAL_BY_COUNTRY: Record<string, string> = {
-  Colombia: "57",
-  México: "52",
-  "Estados Unidos": "1",
-  "United States": "1",
-  Canadá: "1",
-  Canada: "1",
-  Perú: "51",
-  Chile: "56",
-  Argentina: "54",
-  Ecuador: "593",
-  Venezuela: "58",
-  Brasil: "55",
-  España: "34",
-  Portugal: "351",
-  Francia: "33",
-  Italia: "39",
-  Alemania: "49",
-};
-function dialCodeForCountry(country?: string) {
-  if (!country) return "";
-  return DIAL_BY_COUNTRY[country.trim()] ?? "";
-}
-function normalizePhone(raw?: string) {
-  return (raw || "").replace(/[^\d+]/g, "");
-}
-function digitsOnly(raw?: string) {
-  return (raw || "").replace(/\D/g, "");
+// === Telefónía (librerías) ===
+function countryToISO2(country?: string): CountryCode | undefined {
+  if (!country) return undefined;
+  const code =
+    countries.getAlpha2Code(country.trim(), "es") ||
+    countries.getAlpha2Code(country.trim(), "en");
+  if (!code) return undefined;
+  const cc = code.toUpperCase();
+  // Narrow seguro al tipo CountryCode (AA..ZZ de 2 letras)
+  return /^[A-Z]{2}$/.test(cc) ? (cc as CountryCode) : undefined;
 }
 function toE164(phone?: string, country?: string) {
-  const raw = normalizePhone(phone);
+  const raw = (phone || "").trim();
   if (!raw) return "";
-  if (raw.startsWith("+")) return `+${digitsOnly(raw)}`;
-  const dial = dialCodeForCountry(country);
-  const localDigits = digitsOnly(raw);
-  if (!localDigits) return "";
-  return dial ? `+${dial}${localDigits}` : `+${localDigits}`;
+  const iso2 = countryToISO2(country);
+  const pn = iso2
+    ? parsePhoneNumberFromString(raw, iso2)
+    : parsePhoneNumberFromString(raw);
+  return pn && pn.isValid() ? pn.format("E.164") : "";
 }
 function waLink(e164?: string) {
-  const d = digitsOnly(e164);
+  const d = (e164 || "").replace(/\D/g, "");
   return d ? `https://wa.me/${d}` : "";
 }
 
@@ -149,7 +140,6 @@ function isCloudinary(url: string) {
   }
 }
 
-
 /** Inserta flag de entrega en Cloudinary (soporta /upload y /raw/upload) */
 function injectCloudinaryFlag(url: string, flag: string) {
   if (url.includes("/raw/upload/"))
@@ -203,8 +193,6 @@ function toDownloadCloudinary(url: string, filename: string) {
 function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
   const ext = getExt(url);
 
-
-
   // IMAGEN
   if (isImg(ext)) {
     return (
@@ -248,11 +236,7 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
 
     return (
       <div className="rounded-md border p-2 overflow-auto">
-        <embed
-          src={src}
-          title={filename}
-          className="h-80 w-full rounded"
-        />
+        <embed src={src} title={filename} className="h-80 w-full rounded" />
         <div className="mt-2 flex gap-2">
           <a
             href={downloadHref}
@@ -306,7 +290,7 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
 
   const entries: { key: string; label: string; url: string }[] = [];
   for (const key of ALLOWED_DOC_FIELDS) {
-    const v = user[key as string];
+    const v = (user as any)[key as string];
     if (typeof v === "string" && v.trim()) {
       entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
     }
@@ -375,11 +359,9 @@ export default async function SellerClientsPage({
 }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if ((auth.role !== "SELLER" && auth.role !== "ADMIN") || !auth.businessId) {
-    redirect("/unauthorized");
-  }
+  // Esta vista es de dashboard del vendedor
+  if (auth.role !== "SELLER") redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const sellerId = auth.userId;
 
   // --- Filtros desde la URL ---
@@ -393,7 +375,7 @@ export default async function SellerClientsPage({
   const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
   // --- WHERE principal ---
-  const where: any = { businessId, sellerId };
+  const where: any = { sellerId };
   if (status === "active") where.isArchived = false;
   if (status === "archived") where.isArchived = true;
 

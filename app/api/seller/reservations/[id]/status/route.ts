@@ -1,4 +1,3 @@
-// app/api/seller/reservations/[id]/status/route.ts
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import prisma from "@/app/lib/prisma";
@@ -14,8 +13,10 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const auth = await getAuth();
-  if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!auth.businessId) return NextResponse.json({ error: "No business" }, { status: 400 });
+  if (!auth) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!["SELLER", "ADMIN"].includes(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
@@ -23,38 +24,46 @@ export async function PATCH(
   const json = await req.json();
   const parsed = Body.safeParse(json);
   if (!parsed.success) {
-    return NextResponse.json({ error: "Invalid body", issues: parsed.error.issues }, { status: 400 });
+    return NextResponse.json(
+      { error: "Invalid body", issues: parsed.error.issues },
+      { status: 400 }
+    );
   }
+
   const { status } = parsed.data;
 
-  // 1) Cargar reserva validando business y ownership
-  const where: any = { id: params.id, businessId: auth.businessId! };
-  if (auth.role !== "ADMIN") where.sellerId = auth.userId!;
+  // 1) Validar que la reserva existe y pertenece al vendedor (si no es admin)
+  const where: any = { id: params.id };
+  if (auth.role !== "ADMIN") where.sellerId = auth.userId;
 
   const current = await prisma.reservation.findFirst({
     where,
-    select: { id: true, businessId: true, sellerId: true, status: true, clientId: true },
+    select: { id: true, sellerId: true, status: true, clientId: true },
   });
-  if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
+  if (!current) {
+    return NextResponse.json({ error: "Reserva no encontrada" }, { status: 404 });
+  }
 
   // 2) Actualizar estado
   const updated = await prisma.reservation.update({
     where: { id: current.id },
     data: { status },
     select: {
-      id: true, status: true, updatedAt: true,
+      id: true,
+      status: true,
+      updatedAt: true,
     },
   });
 
-  // 3) Bitácora
+  // 3) Registrar actividad
   await prisma.activityLog.create({
     data: {
-      businessId: auth.businessId!,
       action: "CHANGE_STATUS",
       reservationId: current.id,
       clientId: current.clientId,
       userId: auth.userId!,
-      message: `Estado -> ${status}`,
+      message: `Estado cambiado: ${current.status} → ${status}`,
       metadata: { from: current.status, to: status },
     },
   });

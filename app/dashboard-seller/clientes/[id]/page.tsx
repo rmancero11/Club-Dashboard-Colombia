@@ -35,9 +35,7 @@ const FILE_LABELS: Record<string, string> = {
   medicalAssistanceCard: "Asistencia médica",
   travelTips: "Tips de viaje",
 };
-const ALLOWED_DOC_FIELDS = Object.keys(
-  FILE_LABELS
-) as (keyof typeof FILE_LABELS)[];
+const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS) as (keyof typeof FILE_LABELS)[];
 
 /** Reserva (schema.prisma) */
 const RES_STATUS_LABEL: Record<string, string> = {
@@ -64,8 +62,7 @@ function getExt(url: string) {
     return m ? m[1] : "";
   }
 }
-const isImg = (e: string) =>
-  ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(e);
+const isImg = (e: string) => ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(e);
 const isPdf = (e: string) => e === "pdf";
 const isVid = (e: string) => ["mp4", "webm", "ogg"].includes(e);
 
@@ -158,44 +155,25 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
 
   // PDF (o Cloudinary raw sin extensión)
   const looksPdf =
-    isPdf(ext) ||
-    (isCloudinary(url) &&
-      (url.includes("/raw/upload/") || url.includes("/upload/")));
+    isPdf(ext) || (isCloudinary(url) && (url.includes("/raw/upload/") || url.includes("/upload/")));
 
   if (looksPdf) {
     const filename = filenameForKey(fileKey || "document");
 
     const src = url.includes("/api/file-proxy")
       ? url // ya viene listo (pid/rt/type/fmt)
-      : `/api/file-proxy?url=${encodeURIComponent(
-          url
-        )}&filename=${encodeURIComponent(filename)}`;
+      : `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
 
     const downloadHref = src;
 
     return (
       <div className="rounded-md border p-2 overflow-auto">
-        <iframe
-          src={src}
-          title={filename}
-          className="h-80 w-full rounded"
-        />
+        <iframe src={src} title={filename} className="h-80 w-full rounded" />
         <div className="mt-2 flex gap-2">
-          <a
-            href={downloadHref}
-            download={filename}
-            className="text-xs underline"
-            title="Descargar PDF"
-          >
+          <a href={downloadHref} download={filename} className="text-xs underline" title="Descargar PDF">
             Descargar
           </a>
-          <a
-            href={src}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-xs underline"
-            title="Abrir en pestaña"
-          >
+          <a href={src} target="_blank" rel="noopener noreferrer" className="text-xs underline" title="Abrir en pestaña">
             Abrir en pestaña
           </a>
         </div>
@@ -206,16 +184,9 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
   // Fallback genérico (doc/docx/xlsx o tipos no embebibles)
   return (
     <div className="rounded-md border p-3 text-xs text-gray-600">
-      <div className="mb-2">
-        No se puede previsualizar este tipo de archivo.
-      </div>
+      <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
       <div className="flex gap-2">
-        <a
-          href={url}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="rounded-md border px-2 py-1 underline"
-        >
+        <a href={url} target="_blank" rel="noopener noreferrer" className="rounded-md border px-2 py-1 underline">
           Abrir
         </a>
         <a href={url} download className="rounded-md border px-2 py-1">
@@ -228,12 +199,11 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
 
 /** Lista de documentos con preview + acciones */
 function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
-  if (!user)
-    return <div className="text-xs text-gray-400">No hay documentos</div>;
+  if (!user) return <div className="text-xs text-gray-400">No hay documentos</div>;
 
   const entries: { key: string; label: string; url: string }[] = [];
   for (const key of ALLOWED_DOC_FIELDS) {
-    const v = user[key as string];
+    const v = (user as any)[key as string];
     if (typeof v === "string" && v.trim()) {
       entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
     }
@@ -249,9 +219,7 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
         // Links “Abrir / Descargar” con manejo especial para Cloudinary PDF
         const filename = filenameForKey(key);
         const openUrl = isCloudinary(url)
-          ? `/api/file-proxy?url=${encodeURIComponent(
-              url
-            )}&filename=${encodeURIComponent(filename)}`
+          ? `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`
           : url;
         const downloadUrl = openUrl;
 
@@ -269,21 +237,14 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
                 >
                   Abrir
                 </a>
-                <a
-                  href={downloadUrl}
-                  download={filename}
-                  className="text-xs text-gray-700 underline"
-                  title="Descargar"
-                >
+                <a href={downloadUrl} download={filename} className="text-xs text-gray-700 underline" title="Descargar">
                   Descargar
                 </a>
               </div>
             </div>
 
             <details className="mt-2 group">
-              <summary className="cursor-pointer select-none text-xs text-gray-600 underline">
-                Previsualizar
-              </summary>
+              <summary className="cursor-pointer select-none text-xs text-gray-600 underline">Previsualizar</summary>
               <div className="mt-2">
                 <FilePreview url={url} fileKey={key} />
               </div>
@@ -295,20 +256,14 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
   );
 }
 
-export default async function ClientDetailPage({
-  params,
-}: {
-  params: { id: string };
-}) {
+export default async function ClientDetailPage({ params }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
 
-  // Filtro multi-tenant + pertenencia al seller si no es ADMIN
-  const where: any = { id: params.id, businessId: auth.businessId };
-  if (auth.role !== "ADMIN") where.sellerId = auth.userId;
+  if (auth.role !== "SELLER") redirect("/unauthorized");
 
-  // Cliente + 10 reservas + documentos del USER (whitelist)
+  const where: any = { id: params.id, sellerId: auth.userId };
+
   const client = await prisma.client.findFirst({
     where,
     select: {
@@ -368,10 +323,7 @@ export default async function ClientDetailPage({
             {client.country || "—"}
           </p>
         </div>
-        <a
-          href="/dashboard-seller/clientes"
-          className="rounded-md border px-3 py-2 text-sm"
-        >
+        <a href="/dashboard-seller/clientes" className="rounded-md border px-3 py-2 text-sm">
           ← Volver
         </a>
       </header>
@@ -408,10 +360,7 @@ export default async function ClientDetailPage({
               <div className="mt-1 flex flex-wrap gap-1">
                 {client.tags?.length
                   ? client.tags.map((t) => (
-                      <span
-                        key={t}
-                        className="rounded border px-1.5 py-0.5 text-[11px] text-gray-600"
-                      >
+                      <span key={t} className="rounded border px-1.5 py-0.5 text-[11px] text-gray-600">
                         {t}
                       </span>
                     ))
@@ -424,17 +373,13 @@ export default async function ClientDetailPage({
               <div className="whitespace-pre-wrap">{client.notes || "—"}</div>
             </div>
 
-            <div className="text-xs text-gray-500 mt-2">
-              Creado: {fmtDate(client.createdAt)}
-            </div>
+            <div className="text-xs text-gray-500 mt-2">Creado: {fmtDate(client.createdAt)}</div>
 
             {/* Listado de archivos (preview + acciones) */}
             <div className="mt-4">
               <h3 className="mb-2 text-sm font-medium">Documentos</h3>
               <details className="group">
-                <summary className="cursor-pointer text-sm text-blue-600">
-                  Ver archivos
-                </summary>
+                <summary className="cursor-pointer text-sm text-blue-600">Ver archivos</summary>
                 <div className="mt-2">
                   <DocumentList user={client.user as any} />
                 </div>
@@ -463,16 +408,10 @@ export default async function ClientDetailPage({
       <div className="rounded-xl border bg-white p-4">
         <h2 className="mb-3 text-lg font-semibold">Acciones</h2>
         <div className="flex flex-wrap gap-2 text-sm">
-          <a
-            href={`/dashboard-seller/reservas/nueva?clientId=${client.id}`}
-            className="rounded-md bg-black px-3 py-2 text-white"
-          >
+          <a href={`/dashboard-seller/reservas/nueva?clientId=${client.id}`} className="rounded-md bg-black px-3 py-2 text-white">
             Crear reserva
           </a>
-          <a
-            href={`/dashboard-seller/tareas/nueva?clientId=${client.id}`}
-            className="rounded-md border px-3 py-2"
-          >
+          <a href={`/dashboard-seller/tareas/nueva?clientId=${client.id}`} className="rounded-md border px-3 py-2">
             Crear tarea
           </a>
         </div>
@@ -495,19 +434,12 @@ export default async function ClientDetailPage({
                     <div className="text-xs text-gray-500">
                       {new Date(r.startDate).toLocaleDateString("es-CO")} →{" "}
                       {new Date(r.endDate).toLocaleDateString("es-CO")} ·{" "}
-                      {RES_STATUS_LABEL[
-                        r.status as keyof typeof RES_STATUS_LABEL
-                      ] ?? r.status}
+                      {RES_STATUS_LABEL[r.status as keyof typeof RES_STATUS_LABEL] ?? r.status}
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
-                    <div className="text-sm">
-                      {money(Number(r.totalAmount), r.currency)}
-                    </div>
-                    <Link
-                      className="text-sm text-primary underline"
-                      href={`/dashboard-seller/reservas/${r.id}`}
-                    >
+                    <div className="text-sm">{money(Number(r.totalAmount), r.currency)}</div>
+                    <Link className="text-sm text-primary underline" href={`/dashboard-seller/reservas/${r.id}`}>
                       Ver
                     </Link>
                   </div>

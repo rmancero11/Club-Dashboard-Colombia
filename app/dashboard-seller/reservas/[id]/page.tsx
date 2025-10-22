@@ -4,8 +4,9 @@ import { redirect, notFound } from "next/navigation";
 import SellerUpdateReservationStatus from "@/app/components/seller/reservations/SellerUpdateReservationStatus";
 import SellerEditReservationForm from "@/app/components/seller/reservations/SellerEditReservationform";
 import { getCurrencyOptions } from "@/app/lib/currencyOptions";
+import type { ReservationStatus } from "@prisma/client";
 
-/* --- Helpers UI (mismos del admin) --- */
+/* --- Helpers UI --- */
 function money(n: number, currency = "USD") {
   try {
     return new Intl.NumberFormat("es-CO", { style: "currency", currency }).format(n);
@@ -13,6 +14,7 @@ function money(n: number, currency = "USD") {
     return `${currency} ${Number(n).toFixed(2)}`;
   }
 }
+
 const RES_LABELS: Record<string, string> = {
   LEAD: "Prospecto",
   QUOTED: "Cotizado",
@@ -23,6 +25,7 @@ const RES_LABELS: Record<string, string> = {
   CANCELED: "Cancelada",
   EXPIRED: "Vencida",
 };
+
 const RES_PILL: Record<string, string> = {
   LEAD: "bg-gray-50 border-gray-200 text-gray-700",
   QUOTED: "bg-indigo-50 border-indigo-200 text-indigo-700",
@@ -33,6 +36,7 @@ const RES_PILL: Record<string, string> = {
   CANCELED: "bg-rose-50 border-rose-200 text-rose-700",
   EXPIRED: "bg-stone-50 border-stone-200 text-stone-700",
 };
+
 function fmtDate(d: Date | string) {
   const date = typeof d === "string" ? new Date(d) : d;
   return date.toLocaleDateString("es-CO");
@@ -64,16 +68,27 @@ function parseTimeline(
   }
 }
 
+/* --- Transiciones permitidas por estado --- */
+const ALLOWED_NEXT: Record<ReservationStatus, ReservationStatus[]> = {
+  LEAD: ["QUOTED", "HOLD", "CONFIRMED", "CANCELED", "EXPIRED"],
+  QUOTED: ["HOLD", "CONFIRMED", "CANCELED", "EXPIRED"],
+  HOLD: ["CONFIRMED", "CANCELED", "EXPIRED"],
+  CONFIRMED: ["TRAVELING", "CANCELED"],
+  TRAVELING: ["COMPLETED"],
+  COMPLETED: [],
+  CANCELED: [],
+  EXPIRED: [],
+};
+
 export default async function SellerReservationDetailPage({
   params,
 }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
+  if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
-  // multi-tenant + ownership (si no es ADMIN, restringe por sellerId)
-  const where: any = { id: params.id, businessId };
+  // ADMIN ve todas; SELLER solo las suyas
+  const where: any = { id: params.id };
   if (auth.role !== "ADMIN") where.sellerId = auth.userId;
 
   const r = await prisma.reservation.findFirst({
@@ -99,7 +114,7 @@ export default async function SellerReservationDetailPage({
   if (!r) notFound();
 
   const destinations = await prisma.destination.findMany({
-    where: { businessId, isActive: true },
+    where: { isActive: true },
     select: { id: true, name: true, country: true },
     orderBy: [{ popularityScore: "desc" }, { name: "asc" }],
     take: 300,
@@ -111,11 +126,10 @@ export default async function SellerReservationDetailPage({
   const waUrl = waDigits ? `https://wa.me/${waDigits}` : "";
   const timeline = parseTimeline(r.notes);
 
-  // Opciones para el selector de moneda (react-select en el form)
   const currencyOptions = getCurrencyOptions();
-  // Si quisieras forzar una por defecto, puedes basarte en país del vendedor/negocio.
-  // Para edición, usamos la de la reserva; esto es solo "fallback" si faltara.
   const defaultCurrency = "COP";
+
+  const allowedNext = (ALLOWED_NEXT[r.status as ReservationStatus] ?? []) as ReservationStatus[];
 
   return (
     <div className="space-y-6">
@@ -124,7 +138,9 @@ export default async function SellerReservationDetailPage({
         <div>
           <div className="flex items-center gap-2">
             <h1 className="text-2xl font-semibold">{r.code}</h1>
-            <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${pill}`}>
+            <span
+              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${pill}`}
+            >
               {statusLabel}
             </span>
           </div>
@@ -141,19 +157,27 @@ export default async function SellerReservationDetailPage({
         </a>
       </header>
 
-      {/* Resumen principal (Estado + Totales) */}
+      {/* Estado y totales */}
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-xl border bg-white p-4 lg:col-span-2">
           <h2 className="mb-3 text-lg font-semibold">Estado</h2>
-          <SellerUpdateReservationStatus id={r.id} status={r.status as any} />
+          <SellerUpdateReservationStatus
+            id={r.id}
+            status={r.status}
+            allowedNext={allowedNext}  // <- CORREGIDO: prop correcto
+          />
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
             <div className="rounded-lg border p-3">
               <div className="text-xs text-gray-500">Fechas del viaje</div>
-              <div className="text-sm">{fmtDate(r.startDate)} → {fmtDate(r.endDate)}</div>
+              <div className="text-sm">
+                {fmtDate(r.startDate)} → {fmtDate(r.endDate)}
+              </div>
             </div>
             <div className="rounded-lg border p-3">
               <div className="text-xs text-gray-500">Pasajeros</div>
-              <div className="text-sm">{r.paxAdults} adultos / {r.paxChildren} niños</div>
+              <div className="text-sm">
+                {r.paxAdults} adultos / {r.paxChildren} niños
+              </div>
             </div>
           </div>
         </div>
@@ -165,10 +189,17 @@ export default async function SellerReservationDetailPage({
             <span className="text-sm text-gray-500">({r.currency})</span>
           </div>
           <ul className="mt-3 space-y-1 text-sm text-gray-600">
-            <li><span className="text-gray-500">Código: </span><span className="font-medium">{r.code}</span></li>
+            <li>
+              <span className="text-gray-500">Código: </span>
+              <span className="font-medium">{r.code}</span>
+            </li>
             <li>
               <span className="text-gray-500">Estado: </span>
-              <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${pill}`}>{statusLabel}</span>
+              <span
+                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${pill}`}
+              >
+                {statusLabel}
+              </span>
             </li>
             <li>
               <span className="text-gray-500">Destino: </span>
@@ -177,33 +208,52 @@ export default async function SellerReservationDetailPage({
             </li>
             <li>
               <span className="text-gray-500">Cliente: </span>
-              <a className="underline" href={`/dashboard-seller/clientes/${r.client?.id}`}>{r.client?.name || "—"}</a>
+              <a className="underline" href={`/dashboard-seller/clientes/${r.client?.id}`}>
+                {r.client?.name || "—"}
+              </a>
             </li>
           </ul>
         </div>
       </section>
 
-      {/* Contacto + Timeline */}
+      {/* Contacto y Timeline */}
       <section className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Contacto del cliente</h2>
           <ul className="space-y-2 text-sm">
-            <li><span className="text-gray-500">Nombre: </span><span className="font-medium">{r.client?.name || "—"}</span></li>
+            <li>
+              <span className="text-gray-500">Nombre: </span>
+              <span className="font-medium">{r.client?.name || "—"}</span>
+            </li>
             <li>
               <span className="text-gray-500">Correo: </span>
               {r.client?.email ? (
-                <a className="text-blue-600 underline" href={`mailto:${r.client.email}`}>{r.client.email}</a>
-              ) : (<span className="text-gray-400">—</span>)}
+                <a className="text-blue-600 underline" href={`mailto:${r.client.email}`}>
+                  {r.client.email}
+                </a>
+              ) : (
+                <span className="text-gray-400">—</span>
+              )}
             </li>
             <li>
               <span className="text-gray-500">Teléfono: </span>
               {r.client?.phone ? (
                 waUrl ? (
-                  <a className="text-green-700 underline" target="_blank" href={waUrl} rel="noopener noreferrer" title="Abrir WhatsApp">
+                  <a
+                    className="text-green-700 underline"
+                    target="_blank"
+                    href={waUrl}
+                    rel="noopener noreferrer"
+                    title="Abrir WhatsApp"
+                  >
                     {r.client.phone}
                   </a>
-                ) : (<span className="text-gray-600">{r.client.phone}</span>)
-              ) : (<span className="text-gray-400">—</span>)}
+                ) : (
+                  <span className="text-gray-600">{r.client.phone}</span>
+                )
+              ) : (
+                <span className="text-gray-400">—</span>
+              )}
             </li>
           </ul>
           <div className="mt-4">
@@ -218,7 +268,7 @@ export default async function SellerReservationDetailPage({
 
         <div className="rounded-xl border bg-white p-4 lg:col-span-2">
           <h2 className="mb-3 text-lg font-semibold">Timeline</h2>
-          {(!timeline.length && r.notes) ? (
+          {!timeline.length && r.notes ? (
             <div className="mb-3 rounded-lg border bg-amber-50 p-3 text-xs text-amber-800">
               {r.notes}
             </div>
@@ -261,8 +311,8 @@ export default async function SellerReservationDetailPage({
             notes: r.notes || "",
           }}
           destinations={destinations}
-          currencyOptions={currencyOptions}   
-          defaultCurrency={r.currency || defaultCurrency} 
+          currencyOptions={getCurrencyOptions()}
+          defaultCurrency={r.currency || defaultCurrency}
         />
       </section>
     </div>

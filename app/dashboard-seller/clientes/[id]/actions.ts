@@ -9,12 +9,11 @@ type DocKeys =
   | "flightTickets"
   | "serviceVoucher"
   | "medicalAssistanceCard"
-  | "travelTips"
+  | "travelTips";
 // Si luego tu formulario soporta identidad, descomenta y listo:
 // | "dniFile"
 // | "passport"
 // | "visa"
-;
 
 const ALLOWED_DOC_KEYS: DocKeys[] = [
   "purchaseOrder",
@@ -30,16 +29,17 @@ const ALLOWED_DOC_KEYS: DocKeys[] = [
 export async function updateClientDocumentsAction(formData: FormData) {
   const auth = await getAuth();
   if (!auth) throw new Error("No autenticado");
-  if (!auth.businessId) throw new Error("Sin empresa asociada");
+  if (auth.role !== "SELLER" && auth.role !== "ADMIN") {
+    throw new Error("No autorizado");
+  }
 
-  const clientId = String(formData.get("clientId") || "");
+  const clientId = String(formData.get("clientId") || "").trim();
   if (!clientId) throw new Error("Falta clientId");
 
-  // Restringe por tenant y, si no es admin, por pertenencia al seller
+  // Restringe por pertenencia al seller (si no es ADMIN)
   const client = await prisma.client.findFirst({
     where: {
       id: clientId,
-      businessId: auth.businessId,
       ...(auth.role !== "ADMIN" ? { sellerId: auth.userId } : {}),
     },
     select: { id: true, userId: true },
@@ -56,9 +56,9 @@ export async function updateClientDocumentsAction(formData: FormData) {
     }
   }
 
-  // No hacer update vacío: evita touch innecesario
+  // Evita update vacío
   if (Object.keys(payload).length === 0) {
-    return { ok: true, message: "Sin cambios" };
+    return { ok: true, message: "Sin cambios" as const };
   }
 
   await prisma.user.update({
@@ -66,7 +66,7 @@ export async function updateClientDocumentsAction(formData: FormData) {
     data: payload,
   });
 
-  // Refresca la página de detalle del cliente del seller
+  // Refresca detalle del cliente
   revalidatePath(`/dashboard-seller/clientes/${clientId}`);
-  return { ok: true };
+  return { ok: true as const };
 }

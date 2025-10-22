@@ -1,17 +1,16 @@
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import KpiCard from "@/app/components/seller/KpiCard";
-import Sparkline from "@/app/components/seller/Sparkline";
 import TopDestinationsTable from "@/app/components/seller/TopDestinationsTable";
 import TaskList from "@/app/components/seller/TaskList";
-import { notFound, redirect } from "next/navigation";
+import { redirect } from "next/navigation";
 import ReservationTrend from "../components/seller/ReservationTrend";
 
 // Util: primer día del mes (00:00)
 function startOfMonth(d = new Date()) {
   return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
 }
-// Util: hace N meses
+// Util: hace N meses y lo posiciona al inicio de ese mes
 function monthsAgo(n: number) {
   const d = new Date();
   d.setMonth(d.getMonth() - n);
@@ -23,63 +22,53 @@ function monthsAgo(n: number) {
 export default async function SellerHomePage() {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "SELLER" && auth.role !== "ADMIN")
-    redirect("/unauthorized");
-  if (!auth.businessId) {
-    // sin empresa asociada, no hay datos que mostrar
-    notFound();
-  }
+  // Esta página es SOLO para vendedores
+  if (auth.role !== "SELLER") redirect("/unauthorized");
 
   const sellerId = auth.userId;
-  const businessId = auth.businessId!;
   const monthStart = startOfMonth();
   const yearStart = monthsAgo(11); // últimos 12 meses (incluye el actual)
 
-  // KPIs
-  const kpisPromise = Promise.all([
-    prisma.reservation.count({ where: { businessId, sellerId } }),
+  // KPIs (filtradas por seller)
+  const [total, pending, confirmed, thisMonth] = await Promise.all([
+    prisma.reservation.count({ where: { sellerId } }),
     prisma.reservation.count({
-      where: { businessId, sellerId, status: { in: ["LEAD"] } },
+      where: { sellerId, status: { in: ["LEAD"] } },
     }),
     prisma.reservation.count({
-      where: { businessId, sellerId, status: "CONFIRMED" },
+      where: { sellerId, status: "CONFIRMED" },
     }),
     prisma.reservation.count({
-      where: { businessId, sellerId, startDate: { gte: monthStart } },
+      where: { sellerId, startDate: { gte: monthStart } },
     }),
   ]);
 
   // Serie de reservas por mes (últimos 12 meses)
-  // Usamos raw SQL para agrupar por mes (Postgres)
-  const seriesPromise = prisma.$queryRaw<{ ym: string; count: bigint }[]>`
+  // Postgres: agrupamos por mes (YYYY-MM)
+  const rawSeries = await prisma.$queryRaw<{ ym: string; count: bigint }[]>`
     SELECT to_char(date_trunc('month', "startDate"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
-    WHERE "businessId" = ${businessId}
-      AND "sellerId" = ${sellerId}
+    WHERE "sellerId" = ${sellerId}
       AND "startDate" >= ${yearStart}
     GROUP BY 1
     ORDER BY 1
   `;
 
-  // Top destinos (por cantidad de reservas)
-  const topDestinationsPromise = prisma.$queryRaw<
-    { name: string; cnt: bigint }[]
-  >`
+  // Top destinos (por cantidad de reservas del seller)
+  const topDest = await prisma.$queryRaw<{ name: string; cnt: bigint }[]>`
     SELECT d."name" AS name, COUNT(r.*)::bigint AS cnt
     FROM "Reservation" r
     JOIN "Destination" d ON d."id" = r."destinationId"
-    WHERE r."businessId" = ${businessId}
-      AND r."sellerId" = ${sellerId}
+    WHERE r."sellerId" = ${sellerId}
     GROUP BY d."name"
     ORDER BY cnt DESC
     LIMIT 5
   `;
 
-  // Tareas pendientes
-  const tasksPromise = prisma.task.findMany({
+  // Tareas pendientes del seller
+  const tasks = await prisma.task.findMany({
     where: {
-      businessId,
       sellerId,
       status: { in: ["OPEN", "IN_PROGRESS"] },
     },
@@ -96,29 +85,18 @@ export default async function SellerHomePage() {
     },
   });
 
-  const [[total, pending, confirmed, thisMonth], rawSeries, topDest, tasks] =
-    await Promise.all([
-      kpisPromise,
-      seriesPromise,
-      topDestinationsPromise,
-      tasksPromise,
-    ]);
-
   // Normaliza serie a 12 meses continuos (YYYY-MM)
   const labels: string[] = [];
   const counts: number[] = [];
   for (let i = 11; i >= 0; i--) {
     const d = monthsAgo(i);
-    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(
-      2,
-      "0"
-    )}`;
+    const ym = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
     labels.push(ym);
-    const found = rawSeries.find((r: { ym: string }) => r.ym === ym);
+    const found = rawSeries.find((r) => r.ym === ym);
     counts.push(found ? Number(found.count) : 0);
   }
 
-  const topRows = topDest.map((r: { name: any; cnt: any }) => ({
+  const topRows = topDest.map((r) => ({
     name: r.name,
     count: Number(r.cnt),
   }));
@@ -141,11 +119,7 @@ export default async function SellerHomePage() {
       {/* Tendencia + Destinos */}
       <section className="grid gap-4 lg:grid-cols-2">
         <div className="rounded-xl border bg-white p-4">
-          <ReservationTrend
-            businessId={businessId}
-            sellerId={sellerId}
-            months={6}
-          />
+          <ReservationTrend sellerId={sellerId} months={6} />
         </div>
 
         <div className="rounded-xl border bg-white p-4">

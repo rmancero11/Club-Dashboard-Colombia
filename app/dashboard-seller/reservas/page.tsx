@@ -47,7 +47,6 @@ function parseDayEnd(s?: string | null) {
 }
 
 /* ================= Estados en español ================= */
-// Lista para selects
 const STATUS_LIST = [
   { value: "LEAD" as const, label: "Prospecto" },
   { value: "QUOTED" as const, label: "Cotizado" },
@@ -59,7 +58,6 @@ const STATUS_LIST = [
   { value: "EXPIRED" as const, label: "Expirada" },
 ] as const;
 
-// Mapa para pintar el badge y cualquier otro lugar
 const STATUS_LABELS: Record<ReservationStatus, string> = {
   LEAD: "Prospecto",
   QUOTED: "Cotizado",
@@ -73,6 +71,7 @@ const STATUS_LABELS: Record<ReservationStatus, string> = {
 
 const ALLOWED_STATUS = new Set(STATUS_LIST.map((s) => s.value));
 
+/* ================= Página ================= */
 export default async function ReservasPage({
   searchParams,
 }: {
@@ -80,9 +79,8 @@ export default async function ReservasPage({
 }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
+  if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const isAdmin = auth.role === "ADMIN";
   const sellerId = auth.userId;
 
@@ -115,7 +113,7 @@ export default async function ReservasPage({
   const pageSize = Math.min(pageSizeRaw, 50);
 
   /* ================= Filtros base ================= */
-  const where: any = { businessId };
+  const where: any = {};
   if (!isAdmin) where.sellerId = sellerId;
   if (status) where.status = status;
   if (destinationId) where.destinationId = destinationId;
@@ -137,7 +135,7 @@ export default async function ReservasPage({
 
   /* ================= Opciones de filtros ================= */
   const destinationsPromise = prisma.destination.findMany({
-    where: { businessId },
+    where: { isActive: true },
     select: { id: true, name: true, country: true, city: true },
     orderBy: [{ name: "asc" }],
   });
@@ -268,10 +266,8 @@ export default async function ReservasPage({
             ))}
           </select>
 
-          {/* Mantén el reset de página cuando cambian filtros */}
           <input type="hidden" name="page" value="1" />
 
-          {/* Botonera abajo — a todo lo ancho en xs, alineada a la derecha en sm+ */}
           <div className="col-span-1 sm:col-span-6 mt-2 flex flex-col sm:flex-row gap-2 sm:justify-end">
             <button
               className="rounded-md border px-3 py-2 text-sm w-full sm:w-auto"
@@ -321,8 +317,7 @@ export default async function ReservasPage({
             )}
 
             {items.map((r) => {
-              const amount = Number(r.totalAmount); // Decimal -> number
-
+              const amount = Number(r.totalAmount);
               const statusClass =
                 r.status === "CONFIRMED"
                   ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -345,12 +340,9 @@ export default async function ReservasPage({
               return (
                 <tr key={r.id} className="border-t">
                   <td className="px-2 py-2 font-medium">{r.code}</td>
-
                   <td className="px-2 py-2">
                     <div className="flex flex-col">
-                      <span className="font-normal">
-                        {r.client?.name || "—"}
-                      </span>
+                      <span>{r.client?.name || "—"}</span>
                       {r.client?.email && (
                         <span className="text-xs text-gray-600">
                           {r.client.email}
@@ -358,28 +350,21 @@ export default async function ReservasPage({
                       )}
                     </div>
                   </td>
-
                   <td className="px-2 py-2">{r.destination?.name || "—"}</td>
-
                   <td className="px-2 py-2">
                     {fmtDate(r.startDate)} → {fmtDate(r.endDate)}
                   </td>
-
                   <td className="px-2 py-2">
                     Adultos: {r.paxAdults} / Niños: {r.paxChildren}
                   </td>
-
                   <td className="px-2 py-2">
                     <span
                       className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusClass}`}
-                      title={STATUS_LABELS[r.status]}
                     >
                       {STATUS_LABELS[r.status]}
                     </span>
                   </td>
-
                   <td className="px-2 py-2">{fmtMoney(amount, r.currency)}</td>
-
                   <td className="px-2 py-2 text-right">
                     <a
                       href={`/dashboard-seller/reservas/${r.id}`}
@@ -447,7 +432,7 @@ export default async function ReservasPage({
                 : "#"
             }
           >
-            Siguiente →
+            Siguiente → 
           </a>
         </div>
       </div>

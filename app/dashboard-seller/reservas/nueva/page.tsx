@@ -10,10 +10,8 @@ export default async function NewSellerReservationPage({
 }: { searchParams?: { clientId?: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
   if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const sellerId = auth.userId!;
 
   // País del vendedor para preseleccionar moneda
@@ -26,20 +24,20 @@ export default async function NewSellerReservationPage({
 
   const [clients, destinations] = await Promise.all([
     prisma.client.findMany({
-      where: { businessId, sellerId, isArchived: false },
+      where: { sellerId, isArchived: false },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
       take: 200,
     }),
     prisma.destination.findMany({
-      where: { businessId, isActive: true },
+      where: { isActive: true },
       select: { id: true, name: true, country: true },
       orderBy: [{ popularityScore: "desc" }, { name: "asc" }],
       take: 200,
     }),
   ]);
 
-  const currencyOptions = getCurrencyOptions(); // mismas opciones que usa admin
+  const currencyOptions = getCurrencyOptions();
 
   return (
     <div className="space-y-4">

@@ -1,9 +1,24 @@
 "use client";
-
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import type { ReservationStatus as PrismaReservationStatus } from "@prisma/client";
 
-const RES_LABELS: Record<string, string> = {
+// Fuente única de verdad: enum de Prisma
+type ReservationStatus = PrismaReservationStatus;
+
+// Lista fija para iterar (evita Object.keys + cast)
+const ALL_STATUSES: ReservationStatus[] = [
+  "LEAD",
+  "QUOTED",
+  "HOLD",
+  "CONFIRMED",
+  "TRAVELING",
+  "COMPLETED",
+  "CANCELED",
+  "EXPIRED",
+];
+
+const RES_LABELS: Record<ReservationStatus, string> = {
   LEAD: "Prospecto",
   QUOTED: "Cotizado",
   HOLD: "En espera",
@@ -17,39 +32,42 @@ const RES_LABELS: Record<string, string> = {
 export default function SellerUpdateReservationStatus({
   id,
   status,
+  allowedNext = [],
 }: {
   id: string;
-  status:
-    | "LEAD"
-    | "QUOTED"
-    | "HOLD"
-    | "CONFIRMED"
-    | "TRAVELING"
-    | "COMPLETED"
-    | "CANCELED"
-    | "EXPIRED";
+  status: ReservationStatus;
+  /** Estados a los que SÍ se puede cambiar desde el actual */
+  allowedNext?: ReservationStatus[];
 }) {
   const router = useRouter();
-  const [value, setValue] = useState(status);
+  const [value, setValue] = useState<ReservationStatus>(status);
   const [loading, setLoading] = useState(false);
 
   async function onChange(e: React.ChangeEvent<HTMLSelectElement>) {
-    const next = e.target.value as typeof status;
+    const next = e.target.value as ReservationStatus;
+    if (next === status) return;
     setLoading(true);
-    const res = await fetch(`/api/seller/reservations/${id}/status`, {
-      method: "PATCH",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ status: next }),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err?.error || "No se pudo actualizar el estado.");
+    try {
+      const res = await fetch(`/api/seller/reservations/${id}/status`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: next }),
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err?.error || "No se pudo actualizar el estado.");
+        setValue(status);
+        return;
+      }
+      setValue(next);
+      router.refresh();
+    } catch {
+      alert("Error de red.");
       setValue(status);
-      return;
+    } finally {
+      setLoading(false);
     }
-    setValue(next);
-    router.refresh();
   }
 
   return (
@@ -61,11 +79,15 @@ export default function SellerUpdateReservationStatus({
         value={value}
         disabled={loading}
       >
-        {Object.keys(RES_LABELS).map((s) => (
-          <option key={s} value={s}>
-            {RES_LABELS[s]}
-          </option>
-        ))}
+        {ALL_STATUSES.map((s) => {
+          const disabled =
+            s !== status && allowedNext.length > 0 && !allowedNext.includes(s);
+          return (
+            <option key={s} value={s} disabled={disabled}>
+              {RES_LABELS[s]}{disabled ? " (bloqueado)" : ""}
+            </option>
+          );
+        })}
       </select>
     </div>
   );

@@ -26,7 +26,7 @@ export default function SellerNewReservationForm({
 }) {
   const router = useRouter();
 
-  // Estado del formulario (sin vendedor: lo pone el backend usando la sesión)
+  // Estado del formulario
   const [clientId, setClientId] = useState(defaultClientId ?? "");
   const [destinationId, setDestinationId] = useState("");
   const [startDate, setStartDate] = useState("");
@@ -39,11 +39,10 @@ export default function SellerNewReservationForm({
   const [loading, setLoading] = useState(false);
   const [err, setErr] = useState<string | null>(null);
 
-  const selectedCurrency =
-    useMemo(() => currencyOptions.find((o) => o.value === currency) || null, [
-      currencyOptions,
-      currency,
-    ]);
+  const selectedCurrency = useMemo(
+    () => currencyOptions.find((o) => o.value === currency) || null,
+    [currencyOptions, currency]
+  );
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -51,7 +50,7 @@ export default function SellerNewReservationForm({
     setErr(null);
 
     try {
-      // Endpoint de seller: el backend obtiene sellerId desde el token/sesión
+      // El backend obtiene el sellerId desde la sesión del usuario autenticado
       const res = await fetch("/api/seller/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -91,6 +90,7 @@ export default function SellerNewReservationForm({
           </div>
         )}
 
+        {/* Cliente y destino */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-sm">
             <span className="font-medium">Cliente *</span>
@@ -128,6 +128,7 @@ export default function SellerNewReservationForm({
           </label>
         </div>
 
+        {/* Fechas */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <label className="grid gap-1 text-sm">
             <span className="font-medium">Inicio *</span>
@@ -151,6 +152,7 @@ export default function SellerNewReservationForm({
           </label>
         </div>
 
+        {/* Pasajeros y moneda */}
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <label className="grid gap-1 text-sm">
             <span className="font-medium">Adultos</span>
@@ -210,6 +212,7 @@ export default function SellerNewReservationForm({
           </label>
         </div>
 
+        {/* Total y notas */}
         <label className="grid gap-1 text-sm">
           <span className="font-medium">Total</span>
           <input
@@ -231,6 +234,7 @@ export default function SellerNewReservationForm({
           />
         </label>
 
+        {/* Botones */}
         <div className="flex gap-2 pt-2">
           <button
             type="submit"
