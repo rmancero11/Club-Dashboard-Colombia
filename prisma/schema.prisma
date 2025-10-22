@@ -108,6 +108,7 @@ model User {
   birthday       DateTime?
   gender         String?
   lookingFor     String?
+  galleryImages String[] @default([])
 
   // Relaciones cuando es SELLER (agente)
   sellerClients       Client[]             @relation("SellerClients")

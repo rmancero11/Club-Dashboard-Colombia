@@ -48,6 +48,7 @@ export async function GET() {
         createdAt: true,
         verified: true,
         avatar: true,
+        galleryImages: true,
         // businessId: true,  // ❌ ya no existe
         dniFile: true,
         passport: true,
@@ -138,6 +139,7 @@ export async function GET() {
       createdAt: user.createdAt,
       verified: user.verified,
       avatar: user.avatar,
+      galleryImages: user.galleryImages,
       // businessId: user.businessId, // ❌ quitar
       dniFile: user.dniFile,
       passportFile: user.passport,
