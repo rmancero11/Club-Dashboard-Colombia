@@ -41,30 +41,39 @@ export default function EditProfilePage() {
   const [tempFile, setTempFile] = useState<File | null>(null);
 
   useEffect(() => {
-  async function fetchUser() {
-    try {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      const data = await res.json();
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const data = await res.json();
 
-      if (data.user) {
-        const birthday =
-          data.user.birthday && data.user.birthday !== null
-            ? new Date(data.user.birthday).toISOString().split("T")[0]
-            : null;
+        if (data.user) {
+          const birthday =
+            data.user.birthday && data.user.birthday !== null
+              ? new Date(data.user.birthday).toISOString().split("T")[0]
+              : null;
+          const singleStatus =
+            data.user.singleStatus === true || data.user.singleStatus === "true"
+              ? "Sí"
+              : data.user.singleStatus === false ||
+                data.user.singleStatus === "false"
+              ? "No"
+              : null;
 
-        // Forzamos verified a booleano real
-        const verified = data.user.verified === true || data.user.verified === 1 || data.user.verified === "true";
+          // Forzamos verified a booleano real
+          const verified =
+            data.user.verified === true ||
+            data.user.verified === 1 ||
+            data.user.verified === "true";
 
-        setUser({ ...data.user, birthday, verified });
+          setUser({ ...data.user, birthday, verified, singleStatus });
+        }
+      } catch (err) {
+        console.error(err);
       }
-    } catch (err) {
-      console.error(err);
     }
-  }
 
-  fetchUser();
-}, []);
-
+    fetchUser();
+  }, []);
 
   const openEditor = (field: string, value: string | null) => {
     setEditingField(field);
@@ -129,19 +138,81 @@ export default function EditProfilePage() {
   if (!user) return <p className="text-center mt-10">Cargando perfil...</p>;
 
   const countries = [
-    "Albania","Alemania","Andorra","Antigua y Barbuda","Argentina","Austria",
-    "Bahamas","Barbados","Bélgica","Belice","Bolivia","Bosnia y Herzegovina",
-    "Brasil","Bulgaria","Canadá","Chile","Chipre","Colombia","Costa Rica",
-    "Croacia","Cuba","Dinamarca","Dominica","Ecuador","El Salvador","España",
-    "Estonia","Finlandia","Francia","Granada","Grecia","Guatemala","Guyana",
-    "Haití","Honduras","Irlanda","Islandia","Italia","Kosovo","Letonia",
-    "Liechtenstein","Lituania","Luxemburgo","Malta","Macedonia del Norte",
-    "México","Moldavia","Mónaco","Montenegro","Nicaragua","Noruega",
-    "Países Bajos","Panamá","Paraguay","Perú","Polonia","Portugal","Puerto Rico",
-    "República Checa","República Dominicana","Rumanía","Rusia","San Marino",
-    "San Vicente y las Granadinas","Serbia","Suecia","Suiza","Surinam",
-    "Trinidad y Tobago","Turquía","Ucrania","Uruguay","Vaticano","Venezuela",
-    "Reino Unido"
+    "Albania",
+    "Alemania",
+    "Andorra",
+    "Antigua y Barbuda",
+    "Argentina",
+    "Austria",
+    "Bahamas",
+    "Barbados",
+    "Bélgica",
+    "Belice",
+    "Bolivia",
+    "Bosnia y Herzegovina",
+    "Brasil",
+    "Bulgaria",
+    "Canadá",
+    "Chile",
+    "Chipre",
+    "Colombia",
+    "Costa Rica",
+    "Croacia",
+    "Cuba",
+    "Dinamarca",
+    "Dominica",
+    "Ecuador",
+    "El Salvador",
+    "España",
+    "Estonia",
+    "Finlandia",
+    "Francia",
+    "Granada",
+    "Grecia",
+    "Guatemala",
+    "Guyana",
+    "Haití",
+    "Honduras",
+    "Irlanda",
+    "Islandia",
+    "Italia",
+    "Kosovo",
+    "Letonia",
+    "Liechtenstein",
+    "Lituania",
+    "Luxemburgo",
+    "Malta",
+    "Macedonia del Norte",
+    "México",
+    "Moldavia",
+    "Mónaco",
+    "Montenegro",
+    "Nicaragua",
+    "Noruega",
+    "Países Bajos",
+    "Panamá",
+    "Paraguay",
+    "Perú",
+    "Polonia",
+    "Portugal",
+    "Puerto Rico",
+    "República Checa",
+    "República Dominicana",
+    "Rumanía",
+    "Rusia",
+    "San Marino",
+    "San Vicente y las Granadinas",
+    "Serbia",
+    "Suecia",
+    "Suiza",
+    "Surinam",
+    "Trinidad y Tobago",
+    "Turquía",
+    "Ucrania",
+    "Uruguay",
+    "Vaticano",
+    "Venezuela",
+    "Reino Unido",
   ];
 
   const fileList = [
@@ -159,7 +230,11 @@ export default function EditProfilePage() {
     { label: "Ubicación", key: "country", value: user.country },
     { label: "Busco...", key: "lookingFor", value: user.lookingFor },
     { label: "¿Soltero/a?", key: "singleStatus", value: user.singleStatus },
-    { label: "¿Con cuál afirmación te identificas más?", key: "affirmation", value: user.affirmation },
+    {
+      label: "¿Con cuál afirmación te identificas más?",
+      key: "affirmation",
+      value: user.affirmation,
+    },
     { label: "Seguridad", key: "security", value: user.security },
   ];
 
@@ -189,55 +264,52 @@ export default function EditProfilePage() {
       </div>
 
       <div className="border rounded-xl p-4 mb-6">
-  <div className="flex items-center mb-4 gap-2">
-    <h2 className="text-lg font-semibold">Identificación</h2> 
-  </div>
+        <div className="flex items-center mb-4 gap-2">
+          <h2 className="text-lg font-semibold">Identificación</h2>
+        </div>
 
-  <div className="flex justify-between items-center">
-    {/* Texto a la izquierda */}
-    <div className="flex items-center gap-2">
-      {user.verified ? (
-        <>
-          <span className="font-medium">Perfil verificado</span>
-          <Image
-            src="/favicon/check-aprobacion-club-solteros.svg"
-            alt="Verificado"
-            width={24}
-            height={24}
-          />
-        </>
-      ) : (
-        <span className="font-medium text-gray-600">Perfil no verificado</span>
-      )}
-    </div>
+        <div className="flex justify-between items-center">
+          {/* Texto a la izquierda */}
+          <div className="flex items-center gap-2">
+            {user.verified ? (
+              <>
+                <span className="font-medium">Perfil verificado</span>
+                <Image
+                  src="/favicon/check-aprobacion-club-solteros.svg"
+                  alt="Verificado"
+                  width={24}
+                  height={24}
+                />
+              </>
+            ) : (
+              <span className="font-medium text-gray-600">
+                Perfil no verificado
+              </span>
+            )}
+          </div>
 
-    {/* Botón a la derecha */}
-    <div>
-      {user.dniFile ? (
-        <a
-          href={user.dniFile}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
-        >
-          Ver identificación
-        </a>
-      ) : (
-        <button
-          onClick={() => openEditor("dniFile", null)}
-          className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
-        >
-          Subir Identificación
-        </button>
-      )}
-    </div>
-  </div>
-
-
-
-
-
-</div>
+          {/* Botón a la derecha */}
+          <div>
+            {user.dniFile ? (
+              <a
+                href={user.dniFile}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+              >
+                Ver identificación
+              </a>
+            ) : (
+              <button
+                onClick={() => openEditor("dniFile", null)}
+                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm"
+              >
+                Subir Identificación
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
 
       <div className="space-y-8">
         {/* Sección: Acerca de ti */}
@@ -268,7 +340,7 @@ export default function EditProfilePage() {
                       onClick={() => openEditor(field.key, field.value ?? "")}
                       className="text-purple-600 hover:text-purple-800 text-sm"
                     >
-                      ✏️
+                      ➤
                     </button>
                   )}
                 </div>
@@ -278,54 +350,53 @@ export default function EditProfilePage() {
         </div>
 
         {/* Sección: Archivos */}
-<div className="border rounded-xl p-4">
-  <div className="flex items-center mb-4 gap-2">
-    <h2 className="text-lg font-semibold">Documentos</h2>
-    <Image
-      src="/favicon/maletin-club-solteros.svg"
-      alt="Ícono"
-      width={24}
-      height={24}
-    />
-  </div>
+        <div className="border rounded-xl p-4">
+          <div className="flex items-center mb-4 gap-2">
+            <h2 className="text-lg font-semibold">Documentos</h2>
+            <Image
+              src="/favicon/maletin-club-solteros.svg"
+              alt="Ícono"
+              width={24}
+              height={24}
+            />
+          </div>
 
-  <div className="space-y-2">
-    {fileList
-      .filter(file => file.key !== "dniFile") // <-- filtramos el DNI
-      .map((file) => (
-        <div
-          key={file.key}
-          className="flex justify-between items-center p-2 border-b last:border-none"
-        >
-          <span className="font-medium flex items-center gap-2">
-            {file.label}
-          </span>
+          <div className="space-y-2">
+            {fileList
+              .filter((file) => file.key !== "dniFile") // <-- filtramos el DNI
+              .map((file) => (
+                <div
+                  key={file.key}
+                  className="flex justify-between items-center p-2 border-b last:border-none"
+                >
+                  <span className="font-medium flex items-center gap-2">
+                    {file.label}
+                  </span>
 
-          <div className="flex items-center space-x-2">
-            {file.url ? (
-              <a
-                href={file.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm text-purple-600 hover:underline"
-              >
-                Ver
-              </a>
-            ) : (
-              <span className="text-sm text-gray-400">No subido</span>
-            )}
-            <button
-              className="text-purple-600 hover:text-purple-800 text-sm"
-              onClick={() => openEditor(file.key, null)}
-            >
-              ✏️
-            </button>
+                  <div className="flex items-center space-x-2">
+                    {file.url ? (
+                      <a
+                        href={file.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-sm text-purple-600 hover:underline"
+                      >
+                        Ver
+                      </a>
+                    ) : (
+                      <span className="text-sm text-gray-400">No subido</span>
+                    )}
+                    <button
+                      className="text-purple-600 hover:text-purple-800 text-sm"
+                      onClick={() => openEditor(file.key, null)}
+                    >
+                      ➤
+                    </button>
+                  </div>
+                </div>
+              ))}
           </div>
         </div>
-      ))}
-  </div>
-</div>
-
       </div>
 
       {/* Modal */}
@@ -347,7 +418,9 @@ export default function EditProfilePage() {
             >
               <h3 className="text-lg font-semibold mb-3 text-center">Editar</h3>
 
-              {["dniFile", "passportFile", "visaFile"].includes(editingField) ? (
+              {["dniFile", "passportFile", "visaFile"].includes(
+                editingField
+              ) ? (
                 <input
                   type="file"
                   className="w-full border rounded-md px-3 py-2"

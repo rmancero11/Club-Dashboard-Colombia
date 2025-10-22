@@ -34,7 +34,8 @@ export async function POST(req: Request) {
     const birthdayRaw = formData.get("birthday") as string | null;
     const gender = (formData.get("gender") as string)?.trim() || null;
     const lookingFor = (formData.get("lookingFor") as string)?.trim() || null;
-    const singleStatus = (formData.get("singleStatus") as string)?.trim() || null;
+    const singleStatus =
+      (formData.get("singleStatus") as string)?.trim() || null;
     const affirmation = (formData.get("affirmation") as string)?.trim() || null;
     const security = (formData.get("security") as string)?.trim() || null;
 
@@ -54,7 +55,9 @@ export async function POST(req: Request) {
       if (!file) return null;
       const arrayBuffer = await file.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
-      const safeName = file.name.replace(/\s+/g, "_").replace(/[^a-zA-Z0-9_.-]/g, "");
+      const safeName = file.name
+        .replace(/\s+/g, "_")
+        .replace(/[^a-zA-Z0-9_.-]/g, "");
       const filename = `${userId}-${field}-${Date.now()}-${safeName}`;
       const filePath = path.join(uploadsDir, filename);
       await fs.writeFile(filePath, buffer);
@@ -65,7 +68,6 @@ export async function POST(req: Request) {
     const dniUrl = await saveFile(dniFile, "dniFile");
     const passportUrl = await saveFile(passportFile, "passportFile");
     const visaUrl = await saveFile(visaFile, "visaFile");
-
     // 6️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
       where: { id: userId },
