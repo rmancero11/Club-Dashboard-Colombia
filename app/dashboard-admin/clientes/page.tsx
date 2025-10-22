@@ -270,7 +270,7 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
 
   const entries: { key: string; label: string; url: string }[] = [];
   for (const key of ALLOWED_DOC_FIELDS) {
-    const v = user[key as string];
+    const v = (user as any)[key as string];
     if (typeof v === "string" && v.trim()) {
       entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
     }
@@ -341,8 +341,8 @@ export default async function AdminClientsPage({
 }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
-  const businessId = auth.businessId!;
+  // Nuevo schema: sin businessId; solo validamos rol ADMIN
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   // --- Query params ---
   const q =
@@ -363,7 +363,7 @@ export default async function AdminClientsPage({
   const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
   // --- Filtro principal: solo nombre y correo ---
-  const where: any = { businessId };
+  const where: any = {};
   if (sellerId) where.sellerId = sellerId;
   if (archived === "active") where.isArchived = false;
   if (archived === "archived") where.isArchived = true;
@@ -378,12 +378,11 @@ export default async function AdminClientsPage({
   // Filtros auxiliares (para selects)
   const [sellers, countries] = await Promise.all([
     prisma.user.findMany({
-      where: { businessId, role: "SELLER", status: "ACTIVE" },
+      where: { role: "SELLER", status: "ACTIVE" },
       select: { id: true, name: true, email: true },
       orderBy: [{ name: "asc" }],
     }),
     prisma.client.findMany({
-      where: { businessId },
       select: { country: true },
       distinct: ["country"],
       orderBy: { country: "asc" },
@@ -566,14 +565,14 @@ export default async function AdminClientsPage({
                   : "—";
                 const badgeCls = resStatusBadgeClass(lastStatus);
 
-                const docCount = Object.values(c.user || {}).filter(Boolean).length;
+                const docCount = Object.values((c as any).user || {}).filter(Boolean).length;
 
                 return (
                   <tr key={c.id} className="border-t">
                     <td className="px-2 py-2">
                       <div className="font-medium">{c.name}</div>
                       <div className="text-xs text-gray-600">
-                        Creado: {fmtDate(c.createdAt)}
+                        Creado: {fmtDate(c.createdAt as any)}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-1">
                         {c.tags?.map((t) => (
@@ -629,7 +628,7 @@ export default async function AdminClientsPage({
                     <td className="px-2 py-2">{c.seller?.name || "—"}</td>
 
                     {/* Conteo de reservas */}
-                    <td className="px-2 py-2">{c._count.reservations}</td>
+                    <td className="px-2 py-2">{(c as any)._count.reservations}</td>
 
                     {/* Estado última reserva */}
                     <td className="px-2 py-2">
@@ -649,7 +648,7 @@ export default async function AdminClientsPage({
                             : "Ver archivos"}
                         </summary>
                         <div className="mt-2 max-w-full">
-                          <DocumentList user={c.user as any} />
+                          <DocumentList user={(c as any).user as any} />
                         </div>
                       </details>
                     </td>

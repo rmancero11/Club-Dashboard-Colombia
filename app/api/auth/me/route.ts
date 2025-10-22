@@ -1,20 +1,17 @@
 export const dynamic = "force-dynamic";
 export const revalidate = 0;
-export const runtime = 'nodejs';
+export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
 import prisma from "@/app/lib/prisma";
 
-
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET no está definido en las variables de entorno");
 }
 const enc = new TextEncoder();
-
-type Role = "ADMIN" | "SELLER" | "USER";
 
 export async function GET() {
   try {
@@ -27,9 +24,7 @@ export async function GET() {
     }
 
     const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
-    const userId =
-      (payload?.sub as string | undefined) ||
-      (payload as any)?.id;
+    const userId = (payload?.sub as string | undefined) || (payload as any)?.id;
     if (!userId) {
       return NextResponse.json(
         { error: "Token inválido" },
@@ -38,86 +33,83 @@ export async function GET() {
     }
 
     const user = await prisma.user.findUnique({
-  where: { id: userId },
-  select: {
-    id: true,
-    name: true,
-    email: true,
-    role: true,
-    status: true,
-    phone: true,
-    country: true,
-    budget: true,
-    preference: true,
-    destino: true,
-    createdAt: true,
-    verified: true,
-    avatar: true,
-    businessId: true,
-    dniFile: true,
-    passport: true,
-    visa: true,
-    comment: true,
-    singleStatus: true,
-    affirmation: true,
-    acceptedTerms: true,
-    flow: true,
-    birthday: true,        
-    gender: true,          
-    lookingFor: true,
-
-    // Archivos nuevos
-    purchaseOrder: true,
-    flightTickets: true,
-    serviceVoucher: true,
-    medicalAssistanceCard: true,
-    travelTips: true,
-
-    // Links del vendedor
-    whatsappNumber: true,
-    currentlyLink: true,
-
-    // Perfil de cliente
-    clientProfile: {
+      where: { id: userId },
       select: {
         id: true,
-        seller: {
+        name: true,
+        email: true,
+        role: true,
+        status: true,
+        phone: true,
+        country: true,
+        budget: true,
+        preference: true,
+        destino: true,
+        createdAt: true,
+        verified: true,
+        avatar: true,
+        // businessId: true,  // ❌ ya no existe
+        dniFile: true,
+        passport: true,
+        visa: true,
+        comment: true,
+        singleStatus: true,
+        affirmation: true,
+        acceptedTerms: true,
+        flow: true,
+        birthday: true,
+        gender: true,
+        lookingFor: true,
+
+        // Archivos nuevos
+        purchaseOrder: true,
+        flightTickets: true,
+        serviceVoucher: true,
+        medicalAssistanceCard: true,
+        travelTips: true,
+
+        // Links del vendedor
+        whatsappNumber: true,
+        currentlyLink: true,
+
+        // Perfil de cliente (si role = USER)
+        clientProfile: {
           select: {
             id: true,
-            name: true,
-            phone: true,
-            avatar: true,
-            whatsappNumber: true,
-            currentlyLink: true,
-          },
-        },
-        // Próximo destino reservado
-        reservations: {
-          where: { status: { not: "CANCELED" } },
-          orderBy: { startDate: "asc" },
-          take: 1, // solo el próximo
-          select: {
-            id: true,
-            startDate: true,
-            endDate: true,
-            destination: {
+            seller: {
               select: {
                 id: true,
                 name: true,
-                country: true,
-                city: true,
-                description: true,
-                imageUrl: true,
+                phone: true,
+                avatar: true,
+                whatsappNumber: true,
+                currentlyLink: true,
+              },
+            },
+            reservations: {
+              where: { status: { not: "CANCELED" } },
+              orderBy: { startDate: "asc" },
+              take: 1,
+              select: {
+                id: true,
+                startDate: true,
+                endDate: true,
+                destination: {
+                  select: {
+                    id: true,
+                    name: true,
+                    country: true,
+                    city: true,
+                    description: true,
+                    imageUrl: true,
+                  },
+                },
               },
             },
           },
         },
       },
-    },
-  },
-});
-
-
+    });
 
     if (!user) {
       return NextResponse.json(
@@ -133,56 +125,53 @@ export async function GET() {
       );
     }
 
-    // Mapeo actualizado con los archivos
-const userShape = {
-  id: user.id,
-  name: user.name,
-  email: user.email,
-  role: user.role,
-  phone: user.phone,
-  country: user.country,
-  budget: user.budget,
-  preference: user.preference,
-  destino: user.destino,
-  createdAt: user.createdAt,
-  verified: user.verified,
-  avatar: user.avatar,
-  businessId: user.businessId,
-  dniFile: user.dniFile,
-  passportFile: user.passport,
-  visaFile: user.visa,
-  comment: user.comment,
-  singleStatus: user.singleStatus,
-  affirmation: user.affirmation,
-  acceptedTerms: user.acceptedTerms,
-  flow: user.flow,
-  birthday: user.birthday,
-  gender: user.gender,         
-  lookingFor: user.lookingFor,
+    const userShape = {
+      id: user.id,
+      name: user.name,
+      email: user.email,
+      role: user.role,
+      phone: user.phone,
+      country: user.country,
+      budget: user.budget,
+      preference: user.preference,
+      destino: user.destino,
+      createdAt: user.createdAt,
+      verified: user.verified,
+      avatar: user.avatar,
+      // businessId: user.businessId, // ❌ quitar
+      dniFile: user.dniFile,
+      passportFile: user.passport,
+      visaFile: user.visa,
+      comment: user.comment,
+      singleStatus: user.singleStatus,
+      affirmation: user.affirmation,
+      acceptedTerms: user.acceptedTerms,
+      flow: user.flow,
+      birthday: user.birthday,
+      gender: user.gender,
+      lookingFor: user.lookingFor,
 
-  // Archivos
-  purchaseOrder: user.purchaseOrder,
-  flightTickets: user.flightTickets,
-  serviceVoucher: user.serviceVoucher,
-  medicalAssistanceCard: user.medicalAssistanceCard,
-  travelTips: user.travelTips,
+      // Archivos
+      purchaseOrder: user.purchaseOrder,
+      flightTickets: user.flightTickets,
+      serviceVoucher: user.serviceVoucher,
+      medicalAssistanceCard: user.medicalAssistanceCard,
+      travelTips: user.travelTips,
 
-  // Vendedor asignado
-  vendedor: user.clientProfile?.seller
-    ? {
-        nombre: user.clientProfile.seller.name,
-        telefono: user.clientProfile.seller.phone,
-        avatar: user.clientProfile.seller.avatar,
-        whatsappNumber: user.clientProfile.seller.whatsappNumber,
-        currentlyLink: user.clientProfile.seller.currentlyLink,
-      }
-    : null,
+      // Vendedor asignado
+      vendedor: user.clientProfile?.seller
+        ? {
+            nombre: user.clientProfile.seller.name,
+            telefono: user.clientProfile.seller.phone,
+            avatar: user.clientProfile.seller.avatar,
+            whatsappNumber: user.clientProfile.seller.whatsappNumber,
+            currentlyLink: user.clientProfile.seller.currentlyLink,
+          }
+        : null,
 
-  // Próximo destino reservado
-  nextDestination:
-    user.clientProfile?.reservations?.[0]?.destination ?? null,
-};
-
+      // Próximo destino reservado
+      nextDestination: user.clientProfile?.reservations?.[0]?.destination ?? null,
+    };
 
     return NextResponse.json(
       { user: userShape },

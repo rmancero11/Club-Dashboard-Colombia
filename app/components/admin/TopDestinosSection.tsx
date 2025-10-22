@@ -1,6 +1,6 @@
 import prisma from "@/app/lib/prisma";
 
-export default async function TopDestinosSection({ businessId }: { businessId: string }) {
+export default async function TopDestinosSection() {
   const rows = await prisma.$queryRaw<{
     name: string;
     city: string | null;
@@ -16,7 +16,6 @@ export default async function TopDestinosSection({ businessId }: { businessId: s
       COUNT(*) FILTER (WHERE r."status" = 'CONFIRMED')::bigint AS confirmed
     FROM "Reservation" r
     JOIN "Destination" d ON d."id" = r."destinationId"
-    WHERE r."businessId" = ${businessId}
     GROUP BY d."name", d."city", d."country"
     ORDER BY leads DESC
     LIMIT 10

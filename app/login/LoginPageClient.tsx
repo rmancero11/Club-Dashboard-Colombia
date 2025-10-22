@@ -140,7 +140,8 @@ export default function LoginPageClient({
           )}
 
           {isDemo && (
-            <div className="my-auto relative flex flex-col gap-4 w/full max-w-[400px] px-8">
+            <div className="my-auto relative flex flex-col gap-4 w-full max-w-[400px] px-8">
+              {/* corregido: w/full -> w-full */}
               <div className="flex justify-center items-center text-primary text-3xl md:text-5xl">
                 <Image
                   src="/logoclubsolteros.svg"

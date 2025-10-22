@@ -7,13 +7,14 @@ type Status = "ACTIVE" | "INACTIVE";
 
 type UserFormType = {
   id: string;
-  role: Role;
+  role: Role;                 // solo lectura (viene del servidor)
   status: Status;
-  commissionRate: number | null;
+  commissionRate: number | null; // editable solo si role === "SELLER"
 };
 
 export default function AdminUserEditForm(props: { user: UserFormType }) {
-  const [role, setRole] = useState<Role>(props.user.role);
+  const { role: fixedRole } = props.user;
+
   const [status, setStatus] = useState<Status>(props.user.status);
   const [commissionRate, setCommissionRate] = useState<string>(
     props.user.commissionRate != null ? String(props.user.commissionRate) : ""
@@ -23,12 +24,6 @@ export default function AdminUserEditForm(props: { user: UserFormType }) {
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  // Si el rol deja de ser SELLER, limpiamos comisión para no enviarla
-  function handleRoleChange(next: Role) {
-    setRole(next);
-    if (next !== "SELLER") setCommissionRate("");
-  }
-
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true); setMsg(null); setErr(null);
@@ -36,7 +31,7 @@ export default function AdminUserEditForm(props: { user: UserFormType }) {
     try {
       // Validación de comisión SOLO para SELLER
       let commissionToSend: string | null = null;
-      if (role === "SELLER") {
+      if (fixedRole === "SELLER") {
         const num = Number(commissionRate);
         if (Number.isNaN(num) || num < 0 || num > 100) {
           setErr("La comisión debe estar entre 0 y 100.");
@@ -48,9 +43,9 @@ export default function AdminUserEditForm(props: { user: UserFormType }) {
       }
 
       const payload: Record<string, any> = {
-        role,
         status,
-        commissionRate: role === "SELLER" ? commissionToSend : null,
+        // Solo incluimos commissionRate si aplica; de lo contrario, lo explicitamos como null
+        commissionRate: fixedRole === "SELLER" ? commissionToSend : null,
       };
 
       const res = await fetch(`/api/admin/users/${props.user.id}`, {
@@ -85,15 +80,13 @@ export default function AdminUserEditForm(props: { user: UserFormType }) {
         </div>
       )}
 
-      {/* Estado */}
-      <label className="grid gap-1 text-sm">
+      {/* Rol (solo lectura) */}
+      <div className="grid gap-1 text-sm">
         <span className="font-medium">Rol</span>
-        <select value={role} onChange={(e) => setRole(e.target.value as Role)} className="rounded-md border px-3 py-2">
-          <option value="ADMIN">ADMIN</option>
-          <option value="SELLER">SELLER</option>
-          <option value="USER">USER</option>
-        </select>
-      </label>
+        <div className="rounded-md border px-3 py-2 bg-gray-50 text-gray-700">
+          {fixedRole}
+        </div>
+      </div>
 
       {/* Estado */}
       <label className="grid gap-1 text-sm">
@@ -109,7 +102,7 @@ export default function AdminUserEditForm(props: { user: UserFormType }) {
       </label>
 
       {/* Comisión (solo SELLER) */}
-      {role === "SELLER" && (
+      {fixedRole === "SELLER" && (
         <label className="grid gap-1 text-sm">
           <span className="font-medium">% Comisión (0–100)</span>
           <input
@@ -133,10 +126,7 @@ export default function AdminUserEditForm(props: { user: UserFormType }) {
         >
           {loading ? "Guardando..." : "Guardar cambios"}
         </button>
-        <a
-          href="/dashboard-admin/vendedores"
-          className="rounded-md border px-4 py-2 text-sm"
-        >
+        <a href="/dashboard-admin/vendedores" className="rounded-md border px-4 py-2 text-sm">
           Cancelar
         </a>
       </div>

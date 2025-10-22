@@ -19,16 +19,12 @@ function fmtMoney(n: number, currency = "USD") {
   }
 }
 function daysBetween(a: Date, b: Date) {
-  return Math.max(
-    0,
-    Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24))
-  );
+  return Math.max(0, Math.floor((b.getTime() - a.getTime()) / (1000 * 60 * 60 * 24)));
 }
 
 const RES_PENDING = ["LEAD", "QUOTED", "HOLD"] as const;
 const TASK_PENDING = ["OPEN", "IN_PROGRESS", "BLOCKED"] as const;
 
-// Mapas para mostrar en español (solo UI)
 const RES_STATUS_LABELS: Record<string, string> = {
   LEAD: "Prospecto",
   QUOTED: "Cotizado",
@@ -54,17 +50,14 @@ const TASK_PRIORITY_LABELS: Record<string, string> = {
 
 export default async function AdminSellerDetailPage({
   params,
-}: {
-  params: { id: string };
-}) {
+}: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
-  const businessId = auth.businessId!;
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   // ---------- Perfil ----------
   const seller = await prisma.user.findFirst({
-    where: { id: params.id, businessId, role: "SELLER" },
+    where: { id: params.id, role: "SELLER" },
     select: {
       id: true,
       name: true,
@@ -97,60 +90,51 @@ export default async function AdminSellerDetailPage({
     recentClients,
     recentActivity,
   ] = await Promise.all([
-    prisma.client.count({ where: { businessId, sellerId: seller.id } }),
+    prisma.client.count({ where: { sellerId: seller.id } }),
     prisma.reservation.aggregate({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       _count: { _all: true },
       _sum: { totalAmount: true },
     }),
     prisma.reservation.aggregate({
-      where: {
-        businessId,
-        sellerId: seller.id,
-        startDate: { gte: start, lte: end },
-      },
+      where: { sellerId: seller.id, startDate: { gte: start, lte: end } },
       _count: { _all: true },
       _sum: { totalAmount: true },
     }),
     prisma.task.count({
-      where: {
-        businessId,
-        sellerId: seller.id,
-        status: { in: TASK_PENDING as any },
-      },
+      where: { sellerId: seller.id, status: { in: TASK_PENDING as any } },
     }),
     prisma.task.count({
       where: {
-        businessId,
         sellerId: seller.id,
         status: { in: TASK_PENDING as any },
         dueDate: { lt: now },
       },
     }),
     prisma.reservation.groupBy({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       by: ["status"],
       _count: { _all: true },
       _sum: { totalAmount: true },
     }),
     prisma.task.groupBy({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       by: ["status"],
       _count: { _all: true },
     }),
     prisma.task.groupBy({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       by: ["priority"],
       _count: { _all: true },
     }),
     prisma.reservation.groupBy({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       by: ["destinationId"],
       _count: { _all: true },
       _sum: { totalAmount: true },
     }),
     prisma.reservation.findMany({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
@@ -167,7 +151,7 @@ export default async function AdminSellerDetailPage({
       },
     }),
     prisma.task.findMany({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
@@ -180,7 +164,7 @@ export default async function AdminSellerDetailPage({
       },
     }),
     prisma.client.findMany({
-      where: { businessId, sellerId: seller.id },
+      where: { sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 6,
       select: {
@@ -192,7 +176,7 @@ export default async function AdminSellerDetailPage({
       },
     }),
     prisma.activityLog.findMany({
-      where: { businessId, userId: seller.id },
+      where: { userId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: { id: true, action: true, message: true, createdAt: true },
@@ -223,11 +207,8 @@ export default async function AdminSellerDetailPage({
         select: { id: true, name: true },
       })
     : [];
-  const destNameById = Object.fromEntries(
-    topDestinationNames.map((d) => [d.id, d.name])
-  );
+  const destNameById = Object.fromEntries(topDestinationNames.map((d) => [d.id, d.name]));
 
-  // Helper chips
   const statusPill =
     seller.status === "ACTIVE"
       ? "border-emerald-200 bg-emerald-50 text-emerald-700"
@@ -239,12 +220,8 @@ export default async function AdminSellerDetailPage({
       <header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="text-2xl font-semibold">
-              {seller.name || "Vendedor"}
-            </h1>
-            <span
-              className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusPill}`}
-            >
+            <h1 className="text-2xl font-semibold">{seller.name || "Vendedor"}</h1>
+            <span className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] font-medium ${statusPill}`}>
               {seller.status === "ACTIVE" ? "Activo" : "Inactivo"}
             </span>
           </div>
@@ -252,24 +229,15 @@ export default async function AdminSellerDetailPage({
             {seller.email} · {seller.phone || "—"} · {seller.country || "—"}
           </p>
           <p className="text-xs text-gray-400">
-            Alta: {new Date(seller.createdAt).toLocaleDateString("es-CO")} ·
-            Antigüedad: {tenureDays} días
-            {seller.commissionRate != null
-              ? ` · Comisión: ${Number(seller.commissionRate).toFixed(2)}%`
-              : ""}
+            Alta: {new Date(seller.createdAt).toLocaleDateString("es-CO")} · Antigüedad: {tenureDays} días
+            {seller.commissionRate != null ? ` · Comisión: ${Number(seller.commissionRate).toFixed(2)}%` : ""}
           </p>
         </div>
         <div className="flex gap-2">
-          <a
-            href={`/dashboard-admin/usuarios/${seller.id}`}
-            className="rounded-md border px-3 py-2 text-sm"
-          >
+          <a href={`/dashboard-admin/usuarios/${seller.id}`} className="rounded-md border px-3 py-2 text-sm">
             Editar
           </a>
-          <a
-            href="/dashboard-admin/vendedores"
-            className="rounded-md border px-3 py-2 text-sm"
-          >
+          <a href="/dashboard-admin/vendedores" className="rounded-md border px-3 py-2 text-sm">
             ← Volver
           </a>
         </div>
@@ -313,9 +281,7 @@ export default async function AdminSellerDetailPage({
         <div className="min-w-0 rounded-xl border bg-white p-4">
           <div className="text-sm text-gray-500">Ventas (mes)</div>
           <div className="text-2xl font-semibold">{fmtMoney(monthResSum)}</div>
-          <div className="text-[11px] text-gray-500">
-            {monthResCount} reservas
-          </div>
+          <div className="text-[11px] text-gray-500">{monthResCount} reservas</div>
         </div>
       </section>
 
@@ -324,39 +290,21 @@ export default async function AdminSellerDetailPage({
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Embudo de reservas</h2>
           <ul className="grid grid-cols-2 gap-2 text-sm md:grid-cols-3">
-            {[
-              "LEAD",
-              "QUOTED",
-              "HOLD",
-              "CONFIRMED",
-              "TRAVELING",
-              "COMPLETED",
-              "CANCELED",
-              "EXPIRED",
-            ].map((st) => {
+            {["LEAD","QUOTED","HOLD","CONFIRMED","TRAVELING","COMPLETED","CANCELED","EXPIRED"].map((st) => {
               const row = resByStatus.find((r) => r.status === st);
               const c = row?._count?._all ?? 0;
               const pill =
-                st === "COMPLETED"
-                  ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                  : st === "CONFIRMED"
-                  ? "bg-sky-50 border-sky-200 text-sky-700"
-                  : st === "HOLD"
-                  ? "bg-amber-50 border-amber-200 text-amber-700"
-                  : st === "QUOTED"
-                  ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                  : st === "LEAD"
-                  ? "bg-gray-50 border-gray-200 text-gray-700"
-                  : st === "TRAVELING"
-                  ? "bg-cyan-50 border-cyan-200 text-cyan-700"
-                  : st === "CANCELED"
-                  ? "bg-rose-50 border-rose-200 text-rose-700"
-                  : "bg-stone-50 border-stone-200 text-stone-700";
+                st === "COMPLETED" ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                st === "CONFIRMED" ? "bg-sky-50 border-sky-200 text-sky-700" :
+                st === "HOLD" ? "bg-amber-50 border-amber-200 text-amber-700" :
+                st === "QUOTED" ? "bg-indigo-50 border-indigo-200 text-indigo-700" :
+                st === "LEAD" ? "bg-gray-50 border-gray-200 text-gray-700" :
+                st === "TRAVELING" ? "bg-cyan-50 border-cyan-200 text-cyan-700" :
+                st === "CANCELED" ? "bg-rose-50 border-rose-200 text-rose-700" :
+                "bg-stone-50 border-stone-200 text-stone-700";
               return (
                 <li key={st} className={`rounded-lg border p-3 ${pill}`}>
-                  <div className="text-xs font-medium">
-                    {RES_STATUS_LABELS[st] ?? st}
-                  </div>
+                  <div className="text-xs font-medium">{RES_STATUS_LABELS[st] ?? st}</div>
                   <div className="mt-1 text-base font-semibold">{c}</div>
                 </li>
               );
@@ -365,45 +313,31 @@ export default async function AdminSellerDetailPage({
         </div>
 
         <div className="rounded-xl border bg-white p-4">
-          <h2 className="mb-3 text-lg font-semibold">
-            Tareas por estado y prioridad
-          </h2>
+          <h2 className="mb-3 text-lg font-semibold">Tareas por estado y prioridad</h2>
           <div className="grid grid-cols-2 gap-3">
             <div>
-              <div className="mb-2 text-sm font-medium text-gray-600">
-                Por estado
-              </div>
+              <div className="mb-2 text-sm font-medium text-gray-600">Por estado</div>
               <ul className="space-y-1 text-sm">
-                {["OPEN", "IN_PROGRESS", "BLOCKED", "DONE", "CANCELLED"].map(
-                  (st) => {
-                    const row = tasksByStatus.find((t) => t.status === st);
-                    const c = row?._count?._all ?? 0;
-                    return (
-                      <li
-                        key={st}
-                        className="flex items-center justify-between rounded-md border px-2 py-1"
-                      >
-                        <span>{TASK_STATUS_LABELS[st] ?? st}</span>
-                        <span className="font-semibold">{c}</span>
-                      </li>
-                    );
-                  }
-                )}
+                {["OPEN", "IN_PROGRESS", "BLOCKED", "DONE", "CANCELLED"].map((st) => {
+                  const row = tasksByStatus.find((t) => t.status === st);
+                  const c = row?._count?._all ?? 0;
+                  return (
+                    <li key={st} className="flex items-center justify-between rounded-md border px-2 py-1">
+                      <span>{TASK_STATUS_LABELS[st] ?? st}</span>
+                      <span className="font-semibold">{c}</span>
+                    </li>
+                  );
+                })}
               </ul>
             </div>
             <div>
-              <div className="mb-2 text-sm font-medium text-gray-600">
-                Por prioridad
-              </div>
+              <div className="mb-2 text-sm font-medium text-gray-600">Por prioridad</div>
               <ul className="space-y-1 text-sm">
                 {["HIGH", "MEDIUM", "LOW"].map((p) => {
                   const row = tasksByPriority.find((t) => t.priority === p);
                   const c = row?._count?._all ?? 0;
                   return (
-                    <li
-                      key={p}
-                      className="flex items-center justify-between rounded-md border px-2 py-1"
-                    >
+                    <li key={p} className="flex items-center justify-between rounded-md border px-2 py-1">
                       <span>{TASK_PRIORITY_LABELS[p] ?? p}</span>
                       <span className="font-semibold">{c}</span>
                     </li>
@@ -425,21 +359,14 @@ export default async function AdminSellerDetailPage({
             <ul className="divide-y">
               {recentReservations.map((r) => {
                 const statusPill =
-                  r.status === "COMPLETED"
-                    ? "bg-emerald-50 border-emerald-200 text-emerald-700"
-                    : r.status === "CONFIRMED"
-                    ? "bg-sky-50 border-sky-200 text-sky-700"
-                    : r.status === "HOLD"
-                    ? "bg-amber-50 border-amber-200 text-amber-700"
-                    : r.status === "QUOTED"
-                    ? "bg-indigo-50 border-indigo-200 text-indigo-700"
-                    : r.status === "LEAD"
-                    ? "bg-gray-50 border-gray-200 text-gray-700"
-                    : r.status === "TRAVELING"
-                    ? "bg-cyan-50 border-cyan-200 text-cyan-700"
-                    : r.status === "CANCELED"
-                    ? "bg-rose-50 border-rose-200 text-rose-700"
-                    : "bg-stone-50 border-stone-200 text-stone-700";
+                  r.status === "COMPLETED" ? "bg-emerald-50 border-emerald-200 text-emerald-700" :
+                  r.status === "CONFIRMED" ? "bg-sky-50 border-sky-200 text-sky-700" :
+                  r.status === "HOLD" ? "bg-amber-50 border-amber-200 text-amber-700" :
+                  r.status === "QUOTED" ? "bg-indigo-50 border-indigo-200 text-indigo-700" :
+                  r.status === "LEAD" ? "bg-gray-50 border-gray-200 text-gray-700" :
+                  r.status === "TRAVELING" ? "bg-cyan-50 border-cyan-200 text-cyan-700" :
+                  r.status === "CANCELED" ? "bg-rose-50 border-rose-200 text-rose-700" :
+                  "bg-stone-50 border-stone-200 text-stone-700";
                 return (
                   <li key={r.id} className="py-2">
                     <div className="flex items-start justify-between gap-3">
@@ -449,17 +376,13 @@ export default async function AdminSellerDetailPage({
                         </div>
                         <div className="text-xs text-gray-500">
                           {new Date(r.startDate).toLocaleDateString("es-CO")} →{" "}
-                          {new Date(r.endDate).toLocaleDateString("es-CO")}
-                          {" · "}
-                          <span
-                            className={`inline-flex items-center rounded-md border px-1.5 py-[1px] text-[10px] ${statusPill}`}
-                          >
+                          {new Date(r.endDate).toLocaleDateString("es-CO")}{" · "}
+                          <span className={`inline-flex items-center rounded-md border px-1.5 py-[1px] text-[10px] ${statusPill}`}>
                             {RES_STATUS_LABELS[r.status] ?? r.status}
                           </span>
                         </div>
                         <div className="text-[11px] text-gray-400">
-                          Creada:{" "}
-                          {new Date(r.createdAt).toLocaleDateString("es-CO")}
+                          Creada: {new Date(r.createdAt).toLocaleDateString("es-CO")}
                         </div>
                       </div>
                       <div className="text-sm whitespace-nowrap">
@@ -485,23 +408,14 @@ export default async function AdminSellerDetailPage({
                     <div>
                       <div className="font-medium">{t.title}</div>
                       <div className="text-xs text-gray-500">
-                        {TASK_STATUS_LABELS[t.status] ?? t.status} ·{" "}
-                        {TASK_PRIORITY_LABELS[t.priority] ?? t.priority}
-                        {t.dueDate
-                          ? ` · vence ${new Date(t.dueDate).toLocaleDateString(
-                              "es-CO"
-                            )}`
-                          : ""}
+                        {TASK_STATUS_LABELS[t.status] ?? t.status} · {TASK_PRIORITY_LABELS[t.priority] ?? t.priority}
+                        {t.dueDate ? ` · vence ${new Date(t.dueDate).toLocaleDateString("es-CO")}` : ""}
                       </div>
                       <div className="text-[11px] text-gray-400">
-                        Creada:{" "}
-                        {new Date(t.createdAt).toLocaleDateString("es-CO")}
+                        Creada: {new Date(t.createdAt).toLocaleDateString("es-CO")}
                       </div>
                     </div>
-                    <a
-                      className="text-sm text-primary underline whitespace-nowrap"
-                      href={`/dashboard-admin/tareas/${t.id}`}
-                    >
+                    <a className="text-sm text-primary underline whitespace-nowrap" href={`/dashboard-admin/tareas/${t.id}`}>
                       Ver
                     </a>
                   </div>
@@ -521,18 +435,11 @@ export default async function AdminSellerDetailPage({
           ) : (
             <ul className="divide-y text-sm">
               {topDestSorted.map((d) => (
-                <li
-                  key={d.destinationId}
-                  className="flex items-center justify-between py-2"
-                >
-                  <div className="truncate">
-                    {destNameById[d.destinationId] || "Destino"}
-                  </div>
+                <li key={d.destinationId} className="flex items-center justify-between py-2">
+                  <div className="truncate">{destNameById[d.destinationId] || "Destino"}</div>
                   <div className="flex items-baseline gap-3">
                     <span className="font-semibold">{d._count?._all ?? 0}</span>
-                    <span className="text-gray-500">
-                      {fmtMoney(Number(d._sum?.totalAmount ?? 0))}
-                    </span>
+                    <span className="text-gray-500">{fmtMoney(Number(d._sum?.totalAmount ?? 0))}</span>
                   </div>
                 </li>
               ))}
@@ -575,9 +482,7 @@ export default async function AdminSellerDetailPage({
                       {new Date(a.createdAt).toLocaleDateString("es-CO")}
                     </span>
                   </div>
-                  {a.message && (
-                    <div className="text-xs text-gray-600">{a.message}</div>
-                  )}
+                  {a.message && <div className="text-xs text-gray-600">{a.message}</div>}
                 </li>
               ))}
             </ul>

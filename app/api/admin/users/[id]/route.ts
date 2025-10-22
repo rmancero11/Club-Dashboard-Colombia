@@ -3,79 +3,105 @@ import { getAuth } from "@/app/lib/auth";
 import { NextResponse } from "next/server";
 import { uploadToCloudinary } from "@/app/lib/cloudinary";
 
-// ✅ App Router: reemplaza config.runtime por este export
-export const runtime = "nodejs"; // Prisma/Cloudinary no van en Edge
-// (Opcional) export const maxDuration = 60; // si necesitas más tiempo en Vercel
+export const runtime = "nodejs";
 
-export async function PATCH(
-  req: Request,
-  { params }: { params: { id: string } }
-) {
+type JsonBody = {
+  status?: "ACTIVE" | "INACTIVE";
+  commissionRate?: number | string | null;
+};
+
+const FILE_FIELDS = [
+  "purchaseOrder",
+  "flightTickets",
+  "serviceVoucher",
+  "medicalAssistanceCard",
+  "travelTips",
+] as const;
+
+export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const auth = await getAuth();
-  if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
+  if (!auth || auth.role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
-  // ✅ En App Router NO hace falta bodyParser:false; usa formData() directo
-  const formData = await req.formData();
-
-  const roleRaw = formData.get("role") as string | null;
-  const statusRaw = formData.get("status") as string | null;
-  const commissionRateRaw = formData.get("commissionRate") as string | null;
-
-  const data: any = {};
-
-  // Validar rol y estado
-  if (roleRaw && ["ADMIN", "SELLER", "USER"].includes(roleRaw)) data.role = roleRaw;
-  if (statusRaw && ["ACTIVE", "INACTIVE"].includes(statusRaw)) data.status = statusRaw;
-
-  // Manejar comisión
-  if (data.role === "SELLER" && commissionRateRaw != null) {
-    const num = Number(commissionRateRaw);
-    if (Number.isNaN(num) || num < 0 || num > 100) {
-      return NextResponse.json(
-        { error: "commissionRate debe estar entre 0 y 100" },
-        { status: 400 }
-      );
-    }
-    // 👇 si el campo en Prisma es Float/Decimal, guarda como número
-    data.commissionRate = Number(num.toFixed(2));
-  } else if (data.role) {
-    data.commissionRate = null;
+  const target = await prisma.user.findUnique({
+    where: { id: params.id },
+    select: { id: true, role: true },
+  });
+  if (!target) {
+    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
   }
 
-  // Subir archivos a Cloudinary
-  const fileFields = [
-    "purchaseOrder",
-    "flightTickets",
-    "serviceVoucher",
-    "medicalAssistanceCard",
-    "travelTips",
-  ] as const;
+  const contentType = req.headers.get("content-type") || "";
+  const data: Record<string, any> = {};
 
-  for (const key of fileFields) {
-    const file = formData.get(key) as File | null;
-    if (file && file.size > 0) {
-      try {
-        // Asegúrate de que uploadToCloudinary soporte Web File/ArrayBuffer
-        const result: any = await uploadToCloudinary(file);
-        data[key] = result.secure_url;
-      } catch {
-        return NextResponse.json({ error: `Error subiendo ${key}` }, { status: 500 });
+  if (contentType.includes("application/json")) {
+    const body = (await req.json()) as JsonBody;
+
+    if (body.status && (body.status === "ACTIVE" || body.status === "INACTIVE")) {
+      data.status = body.status;
+    }
+
+    if ("commissionRate" in body) {
+      if (target.role === "SELLER") {
+        const v = body.commissionRate;
+        if (v === null || v === "") {
+          data.commissionRate = null;
+        } else {
+          const num = typeof v === "string" ? Number(v) : v ?? 0; // ✅ default seguro
+          if (Number.isNaN(num) || num < 0 || num > 100) {
+            return NextResponse.json(
+              { error: "commissionRate debe estar entre 0 y 100" },
+              { status: 400 }
+            );
+          }
+          data.commissionRate = Number(num.toFixed(2));
+        }
+      } else {
+        data.commissionRate = null;
+      }
+    }
+  } else if (contentType.includes("multipart/form-data")) {
+    const form = await req.formData();
+
+    const statusRaw = form.get("status") as string | null;
+    if (statusRaw === "ACTIVE" || statusRaw === "INACTIVE") {
+      data.status = statusRaw;
+    }
+
+    const commissionRateRaw = form.get("commissionRate") as string | null;
+    if (commissionRateRaw !== null && commissionRateRaw !== "") {
+      if (target.role === "SELLER") {
+        const num = Number(commissionRateRaw ?? 0); // ✅ evita "possibly undefined"
+        if (Number.isNaN(num) || num < 0 || num > 100) {
+          return NextResponse.json(
+            { error: "commissionRate debe estar entre 0 y 100" },
+            { status: 400 }
+          );
+        }
+        data.commissionRate = Number(num.toFixed(2));
+      } else {
+        data.commissionRate = null;
+      }
+    }
+
+    for (const key of FILE_FIELDS) {
+      const file = form.get(key) as File | null;
+      if (file && file.size > 0) {
+        try {
+          const result: any = await uploadToCloudinary(file);
+          data[key] = result.secure_url;
+        } catch {
+          return NextResponse.json({ error: `Error subiendo ${key}` }, { status: 500 });
+        }
       }
     }
   }
 
-  // Validar que el usuario pertenezca al mismo negocio
-  const existingUser = await prisma.user.findFirst({
-    where: { id: params.id, businessId: auth.businessId },
-  });
-
-  if (!existingUser) {
-    return NextResponse.json({ error: "Usuario no encontrado" }, { status: 404 });
+  if (Object.keys(data).length === 0) {
+    return NextResponse.json({ error: "Sin cambios" }, { status: 400 });
   }
 
-  // Actualizar usuario
   try {
     const updated = await prisma.user.update({
       where: { id: params.id },
@@ -92,7 +118,6 @@ export async function PATCH(
         travelTips: true,
       },
     });
-
     return NextResponse.json({ user: updated });
   } catch {
     return NextResponse.json({ error: "No se pudo actualizar" }, { status: 400 });

@@ -60,7 +60,7 @@ function DeltaBadge({
   prev: number;
   label?: string;
 }) {
-  const { pct, up, down, neutral } = getDelta(curr, prev);
+  const { pct, up, down } = getDelta(curr, prev);
   if (pct === null) {
     return (
       <span className="mt-1 inline-flex items-center rounded-md bg-gray-100 px-2 py-0.5 text-[11px] text-gray-600">
@@ -94,9 +94,6 @@ export default async function AdminHomePage({
   const auth = await getAuth();
   if (!auth) redirect("/login");
   if (auth.role !== "ADMIN") redirect("/unauthorized");
-  if (!auth.businessId) redirect("/unauthorized");
-
-  const businessId = auth.businessId!;
 
   // === fecha de referencia (filtra TODO “hasta” esa fecha) ===
   const refDate = parseAsOf(searchParams?.asOf);
@@ -110,10 +107,10 @@ export default async function AdminHomePage({
 
   // ===== KPIs fila 1 (Vendedores | Clientes | Leads totales)
   const kpisPromise = Promise.all([
-    prisma.user.count({ where: { businessId, role: "SELLER" } }),
-    prisma.client.count({ where: { businessId } }),
+    prisma.user.count({ where: { role: "SELLER" } }),
+    prisma.client.count(),
     prisma.reservation.count({
-      where: { businessId, createdAt: { lte: rangeEnd } }, // <= refDate
+      where: { createdAt: { lte: rangeEnd } }, // <= refDate
     }),
   ]);
 
@@ -121,21 +118,18 @@ export default async function AdminHomePage({
   const statusPromise = Promise.all([
     prisma.reservation.count({
       where: {
-        businessId,
         status: { in: ["LEAD", "QUOTED", "HOLD"] },
         createdAt: { lte: rangeEnd },
       },
     }),
     prisma.reservation.count({
       where: {
-        businessId,
         status: "CONFIRMED",
         createdAt: { lte: rangeEnd },
       },
     }),
     prisma.reservation.count({
       where: {
-        businessId,
         createdAt: { gte: monthStart, lte: rangeEnd }, // mes de ref
       },
     }),
@@ -145,14 +139,12 @@ export default async function AdminHomePage({
   const prevKPIsPromise = Promise.all([
     prisma.reservation.count({
       where: {
-        businessId,
         status: "CONFIRMED",
         createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
       },
     }),
     prisma.reservation.count({
       where: {
-        businessId,
         createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
       },
     }),
@@ -163,8 +155,7 @@ export default async function AdminHomePage({
     SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
-    WHERE "businessId" = ${businessId}
-      AND "createdAt" >= ${yearStart}
+    WHERE "createdAt" >= ${yearStart}
       AND "createdAt" <= ${rangeEnd}
     GROUP BY 1
     ORDER BY 1
@@ -174,8 +165,7 @@ export default async function AdminHomePage({
     SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
-    WHERE "businessId" = ${businessId}
-      AND "createdAt" >= ${yearStart}
+    WHERE "createdAt" >= ${yearStart}
       AND "createdAt" <= ${rangeEnd}
       AND "status" = 'CONFIRMED'
     GROUP BY 1
@@ -186,8 +176,7 @@ export default async function AdminHomePage({
     SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
-    WHERE "businessId" = ${businessId}
-      AND "createdAt" >= ${yearStart}
+    WHERE "createdAt" >= ${yearStart}
       AND "createdAt" <= ${rangeEnd}
       AND "status" IN ('CANCELED','EXPIRED')
     GROUP BY 1
@@ -234,7 +223,7 @@ export default async function AdminHomePage({
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Panel de control</h1>
-          <p className="text-sm text-gray-500">Resumen del negocio</p>
+          <p className="text-sm text-gray-500">Resumen general</p>
         </div>
         {/* Calendario que actualiza ?asOf=YYYY-MM-DD */}
         <HomeDateFilter />
@@ -254,14 +243,12 @@ export default async function AdminHomePage({
         <div className="rounded-xl border bg-white p-3">
           <div className="text-xs text-gray-500">Confirmadas (mes)</div>
           <div className="text-xl font-semibold">{confirmedCount}</div>
-          {/* Comparativa vs mes anterior */}
           {DeltaBadge({ curr: confirmedCount, prev: prevConfirmedCount })}
         </div>
 
         <div className="rounded-xl border bg-white p-3">
           <div className="text-xs text-gray-500">Leads creados (mes)</div>
           <div className="text-xl font-semibold">{leadsThisMonth}</div>
-          {/* Comparativa vs mes anterior */}
           {DeltaBadge({ curr: leadsThisMonth, prev: prevLeadsThisMonth })}
         </div>
       </section>
@@ -279,7 +266,8 @@ export default async function AdminHomePage({
       </section>
 
       {/* Insights */}
-      <TopDestinosSection businessId={businessId} />
+      {/* ⚠️ Ajustaremos este componente para que no requiera businessId */}
+      <TopDestinosSection />
     </div>
   );
 }

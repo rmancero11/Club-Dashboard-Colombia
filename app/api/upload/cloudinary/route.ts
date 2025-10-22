@@ -9,8 +9,9 @@ export const dynamic = "force-dynamic";
 export async function POST(req: Request) {
   try {
     const auth = await getAuth();
-    if (!auth) return NextResponse.json({ error: "No autenticado" }, { status: 401 });
-    if (!auth.businessId) return NextResponse.json({ error: "Sin empresa" }, { status: 403 });
+    if (!auth) {
+      return NextResponse.json({ error: "No autenticado" }, { status: 401 });
+    }
 
     const form = await req.formData();
     const file = form.get("file") as File | null;
@@ -18,88 +19,105 @@ export async function POST(req: Request) {
     const field = (form.get("field") as string | null) ?? undefined;
     const folderOverride = (form.get("folder") as string | null) ?? undefined;
 
-    if (!file) return NextResponse.json({ error: "Falta 'file'" }, { status: 400 });
+    if (!file) {
+      return NextResponse.json({ error: "Falta 'file'" }, { status: 400 });
+    }
 
-    // Si no es ADMIN, valida pertenencia del cliente
-    if (clientId && auth.role !== "ADMIN") {
-      const ok = await prisma.client.findFirst({
-        where: { id: clientId, businessId: auth.businessId, sellerId: auth.userId },
-        select: { id: true },
+    // === Autorización alineada con schema.prisma ===
+    // Si se provee clientId:
+    //  - ADMIN: siempre ok
+    //  - SELLER: debe ser el seller del cliente
+    //  - USER: debe ser el dueño del perfil de cliente (client.userId === auth.userId)
+    let clientRecord: { id: string; sellerId: string; userId: string } | null =
+      null;
+    if (clientId) {
+      clientRecord = await prisma.client.findUnique({
+        where: { id: clientId },
+        select: { id: true, sellerId: true, userId: true },
       });
-      if (!ok) return NextResponse.json({ error: "Sin permisos para este cliente" }, { status: 403 });
+
+      if (!clientRecord) {
+        return NextResponse.json(
+          { error: "Cliente no existe" },
+          { status: 404 }
+        );
+      }
+
+      const isAdmin = auth.role === "ADMIN";
+      const isSellerOwner =
+        auth.role === "SELLER" && clientRecord.sellerId === auth.userId;
+      const isClientUser =
+        auth.role === "USER" && clientRecord.userId === auth.userId;
+
+      if (!isAdmin && !isSellerOwner && !isClientUser) {
+        return NextResponse.json(
+          { error: "Sin permisos para este cliente" },
+          { status: 403 }
+        );
+      }
     }
 
-    // Validaciones
-    const MAX_BYTES = 12 * 1024 * 1024;
-    if ((file as any).size > MAX_BYTES) {
-      return NextResponse.json({ error: "Archivo supera 12 MB" }, { status: 413 });
+    // Validaciones de tamaño y tipo
+    const MAX_BYTES = 12 * 1024 * 1024; // 12 MB
+    const size = (file as any).size ?? 0;
+    if (size > MAX_BYTES) {
+      return NextResponse.json(
+        { error: "Archivo supera 12 MB" },
+        { status: 413 }
+      );
     }
-    const allowed = ["application/pdf", "image/jpeg", "image/png", "image/webp"];
-    if (!allowed.includes(file.type)) {
-      return NextResponse.json({ error: "Tipo de archivo no permitido" }, { status: 415 });
-    }
 
-    const baseFolder =
-      folderOverride ||
-      ["clubviajeros", auth.businessId, clientId ? `clients/${clientId}` : "misc", field || "document"].join("/");
+    const mime = (file as any).type || "";
+    const name = (file as any).name || "document";
+    const isPdf = mime === "application/pdf" || /\.pdf$/i.test(name);
+    const isImage = mime.startsWith("image/");
+    const isVideo = mime.startsWith("video/");
+    if (!isPdf && !isImage && !isVideo)
+      return NextResponse.json({ error: "Tipo no permitido" }, { status: 415 });
 
-    const isPdf = file.type === "application/pdf";
-
-    const originalName = (file as any).name || "document";
-    const base = originalName.replace(/\.[a-z0-9]+$/i, ""); // sin extensión
-
-    // 👇 public_id SIN ".pdf" (Cloudinary guarda format="pdf")
-    const publicIdForPdf = `clients/${clientId || "misc"}/${field || "document"}/${base}-${Date.now()}`;
+    const baseFolder = [
+      "clubviajeros",
+      clientId ? `clients/${clientId}` : "misc",
+      field || "document",
+    ].join("/");
+    const baseName = name.replace(/\.[a-z0-9]+$/i, "");
+    const publicId = `${baseFolder}/${baseName}-${Date.now()}`;
 
     const result = await uploadToCloudinary(file, {
-      // Para PDF: subimos como raw + upload (público)
-      ...(isPdf
-        ? {
-            resource_type: "raw",
-            type: "upload",
-            public_id: publicIdForPdf,
-            folder: undefined, // evita duplicar "folder" + "public_id"
-            overwrite: false,
-          }
-        : {
-            // Imágenes: modo automático
-            resource_type: "auto",
-            use_filename: true,
-            unique_filename: true,
-            overwrite: false,
-            folder: baseFolder,
-          }),
-      context: {
-        businessId: auth.businessId!,
-        userId: auth.userId!,
-        ...(clientId ? { clientId } : {}),
-        ...(field ? { field } : {}),
-      } as any,
-      tags: [
-        "clubviajeros",
-        `business:${auth.businessId}`,
-        clientId ? `client:${clientId}` : "client:unknown",
-        field ? `field:${field}` : "field:document",
-        `role:${auth.role}`,
-      ],
+      resource_type: isVideo ? "video" : "image", // 👈 PDF = image
+      access: "public",
+      filename: name,
+      cloudinary: {
+        type: "upload",
+        public_id: publicId,
+        overwrite: false,
+        ...(isPdf ? { format: "pdf" } : {}), // asegura extensión en PDF
+        context: { userId: auth.userId!, clientId, field, role: auth.role },
+        tags: [
+          "clubviajeros",
+          clientId ? `client:${clientId}` : "client:unknown",
+          field ? `field:${field}` : "field:document",
+          `role:${auth.role}`,
+        ],
+      },
     });
 
-    // URL directa (pública) devuelta por Cloudinary
     const secureUrl = result.secure_url;
-
-    // Nombre bonito para descarga
-    const safeName = isPdf ? `${base}.pdf` : (result.original_filename || `${base}.${result.format || "file"}`);
-
-    // Proxy opcional para fijar headers inline (no firma, solo headers)
-    const proxyUrl = `/api/file-proxy?url=${encodeURIComponent(secureUrl)}&filename=${encodeURIComponent(safeName)}`;
-
+    const downloadName = isPdf
+      ? `${baseName}.pdf`
+      : result.original_filename || `${baseName}.${result.format || "file"}`;
+    const proxyUrl = `/api/file-proxy?url=${encodeURIComponent(
+      secureUrl
+    )}&filename=${encodeURIComponent(downloadName)}${
+      clientId ? `&clientId=${clientId}` : ""
+    }`;
     return NextResponse.json({
       ok: true,
-      url: secureUrl,     // pública; puedes usarla tal cual
-      proxyUrl,           // úsala en el visor para inline headers (recomendado)
+      url: secureUrl,
+      proxyUrl,
       public_id: result.public_id,
-      resource_type: result.resource_type, // "raw" para PDFs
-      type: (result as any).type || "upload", // debería venir "upload"
+      resource_type: result.resource_type,
+      type: (result as any).type || "upload",
       format: result.format,
       bytes: result.bytes,
       width: result.width,
@@ -109,6 +127,9 @@ export async function POST(req: Request) {
     });
   } catch (err: any) {
     console.error("[cloudinary-upload] error:", err);
-    return NextResponse.json({ error: err?.message || "Error interno al subir" }, { status: 500 });
+    return NextResponse.json(
+      { error: err?.message || "Error interno al subir" },
+      { status: 500 }
+    );
   }
 }

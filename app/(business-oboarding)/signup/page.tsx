@@ -3,9 +3,6 @@
 import Image from "next/image";
 import { Icon } from "@iconify/react";
 import SignupForm from "@/app/components/signup/SignupForm";
-import { Parser as HtmlToReactParser } from "html-to-react";
-
-const htmlParser = HtmlToReactParser();
 
 const sellerBenefits = [
   {
@@ -34,8 +31,6 @@ const sellerBenefits = [
   },
 ];
 
-const textToHTML = (text: string) => htmlParser.parse(text);
-
 const SignUpPage = () => {
   return (
     <div className="flex-1">
@@ -43,11 +38,9 @@ const SignUpPage = () => {
         <div className="flex lg:flex-row flex-col items-center justify-start lg:pt-0 gap-8">
           {/* Columna izquierda (beneficios + branding) */}
           <div className="flex flex-col justify-center items-center lg:w-1/2 w-full">
-            <div
-              className="w-full h-51 rounded-3xl bg-cover bg-center bg-no-repeat"
-            />
+            <div className="w-full h-51 rounded-3xl bg-cover bg-center bg-no-repeat" />
             <Image
-              className="w-[490px] object-scale-down w-auto"
+              className="w-[490px] object-scale-down"
               src="/favicon/pareja-3.webp"
               alt="ClubSolteros"
               width={500}
@@ -77,9 +70,10 @@ const SignUpPage = () => {
                       icon={benefit.iconName}
                       fontSize={benefit.iconSize || 26}
                     />
-                    <p className="font-normal text-gray-600">
-                      {textToHTML(benefit.description)}
-                    </p>
+                    <p
+                      className="font-normal text-gray-600"
+                      dangerouslySetInnerHTML={{ __html: benefit.description }}
+                    />
                   </li>
                 ))}
               </ul>

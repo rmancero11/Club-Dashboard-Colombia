@@ -2,7 +2,7 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 
-// ===== Helpers comunes (mismo enfoque que la página de clientes) =====
+// ===== Helpers comunes =====
 function toInt(v: string | string[] | undefined, def: number) {
   const n = Array.isArray(v) ? parseInt(v[0] || "", 10) : parseInt(v || "", 10);
   return Number.isFinite(n) && n > 0 ? n : def;
@@ -27,36 +27,33 @@ function fmtMoney(n: number, currency = "USD") {
   }
 }
 
-// --- Indicativos por país (mismo patrón que clientes; amplía si lo necesitas) ---
+// --- Indicativos por país ---
 const DIAL_BY_COUNTRY: Record<string, string> = {
-  // Américas
-  "Colombia": "57",
-  "México": "52",
+  Colombia: "57",
+  México: "52",
   "Estados Unidos": "1",
   "United States": "1",
-  "Canadá": "1",
-  "Canada": "1",
-  "Perú": "51",
-  "Chile": "56",
-  "Argentina": "54",
-  "Ecuador": "593",
-  "Venezuela": "58",
-  "Brasil": "55",
-  // Europa
-  "España": "34",
-  "Portugal": "351",
-  "Francia": "33",
-  "Italia": "39",
-  "Alemania": "49",
+  Canadá: "1",
+  Canada: "1",
+  Perú: "51",
+  Chile: "56",
+  Argentina: "54",
+  Ecuador: "593",
+  Venezuela: "58",
+  Brasil: "55",
+  España: "34",
+  Portugal: "351",
+  Francia: "33",
+  Italia: "39",
+  Alemania: "49",
 };
-
 function dialCodeForCountry(country?: string | null) {
   if (!country) return "";
   const key = country.trim();
   return DIAL_BY_COUNTRY[key] ?? "";
 }
 function normalizePhone(raw?: string | null) {
-  return (raw || "").replace(/[^\d+]/g, ""); // deja + y dígitos
+  return (raw || "").replace(/[^\d+]/g, "");
 }
 function digitsOnly(raw?: string) {
   return (raw || "").replace(/\D/g, "");
@@ -64,11 +61,11 @@ function digitsOnly(raw?: string) {
 function toE164(phone?: string | null, country?: string | null) {
   const raw = normalizePhone(phone);
   if (!raw) return "";
-  if (raw.startsWith("+")) return `+${digitsOnly(raw)}`; // ya viene con +
+  if (raw.startsWith("+")) return `+${digitsOnly(raw)}`;
   const dial = dialCodeForCountry(country || undefined);
   const localDigits = digitsOnly(raw);
   if (!localDigits) return "";
-  return dial ? `+${dial}${localDigits}` : `+${localDigits}`; // fallback sin país
+  return dial ? `+${dial}${localDigits}` : `+${localDigits}`;
 }
 function waLink(e164?: string) {
   const d = digitsOnly(e164);
@@ -83,9 +80,7 @@ export default async function AdminSellersPage({
 }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
-
-  const businessId = auth.businessId!;
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   // ===== Filtros/Orden =====
   const q =
@@ -102,8 +97,8 @@ export default async function AdminSellersPage({
   const pageSizeRaw = toInt(searchParams.pageSize, 10);
   const pageSize = Math.min(pageSizeRaw, 50);
 
-  // WHERE: búsqueda por nombre y email (igual enfoque que clientes)
-  const whereUser: any = { businessId, role: "SELLER" };
+  // WHERE: búsqueda por nombre y email
+  const whereUser: any = { role: "SELLER" };
   if (q) {
     whereUser.OR = [
       { name: { contains: q, mode: "insensitive" } },
@@ -158,19 +153,18 @@ export default async function AdminSellersPage({
   if (sellerIds.length > 0) {
     const [clientsGroup, resAll, resPending, tasksPending] = await Promise.all([
       prisma.client.groupBy({
-        where: { businessId, sellerId: { in: sellerIds } },
+        where: { sellerId: { in: sellerIds } },
         by: ["sellerId"],
         _count: { _all: true },
       }),
       prisma.reservation.groupBy({
-        where: { businessId, sellerId: { in: sellerIds } },
+        where: { sellerId: { in: sellerIds } },
         by: ["sellerId"],
         _count: { _all: true },
         _sum: { totalAmount: true },
       }),
       prisma.reservation.groupBy({
         where: {
-          businessId,
           sellerId: { in: sellerIds },
           status: { in: PENDING_RES_STATUSES as any },
         },
@@ -179,7 +173,6 @@ export default async function AdminSellersPage({
       }),
       prisma.task.groupBy({
         where: {
-          businessId,
           sellerId: { in: sellerIds },
           status: { in: PENDING_TASK_STATUSES as any },
         },
@@ -234,10 +227,7 @@ export default async function AdminSellersPage({
 
       {/* Filtros / Orden */}
       <div className="rounded-xl border bg-white p-4">
-        <form
-          className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5"
-          method="GET"
-        >
+        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5" method="GET">
           <input
             name="q"
             defaultValue={q}
@@ -280,16 +270,10 @@ export default async function AdminSellersPage({
           </select>
           <div className="flex items-center gap-2">
             <input type="hidden" name="page" value="1" />
-            <button
-              className="rounded-md border px-3 py-2 text-sm"
-              type="submit"
-            >
+            <button className="rounded-md border px-3 py-2 text-sm" type="submit">
               Aplicar
             </button>
-            <a
-              href="/dashboard-admin/vendedores"
-              className="rounded-md border px-3 py-2 text-sm"
-            >
+            <a href="/dashboard-admin/vendedores" className="rounded-md border px-3 py-2 text-sm">
               Borrar filtros
             </a>
           </div>
@@ -314,10 +298,7 @@ export default async function AdminSellersPage({
             <tbody>
               {sellersSorted.length === 0 && (
                 <tr>
-                  <td
-                    colSpan={10}
-                    className="px-2 py-10 text-center text-gray-400"
-                  >
+                  <td colSpan={10} className="px-2 py-10 text-center text-gray-400">
                     Sin resultados
                   </td>
                 </tr>
@@ -339,22 +320,15 @@ export default async function AdminSellersPage({
                         Creado: {new Date(s.createdAt).toLocaleDateString("es-CO")}
                       </div>
                     </td>
-
-                    {/* Email separado (como clientes) */}
                     <td className="px-2 py-2">
                       {s.email ? (
-                        <a
-                          href={`mailto:${s.email}`}
-                          className="text-xs text-blue-600 underline"
-                        >
+                        <a href={`mailto:${s.email}`} className="text-xs text-blue-600 underline">
                           {s.email}
                         </a>
                       ) : (
                         <span className="text-xs text-gray-400">—</span>
                       )}
                     </td>
-
-                    {/* Teléfono con indicativo + link WhatsApp (mismo patrón que clientes) */}
                     <td className="px-2 py-2">
                       {e164 ? (
                         <a
@@ -384,7 +358,6 @@ export default async function AdminSellersPage({
                         {resPend}
                       </span>
                     </td>
-
                     <td className="px-2 py-2">
                       <span
                         className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${
@@ -396,16 +369,11 @@ export default async function AdminSellersPage({
                         {tasksPend}
                       </span>
                     </td>
-
                     <td className="px-2 py-2">{ra.count}</td>
                     <td className="px-2 py-2">{fmtMoney(ra.sum)}</td>
-
                     <td className="px-2 py-2 text-right">
                       <div className="flex gap-1">
-                        <a
-                          href={`/dashboard-admin/vendedores/${s.id}`}
-                          className="text-primary underline"
-                        >
+                        <a href={`/dashboard-admin/vendedores/${s.id}`} className="text-primary underline">
                           Ver
                         </a>
                       </div>
@@ -422,18 +390,14 @@ export default async function AdminSellersPage({
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
             {sellers.length > 0
-              ? `${(page - 1) * pageSize + 1}–${
-                  (page - 1) * pageSize + sellers.length
-                }`
+              ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + sellers.length}`
               : "0"}{" "}
             de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${
-                page <= 1 ? "pointer-events-none opacity-50" : ""
-              }`}
+              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
               href={
                 page > 1
                   ? `/dashboard-admin/vendedores${qstr({

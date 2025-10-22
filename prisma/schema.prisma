@@ -4,15 +4,16 @@ generator client {
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
 }
 
 // ================== Enums ==================
 enum Role {
-  USER // viajero con login (únicos que pueden tener Client)
+  USER
   ADMIN
-  SELLER // agente/vendedor (dashboard interno)
+  SELLER
 }
 
 enum UserStatus {
@@ -20,22 +21,21 @@ enum UserStatus {
   INACTIVE
 }
 
-// Embudo simple (sin pagos): Lead -> Cotizado -> Confirmado -> Viajando -> Completado
 enum ReservationStatus {
-  LEAD // Lead creado (registro desde WP o interés en destino)
-  QUOTED // Cotización enviada / seguimiento activo
-  HOLD // Opción/bloqueo temporal gestionado con proveedor
-  CONFIRMED // Confirmada (cupos OK)
-  TRAVELING // Viaje en curso
-  COMPLETED // Viaje finalizado
-  CANCELED // Cancelada
-  EXPIRED // Venció la opción/hold sin respuesta
+  LEAD
+  QUOTED
+  HOLD
+  CONFIRMED
+  TRAVELING
+  COMPLETED
+  CANCELED
+  EXPIRED
 }
 
 enum TaskStatus {
   OPEN
   IN_PROGRESS
-  BLOCKED // esperando info de cliente/proveedor (p. ej., por WhatsApp)
+  BLOCKED
   DONE
   CANCELLED
 }
@@ -54,71 +54,27 @@ enum ActivityAction {
   // Clientes / Leads
   CREATE_CLIENT
   UPDATE_CLIENT
-  LEAD_CREATED_FROM_WP // Lead registrado desde WordPress (incluye destino)
-  LEAD_ASSIGNED // Lead asignado a un SELLER
+  LEAD_CREATED_FROM_WP
+  LEAD_ASSIGNED
 
   // Reservas
   CREATE_RESERVATION
   UPDATE_RESERVATION
-  CHANGE_STATUS // Cambios en ReservationStatus
-  QUOTE_SENT // Cotización enviada
-  HOLD_SET // Opción/hold creado
-  EXPIRED_AUTO // Lead/hold marcado como expirado
+  CHANGE_STATUS
+  QUOTE_SENT
+  HOLD_SET
+  EXPIRED_AUTO
 
-  // Comunicación (WhatsApp-first)
-  WHATSAPP_SENT // Mensaje saliente
-  WHATSAPP_RECEIVED // Mensaje entrante
+  // Comunicación
+  WHATSAPP_SENT
+  WHATSAPP_RECEIVED
 
   // Reportes / notas
   GENERATE_REPORT
   NOTE
 }
 
-// ================== Núcleo multi-tenant ==================
-model Business {
-  id              String   @id @default(cuid())
-  Name            String
-  slug            String   @unique
-  IconoWhite      String?
-  Cover           String?
-  SocialMedia     Json?
-  Plan            String?
-  BusinessProgram String?
-  Template        String?
-  PricePlan       Int?
-  country         String?
-  createdAt       DateTime @default(now())
-  sessionId       String?
-
-  // Relaciones
-  users        User[]
-  branches     Branch[]
-  destinations Destination[]
-  clients      Client[]
-  reservations Reservation[]
-  tasks        Task[]
-  activities   ActivityLog[]
-
-  @@index([slug])
-}
-
-model Branch {
-  id        String   @id @default(cuid())
-  name      String
-  address   String
-  mapsUrl   String?
-  icon      String?
-  cover     String?
-  country   String?
-  createdAt DateTime @default(now())
-
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-  businessId String
-
-  @@index([businessId, name])
-}
-
-// ================== Usuarios (viajeros / agentes / admins) ==================
+// ================== Usuarios ==================
 model User {
   id             String     @id @default(uuid())
   email          String     @unique
@@ -129,40 +85,35 @@ model User {
   preference     String?
   destino        String?
   password       String
-  role           Role       @default(USER) // USER | ADMIN | SELLER
+  role           Role       @default(USER)
   status         UserStatus @default(ACTIVE)
-  verified   Boolean   @default(false)
+  verified       Boolean    @default(false)
   createdAt      DateTime   @default(now())
   avatar         String     @default("/images/default-avatar.png")
   timezone       String?
   commissionRate Decimal?   @db.Decimal(5, 2)
-  dniFile   String?
+  dniFile        String?
   passport       String?
   visa           String?
-  purchaseOrder        String? 
-  flightTickets        String? 
-  serviceVoucher       String? 
-  medicalAssistanceCard String? 
-  travelTips           String? 
-  comment        String? 
-  singleStatus   String?   
-  affirmation    String?     
-  acceptedTerms  Boolean?  
-  flow           String?   
-  business   Business? @relation(fields: [businessId], references: [id])
-  businessId String?
-  birthday   DateTime?
-  gender     String?
-  lookingFor String? 
+  purchaseOrder        String?
+  flightTickets        String?
+  serviceVoucher       String?
+  medicalAssistanceCard String?
+  travelTips           String?
+  comment        String?
+  singleStatus   String?
+  affirmation    String?
+  acceptedTerms  Boolean?
+  flow           String?
+  birthday       DateTime?
+  gender         String?
+  lookingFor     String?
 
   // Relaciones cuando es SELLER (agente)
   sellerClients       Client[]             @relation("SellerClients")
   sellerReservations  Reservation[]        @relation("SellerReservations")
   sellerTasks         Task[]               @relation("SellerTasks")
   passwordResetTokens PasswordResetToken[]
-  sellerClients      Client[]      @relation("SellerClients")
-  sellerReservations Reservation[] @relation("SellerReservations")
-  sellerTasks        Task[]        @relation("SellerTasks")
 
   whatsappNumber  String?
   currentlyLink   String?
@@ -173,46 +124,41 @@ model User {
   activities ActivityLog[] @relation("UserActivities")
 
   @@index([role, status])
-  @@index([businessId])
 }
 
 // ================== Viajes ==================
 model Destination {
-  id         String   @id @default(uuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
-
-  name            String
-  country         String
-  city            String?
-  description     String?
-  category        String? // playa, ciudad, montaña...
-  isActive        Boolean @default(true)
-  popularityScore Int     @default(0) // cache para "más populares"
+  id          String   @id @default(uuid())
+  name        String
+  country     String
+  city        String?
+  description String?
+  category    String?
+  isActive    Boolean  @default(true)
+  popularityScore Int  @default(0)
   imageUrl        String?
-  price          Decimal?  @db.Decimal(10, 2)
-  discountPrice  Decimal?  @db.Decimal(10, 2)
+  price           Decimal? @db.Decimal(10, 2)
+  discountPrice   Decimal? @db.Decimal(10, 2)
 
   reservations Reservation[]
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@unique([businessId, name, country, city])
-  @@index([businessId, isActive, popularityScore])
+  // Antes: @@unique([businessId, name, country, city])
+  @@unique([name, country, city])
+  @@index([isActive, popularityScore])
   @@index([country, city])
 }
 
 model Client {
   id         String   @id @default(uuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
 
   // Dueño/gestor del cliente (agente)
   sellerId String
   seller   User   @relation("SellerClients", fields: [sellerId], references: [id], onDelete: Restrict)
 
-  // Vínculo OBLIGATORIO al usuario (User con role=USER; validar en la app/seed)
+  // Vínculo OBLIGATORIO al usuario (role=USER)
   userId String @unique
   user   User   @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
 
@@ -228,20 +174,18 @@ model Client {
   isArchived Boolean   @default(false)
 
   reservations Reservation[]
-  activities   ActivityLog[] @relation("ClientActivities")
+  activities  ActivityLog[] @relation("ClientActivities")
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([businessId, sellerId, name])
+  @@index([sellerId, name])
   @@index([email])
   @@index([documentId])
 }
 
 model Reservation {
-  id         String   @id @default(uuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id   String @id @default(uuid())
 
   code String @unique // p.ej. RES-2025-000123
 
@@ -270,16 +214,14 @@ model Reservation {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([businessId, sellerId, status])
+  @@index([sellerId, status])
   @@index([destinationId, status])
   @@index([startDate, endDate])
   @@index([clientId])
 }
 
 model Task {
-  id         String   @id @default(uuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id        String   @id @default(uuid())
 
   sellerId String
   seller   User   @relation("SellerTasks", fields: [sellerId], references: [id], onDelete: Cascade)
@@ -296,14 +238,12 @@ model Task {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([businessId, sellerId, status, priority])
+  @@index([sellerId, status, priority])
   @@index([reservationId])
 }
 
 model ActivityLog {
-  id         String   @id @default(uuid())
-  businessId String
-  business   Business @relation(fields: [businessId], references: [id], onDelete: Cascade)
+  id      String   @id @default(uuid())
 
   action   ActivityAction
   message  String?
@@ -320,19 +260,18 @@ model ActivityLog {
 
   createdAt DateTime @default(now())
 
-  @@index([businessId, action, createdAt])
+  @@index([action, createdAt])
   @@index([userId])
   @@index([clientId])
   @@index([reservationId])
 }
 
 model PasswordResetToken {
-  id     String @id @default(uuid())
-  userId String
-  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id        String  @id @default(uuid())
+  userId    String
+  user      User    @relation(fields: [userId], references: [id], onDelete: Cascade)
 
-  // guarda SOLO el hash del token (no el token plano)
-  tokenHash String    @unique
+  tokenHash String  @unique
   expiresAt DateTime
   usedAt    DateTime?
   ip        String?

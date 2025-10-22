@@ -4,7 +4,7 @@ import { useState } from "react";
 
 type Seller = { id: string; name: string | null; email: string };
 
-// Campos de documentos permitidos
+// Campos de documentos permitidos (en User)
 const DOC_KEYS = [
   "purchaseOrder",
   "flightTickets",
@@ -16,6 +16,7 @@ const DOC_KEYS = [
 // Función para emitir evento de actualización de documentos
 function emitDocUpdated(key: typeof DOC_KEYS[number], url: string) {
   if (!url) return;
+  if (typeof window === "undefined") return;
   window.dispatchEvent(new CustomEvent("client-doc-updated", { detail: { key, url } }));
 }
 
@@ -36,7 +37,7 @@ export default function AdminClientEditForm({
   const [archived, setArchived] = useState(currentArchived);
   const [notes, setNotes] = useState(currentNotes);
 
-  // Archivos
+  // Archivos (se guardan en el User asociado al Client)
   const [purchaseOrder, setPurchaseOrder] = useState<File | null>(null);
   const [flightTickets, setFlightTickets] = useState<File | null>(null);
   const [serviceVoucher, setServiceVoucher] = useState<File | null>(null);
@@ -55,9 +56,9 @@ export default function AdminClientEditForm({
 
     try {
       const formData = new FormData();
-      formData.append("sellerId", sellerId || "");
+      formData.append("sellerId", sellerId || ""); // requerido por el schema
       formData.append("isArchived", String(archived));
-      formData.append("notes", notes);
+      formData.append("notes", notes ?? "");
 
       if (purchaseOrder) formData.append("purchaseOrder", purchaseOrder);
       if (flightTickets) formData.append("flightTickets", flightTickets);
@@ -65,27 +66,34 @@ export default function AdminClientEditForm({
       if (medicalAssistanceCard) formData.append("medicalAssistanceCard", medicalAssistanceCard);
       if (travelTips) formData.append("travelTips", travelTips);
 
+      // Nuevo schema: la API /api/admin/clients/[id] debe actualizar
+      // - Client: sellerId, isArchived, notes
+      // - User (relacionado al Client): documentos (keys arriba)
       const res = await fetch(`/api/admin/clients/${clientId}`, {
         method: "PATCH",
         body: formData,
       });
 
-      const data = await res.json();
+      let data: any = null;
+      try {
+        data = await res.json();
+      } catch {}
+
       if (!res.ok) {
-        setErr(data?.error || "No se pudo actualizar");
+        setErr(data?.error || `No se pudo actualizar (HTTP ${res.status})`);
       } else {
         setMsg("Cliente actualizado correctamente.");
 
         // Emite evento con URLs definitivas si tu API las devuelve
         const updated = data?.updated ?? data?.user ?? data ?? {};
         (DOC_KEYS as readonly string[]).forEach((k) => {
-          const url = updated[k];
+          const url = updated[k as keyof typeof updated];
           if (typeof url === "string" && url.trim()) {
             emitDocUpdated(k as any, url.trim());
           }
         });
       }
-    } catch {
+    } catch (e) {
       setErr("Error de red");
     } finally {
       setLoading(false);
@@ -105,13 +113,14 @@ export default function AdminClientEditForm({
         </div>
       )}
 
-      {/* Vendedor asignado */}
+      {/* Vendedor asignado (obligatorio) */}
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Vendedor asignado</span>
         <select
           value={sellerId}
           onChange={(e) => setSellerId(e.target.value)}
           className="rounded-md border px-3 py-2"
+          required
         >
           {sellers.map((s) => (
             <option key={s.id} value={s.id}>
@@ -142,11 +151,12 @@ export default function AdminClientEditForm({
         />
       </label>
 
-      {/* Archivos */}
+      {/* Archivos (PDF/imagen/video). La API debe almacenar en User.* */}
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Orden de compra</span>
         <input
           type="file"
+          accept="application/pdf,image/*,video/*"
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null;
             setPurchaseOrder(f);
@@ -159,6 +169,7 @@ export default function AdminClientEditForm({
         <span className="font-medium">Boletos de vuelo</span>
         <input
           type="file"
+          accept="application/pdf,image/*,video/*"
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null;
             setFlightTickets(f);
@@ -171,6 +182,7 @@ export default function AdminClientEditForm({
         <span className="font-medium">Voucher de servicio</span>
         <input
           type="file"
+          accept="application/pdf,image/*,video/*"
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null;
             setServiceVoucher(f);
@@ -183,6 +195,7 @@ export default function AdminClientEditForm({
         <span className="font-medium">Asistencia médica</span>
         <input
           type="file"
+          accept="application/pdf,image/*,video/*"
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null;
             setMedicalAssistanceCard(f);
@@ -195,6 +208,7 @@ export default function AdminClientEditForm({
         <span className="font-medium">Tips de viaje</span>
         <input
           type="file"
+          accept="application/pdf,image/*,video/*"
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null;
             setTravelTips(f);

@@ -15,7 +15,7 @@ const FILE_LABELS: Record<string, string> = {
 };
 const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS) as (keyof typeof FILE_LABELS)[];
 
-/** Utils (copiados del server file) */
+/** Utils */
 function getExt(url: string) {
   try {
     const u = new URL(url);
@@ -32,14 +32,30 @@ const isImg = (e: string) => ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"
 const isPdf = (e: string) => e === "pdf";
 const isVid = (e: string) => ["mp4", "webm", "ogg"].includes(e);
 
+// Acepta res.cloudinary.com y <cloud>-res.cloudinary.com
 function isCloudinary(url: string) {
   try {
     const { hostname } = new URL(url);
-    return hostname === "res.cloudinary.com";
+    return hostname === "res.cloudinary.com" || hostname.endsWith("cloudinary.com");
   } catch {
     return false;
   }
 }
+
+// Si es un PDF servido como image/upload, conviértelo a raw/upload
+function toRawPdfUrl(originalUrl: string) {
+  try {
+    const u = new URL(originalUrl);
+    if (u.pathname.includes("/image/upload/") && /\.pdf(\?|#|$)/i.test(u.pathname)) {
+      u.pathname = u.pathname.replace("/image/upload/", "/raw/upload/");
+      return u.toString();
+    }
+    return originalUrl;
+  } catch {
+    return originalUrl;
+  }
+}
+
 function filenameForKey(key: string) {
   switch (key) {
     case "dniFile":
@@ -93,9 +109,13 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
 
   if (looksPdf) {
     const filename = filenameForKey(fileKey || "document");
-    const src = url.includes("/api/file-proxy")
-      ? url
-      : `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
+
+    // Normaliza PDF de Cloudinary a raw antes de pasar por el proxy
+    const normalized = isCloudinary(url) && /\.pdf(\?|#|$)/i.test(url) ? toRawPdfUrl(url) : url;
+
+    const src = normalized.includes("/api/file-proxy")
+      ? normalized
+      : `/api/file-proxy?url=${encodeURIComponent(normalized)}&filename=${encodeURIComponent(filename)}`;
 
     return (
       <div className="rounded-md border p-2 overflow-auto">
@@ -145,12 +165,7 @@ type Props = {
 };
 
 /**
- * ClientDocuments mantiene estado local de los URLs de archivos.
- * Escucha el evento global "client-doc-updated" para refrescar
- * inmediatamente la lista y la previsualización sin recargar.
- *
- * Dispara ese evento desde tu form:
- * window.dispatchEvent(new CustomEvent("client-doc-updated", { detail: { key: "passport", url: "<nuevo-url>" }}))
+ * Mantiene estado local de URLs y escucha "client-doc-updated".
  */
 export default function ClientDocuments({ initialUser, currentVerified = false, clientId }: Props) {
   const initialEntries = useMemo(() => {
@@ -190,37 +205,37 @@ export default function ClientDocuments({ initialUser, currentVerified = false, 
   }, []);
 
   const toggleVerified = async () => {
-  try {
-    setLoadingVerify(true);
-    const formData = new FormData();
-    formData.append("verified", (!verified).toString());
+    try {
+      setLoadingVerify(true);
+      const formData = new FormData();
+      formData.append("verified", (!verified).toString());
 
-    const res = await fetch(`/api/admin/clients/${clientId}`, {
-      method: "PATCH",
-      body: formData,
-    });
+      const res = await fetch(`/api/admin/clients/${clientId}`, {
+        method: "PATCH",
+        body: formData,
+      });
 
-    if (!res.ok) throw new Error("Error al actualizar verificación");
-    setVerified((prev) => !prev);
-  } catch (err) {
-    console.error(err);
-    alert("No se pudo actualizar el estado de verificación");
-  } finally {
-    setLoadingVerify(false);
-  }
-};
-
+      if (!res.ok) throw new Error("Error al actualizar verificación");
+      setVerified((prev) => !prev);
+    } catch (err) {
+      console.error(err);
+      alert("No se pudo actualizar el estado de verificación");
+    } finally {
+      setLoadingVerify(false);
+    }
+  };
 
   if (!entries.length) return <div className="text-xs text-gray-400">No hay documentos</div>;
 
   return (
     <ul className="flex flex-col gap-2">
       {entries.map(({ key, label, url }) => {
+        // Normaliza a raw si es PDF en Cloudinary
+        const maybeRaw = isCloudinary(url) && /\.pdf(\?|#|$)/i.test(url) ? toRawPdfUrl(url) : url;
         const filename = filenameForKey(key);
-        const openUrl = isCloudinary(url)
-          ? `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`
-          : url;
-        const downloadUrl = openUrl;
+        const openUrl = isCloudinary(maybeRaw)
+          ? `/api/file-proxy?url=${encodeURIComponent(maybeRaw)}&filename=${encodeURIComponent(filename)}`
+          : maybeRaw;
 
         return (
           <li key={key} className="rounded-md border p-2">
@@ -255,7 +270,7 @@ export default function ClientDocuments({ initialUser, currentVerified = false, 
                   Abrir
                 </a>
                 <a
-                  href={downloadUrl}
+                  href={openUrl}
                   download={filename}
                   className="text-xs text-gray-700 underline"
                   title="Descargar"
@@ -270,7 +285,7 @@ export default function ClientDocuments({ initialUser, currentVerified = false, 
                 Previsualizar
               </summary>
               <div className="mt-2">
-                <FilePreview url={url} fileKey={key} />
+                <FilePreview url={maybeRaw} fileKey={key} />
               </div>
             </details>
           </li>

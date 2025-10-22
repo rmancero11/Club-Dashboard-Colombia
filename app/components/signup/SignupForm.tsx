@@ -10,12 +10,11 @@ import { Input } from "@/app/components/ui/InputLogin";
 type Inputs = {
   name: string;
   email: string;
-  whatsapp?: string;
+  whatsapp?: string;     // UI field -> se mapeará a whatsappNumber
   country?: string;
   password: string;
   confirmPassword: string;
-  commissionRate?: string;
-  businessSlug: string;
+  commissionRate?: string; // UI string -> se convierte a number (Decimal)
 };
 
 export default function SignupForm() {
@@ -42,15 +41,19 @@ export default function SignupForm() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
+          // Campos del modelo User
           name: values.name,
           email: values.email,
-          whatsapp: values.whatsapp,
-          country: values.country,
+          country: values.country || undefined,
           password: values.password,
-          commissionRate: values.commissionRate
-            ? Number(values.commissionRate)
-            : undefined,
-          businessSlug: values.businessSlug,
+          // Ajuste al schema:
+          whatsappNumber: values.whatsapp || undefined,
+          commissionRate:
+            values.commissionRate !== undefined && values.commissionRate !== ""
+              ? Number(values.commissionRate)
+              : undefined,
+          // El rol SELLER debe asignarlo el endpoint (o puedes enviarlo si tu API lo permite)
+          // role: "SELLER",
         }),
       });
 
@@ -153,13 +156,7 @@ export default function SignupForm() {
           register={register}
           placeholder="10.00"
         />
-        <Input
-          name="businessSlug"
-          label="Slug de la empresa"
-          register={register}
-          placeholder="p.ej. clubsolteros"
-          required
-        />
+        {/* businessSlug eliminado: no existe en el schema */}
       </div>
 
       <div className="flex items-start gap-2 text-xs text-gray-600">

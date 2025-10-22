@@ -1,291 +1,251 @@
-/* eslint-disable no-console */
-const { PrismaClient } = require('@prisma/client');
-const bcrypt = require('bcryptjs');
+import 'dotenv/config';
+
+import { PrismaClient } from "@prisma/client";
+import bcrypt from "bcryptjs";
 
 const prisma = new PrismaClient();
 
-const BUSINESS_SLUG = 'clubdeviajeros';
-const PASSWORD = 'password123'; // demo
+function argFlag(name, fallback = false) {
+  const has = process.argv.some(a => a === `--${name}`);
+  return has ? true : fallback;
+}
 
-function addDays(date, days) {
-  const d = new Date(date);
-  d.setDate(d.getDate() + days);
-  return d;
+const MODE_CLEAN = argFlag("clean", false);
+const MODE_LOAD = argFlag("load", !MODE_CLEAN);
+
+// Por seguridad en prod: solo avisa (no bloquea). Para silenciar, usa SEED_ALLOW_PROD=true
+const isProd = process.env.NODE_ENV === "production";
+if (isProd && !process.env.SEED_ALLOW_PROD) {
+  console.warn(
+    "[seed] Ejecutando en NODE_ENV=production. Si es intencional, exporta SEED_ALLOW_PROD=true para silenciar este aviso."
+  );
 }
-function ymd(date) {
-  const y = date.getFullYear();
-  const m = String(date.getMonth() + 1).padStart(2, '0');
-  const d = String(date.getDate()).padStart(2, '0');
-  return `${y}-${m}-${d}`;
+
+async function clean() {
+  console.log("[seed] Limpieza iniciada...");
+  // Orden por dependencias (deleteMany no dispara cascadas; por eso vamos de hijos a padres)
+  await prisma.$transaction([
+    prisma.passwordResetToken.deleteMany({}),
+    prisma.activityLog.deleteMany({}),
+    prisma.task.deleteMany({}),
+    prisma.reservation.deleteMany({}),
+    prisma.client.deleteMany({}),
+    prisma.destination.deleteMany({}),
+    prisma.user.deleteMany({}),
+  ]);
+  console.log("[seed] Limpieza completada.");
 }
-function resCode(n) {
-  const y = new Date().getFullYear();
-  return `RES-${y}-${String(n).padStart(6, '0')}`;
+
+async function upsertUser({ email, password, role, name, ...rest }) {
+  const passwordHash = await bcrypt.hash(password, 10);
+  return prisma.user.upsert({
+    where: { email },
+    update: { name, role, ...rest },
+    create: { email, password: passwordHash, role, name, ...rest },
+  });
+}
+
+// upsert para Destination con índice único compuesto (name,country,city):
+async function upsertDestination({ name, country, city = null, ...data }) {
+  const existing = await prisma.destination.findFirst({
+    where: { name, country, city },
+  });
+  if (existing) {
+    return prisma.destination.update({
+      where: { id: existing.id },
+      data,
+    });
+  }
+  return prisma.destination.create({
+    data: { name, country, city, ...data },
+  });
+}
+
+async function load() {
+  console.log("[seed] Carga de datos…");
+
+  // ====== Usuarios base ======
+  const admin = await upsertUser({
+    email: "admin@clubviajeros.dev",
+    password: "admin123", // cámbialo en prod
+    role: "ADMIN",
+    name: "Admin",
+    status: "ACTIVE",
+    verified: true,
+  });
+
+  const seller = await upsertUser({
+    email: "seller@clubviajeros.dev",
+    password: "seller123",
+    role: "SELLER",
+    name: "Agente Demo",
+    status: "ACTIVE",
+    verified: true,
+    commissionRate: "7.50",
+    whatsappNumber: "+57 3000000000",
+  });
+
+  const traveler = await upsertUser({
+    email: "viajero@clubviajeros.dev",
+    password: "user123",
+    role: "USER",
+    name: "Viajero Demo",
+    status: "ACTIVE",
+    verified: true,
+    country: "CO",
+    preference: "Playa y ciudad",
+  });
+
+  // ====== Destinos ======
+  const cartagena = await upsertDestination({
+    name: "Cartagena",
+    country: "Colombia",
+    city: "Cartagena",
+    category: "playa",
+    isActive: true,
+    popularityScore: 95,
+    imageUrl: "https://via.placeholder.com/800x600?text=Cartagena",
+    price: "1200.00",
+    discountPrice: "999.00",
+  });
+
+  const sanAndres = await upsertDestination({
+    name: "San Andrés",
+    country: "Colombia",
+    city: "San Andrés",
+    category: "playa",
+    isActive: true,
+    popularityScore: 88,
+    imageUrl: "https://via.placeholder.com/800x600?text=San+Andres",
+    price: "1100.00",
+  });
+
+  // ====== Client (perfil vinculado al USER) ======
+  // El modelo exige: sellerId y userId (único)
+  const client = await prisma.client.upsert({
+    where: { userId: traveler.id },
+    update: {
+      name: traveler.name ?? "Viajero Demo",
+      email: traveler.email,
+      sellerId: seller.id,
+      country: traveler.country ?? "CO",
+    },
+    create: {
+      name: traveler.name ?? "Viajero Demo",
+      email: traveler.email,
+      sellerId: seller.id,
+      userId: traveler.id,
+      country: traveler.country ?? "CO",
+      tags: ["demo", "lead"],
+    },
+    include: { user: true, seller: true },
+  });
+
+  // ====== Reserva ======
+  // code es único, usamos un code determinista o por fecha
+  const code = "RES-2025-000001";
+  const reservation = await prisma.reservation.upsert({
+    where: { code },
+    update: {
+      sellerId: seller.id,
+      clientId: client.id,
+      destinationId: cartagena.id,
+      status: "LEAD",
+      totalAmount: "1500.00",
+    },
+    create: {
+      code,
+      sellerId: seller.id,
+      clientId: client.id,
+      destinationId: cartagena.id,
+      startDate: new Date("2026-01-15T00:00:00Z"),
+      endDate: new Date("2026-01-20T00:00:00Z"),
+      paxAdults: 2,
+      paxChildren: 0,
+      currency: "USD",
+      totalAmount: "1500.00",
+      status: "LEAD",
+      notes: "Reserva demo creada por seed.",
+    },
+  });
+
+  // ====== Tarea ======
+  const task = await prisma.task.create({
+    data: {
+      sellerId: seller.id,
+      reservationId: reservation.id,
+      title: "Llamar al cliente para confirmar fechas",
+      description: "Confirmar si prefiere upgrade de hotel y seguro médico.",
+      dueDate: new Date(Date.now() + 3 * 24 * 60 * 60 * 1000),
+      status: "OPEN",
+      priority: "MEDIUM",
+    },
+  });
+
+  // ====== Activity Logs ======
+  await prisma.activityLog.createMany({
+    data: [
+      {
+        action: "CREATE_CLIENT",
+        message: `Cliente creado: ${client.name}`,
+        userId: seller.id,
+        clientId: client.id,
+        metadata: { source: "seed" },
+      },
+      {
+        action: "CREATE_RESERVATION",
+        message: `Reserva ${reservation.code} creada para ${client.name} hacia ${cartagena.name}`,
+        userId: seller.id,
+        clientId: client.id,
+        reservationId: reservation.id,
+        metadata: { source: "seed" },
+      },
+      {
+        action: "QUOTE_SENT",
+        message: `Cotización enviada a ${client.email}`,
+        userId: seller.id,
+        clientId: client.id,
+        reservationId: reservation.id,
+        metadata: { channel: "email", source: "seed" },
+      },
+    ],
+  });
+
+  // ====== Extra: segunda reserva rápida ======
+  await prisma.reservation.upsert({
+    where: { code: "RES-2025-000002" },
+    update: {},
+    create: {
+      code: "RES-2025-000002",
+      sellerId: seller.id,
+      clientId: client.id,
+      destinationId: sanAndres.id,
+      startDate: new Date("2026-02-10T00:00:00Z"),
+      endDate: new Date("2026-02-15T00:00:00Z"),
+      paxAdults: 2,
+      paxChildren: 1,
+      currency: "USD",
+      totalAmount: "1750.00",
+      status: "QUOTED",
+      notes: "Segunda reserva demo.",
+    },
+  });
+
+  console.log("[seed] Datos cargados correctamente.");
 }
 
 async function main() {
-  console.log('🌱 Seeding…');
-
-  // 1) Business
-  const business = await prisma.business.upsert({
-    where: { slug: BUSINESS_SLUG },
-    update: {},
-    create: {
-      Name: 'Club de Viajeros Solteros',
-      slug: BUSINESS_SLUG,
-      country: 'CO',
-      Plan: 'basic',
-    },
-  });
-  const businessId = business.id;
-
-  // 2) Branch opcional
-  await prisma.branch.createMany({
-    data: [
-      {
-        name: 'Sede Principal',
-        address: 'Calle 123 #45-67',
-        country: 'CO',
-        businessId,
-      },
-    ],
-    skipDuplicates: true,
-  });
-
-  // 3) Admin
-  const passwordHash = await bcrypt.hash(PASSWORD, 10);
-  const admin = await prisma.user.upsert({
-    where: { email: 'admin@clubsolteros.com' },
-    update: {},
-    create: {
-      email: 'admin@clubsolteros.com',
-      name: 'Admin',
-      password: passwordHash,
-      role: 'ADMIN',
-      status: 'ACTIVE',
-      businessId,
-      timezone: 'America/Bogota',
-    },
-  });
-
-  // 4) Sellers (3)
-  const sellersData = [
-    { name: 'Laura Torres', email: 'laura@clubsolteros.com', commissionRate: '10.00' },
-    { name: 'Miguel Rojas', email: 'miguel@clubsolteros.com', commissionRate: '12.50' },
-    { name: 'Ana Pérez', email: 'ana@clubsolteros.com', commissionRate: '8.00' },
-  ];
-
-  const sellers = [];
-  for (const s of sellersData) {
-    const u = await prisma.user.upsert({
-      where: { email: s.email },
-      update: {},
-      create: {
-        email: s.email,
-        name: s.name,
-        password: passwordHash,
-        role: 'SELLER',
-        status: 'ACTIVE',
-        businessId,
-        timezone: 'America/Bogota',
-        commissionRate: s.commissionRate, // decimal como string
-      },
-      select: { id: true, email: true, name: true },
-    });
-    sellers.push(u);
+  if (MODE_CLEAN) {
+    await clean();
   }
-
-  // 5) Users viajeros (8) => SOLO estos tendrán Client
-  const usersData = [
-    { name: 'Sofía Gómez', email: 'sofia@example.com', country: 'CO', phone: '+57 300000001' },
-    { name: 'Carlos Díaz', email: 'carlos@example.com', country: 'CO', phone: '+57 300000002' },
-    { name: 'Mariana López', email: 'mariana@example.com', country: 'MX', phone: '+52 550000001' },
-    { name: 'Julián Herrera', email: 'julian@example.com', country: 'AR', phone: '+54 110000001' },
-    { name: 'Valentina Ruiz', email: 'valentina@example.com', country: 'ES', phone: '+34 600000001' },
-    { name: 'Andrés Castro', email: 'andres@example.com', country: 'US', phone: '+1 7860000001' },
-    { name: 'Daniela Torres', email: 'daniela@example.com', country: 'CO', phone: '+57 300000003' },
-    { name: 'Felipe Mora', email: 'felipe@example.com', country: 'CO', phone: '+57 300000004' },
-  ];
-
-  const travelers = [];
-  for (const u of usersData) {
-    const created = await prisma.user.upsert({
-      where: { email: u.email },
-      update: {},
-      create: {
-        email: u.email,
-        name: u.name,
-        phone: u.phone,
-        country: u.country,
-        password: passwordHash,
-        role: 'USER',
-        status: 'ACTIVE',
-        businessId,
-        timezone: 'America/Bogota',
-      },
-      select: { id: true, email: true, name: true },
-    });
-    travelers.push(created);
+  if (MODE_LOAD) {
+    await load();
   }
-
-  // 6) Clients (1:1 con User role=USER) — NO creamos clientes “sueltos”
-  const clients = [];
-  for (let i = 0; i < travelers.length; i++) {
-    const t = travelers[i];
-    const seller = sellers[i % sellers.length]; // agente asignado
-    const cl = await prisma.client.create({
-      data: {
-        businessId,
-        sellerId: seller.id,
-        userId: t.id, // obligatorio: Client siempre ligado a un User (role USER)
-        name: t.name || t.email,
-        email: t.email,
-        phone: usersData[i].phone || null,
-        country: usersData[i].country || null,
-        city: null,
-        tags: i % 2 === 0 ? ['newsletter', 'vip'] : ['newsletter'],
-      },
-    });
-    clients.push(cl);
-  }
-
-  // 7) Destinations (8)
-  const destinationsData = [
-    { name: 'Cancún', country: 'MX', city: 'Cancún', category: 'Playa' },
-    { name: 'Cartagena', country: 'CO', city: 'Cartagena', category: 'Playa' },
-    { name: 'Medellín', country: 'CO', city: 'Medellín', category: 'Ciudad' },
-    { name: 'Madrid', country: 'ES', city: 'Madrid', category: 'Ciudad' },
-    { name: 'Barcelona', country: 'ES', city: 'Barcelona', category: 'Ciudad' },
-    { name: 'París', country: 'FR', city: 'Paris', category: 'Ciudad' },
-    { name: 'Nueva York', country: 'US', city: 'New York', category: 'Ciudad' },
-    { name: 'Tulum', country: 'MX', city: 'Tulum', category: 'Playa' },
-  ];
-
-  const destinations = [];
-  for (const d of destinationsData) {
-    const dest = await prisma.destination.upsert({
-      where: {
-        businessId_name_country_city: {
-          businessId,
-          name: d.name,
-          country: d.country,
-          city: d.city || null,
-        },
-      },
-      update: {},
-      create: {
-        businessId,
-        name: d.name,
-        country: d.country,
-        city: d.city,
-        category: d.category,
-        isActive: true,
-      },
-    });
-    destinations.push(dest);
-  }
-
-  // 8) Reservations (12) variadas
-  const today = new Date();
-  let seq = 1;
-
-  function makeRes({ client, seller, dest, offsetStartDays, nights, status, amountUSD }) {
-    const start = addDays(today, offsetStartDays);
-    const end = addDays(start, nights);
-    return prisma.reservation.create({
-      data: {
-        businessId,
-        code: resCode(seq++),
-        clientId: client.id,
-        sellerId: seller.id,
-        destinationId: dest.id,
-        startDate: start,
-        endDate: end,
-        paxAdults: 2,
-        paxChildren: 0,
-        currency: 'USD',
-        totalAmount: String(amountUSD.toFixed(2)),
-        status, // valores del enum nuevo
-        notes: `Reserva para ${client.name} en ${dest.name} (${ymd(start)} → ${ymd(end)})`,
-      },
-    });
-  }
-
-  const reservationsPayload = [
-    // pasadas
-    { offset: -90, nights: 5, status: 'COMPLETED', amount: 1200 },
-    { offset: -60, nights: 7, status: 'COMPLETED', amount: 1850 },
-    { offset: -45, nights: 3, status: 'CANCELED', amount: 0 },
-    // recientes / actuales
-    { offset: -5, nights: 4, status: 'CONFIRMED', amount: 980 },
-    { offset: 0, nights: 3, status: 'CONFIRMED', amount: 640 },
-    { offset: 2, nights: 6, status: 'QUOTED', amount: 1600 },
-    // futuras
-    { offset: 15, nights: 5, status: 'QUOTED', amount: 1300 },
-    { offset: 25, nights: 7, status: 'LEAD', amount: 0 },
-    { offset: 40, nights: 8, status: 'CONFIRMED', amount: 2100 },
-    { offset: 55, nights: 4, status: 'QUOTED', amount: 900 },
-    { offset: 70, nights: 10, status: 'LEAD', amount: 0 },
-    { offset: 90, nights: 6, status: 'QUOTED', amount: 1500 },
-  ];
-
-  const reservations = [];
-  for (let i = 0; i < reservationsPayload.length; i++) {
-    const p = reservationsPayload[i];
-    const client = clients[i % clients.length];
-    const seller = sellers[i % sellers.length];
-    const dest = destinations[i % destinations.length];
-    const r = await makeRes({
-      client,
-      seller,
-      dest,
-      offsetStartDays: p.offset,
-      nights: p.nights,
-      status: p.status,
-      amountUSD: p.amount,
-    });
-    reservations.push(r);
-  }
-
-  // 9) Tasks para Sellers
-  const tasksData = [
-    { title: 'Llamar a cliente', description: 'Confirmar fechas y documentos', dueIn: 2, priority: 'HIGH' },
-    { title: 'Enviar cotización', description: 'Plan Cartagena 5 noches', dueIn: 1, priority: 'MEDIUM' },
-    { title: 'Subir voucher', description: 'Adjuntar comprobantes al sistema', dueIn: 5, priority: 'LOW' },
-  ];
-  for (let i = 0; i < sellers.length; i++) {
-    const s = sellers[i];
-    for (let j = 0; j < tasksData.length; j++) {
-      const t = tasksData[j];
-      await prisma.task.create({
-        data: {
-          businessId,
-          sellerId: s.id,
-          title: t.title,
-          description: t.description,
-          dueDate: addDays(today, t.dueIn + i),
-          status: j === 0 ? 'IN_PROGRESS' : 'OPEN',
-          priority: t.priority,
-          reservationId: reservations[(i + j) % reservations.length]?.id || null,
-        },
-      });
-    }
-  }
-
-  // 10) ActivityLog de ejemplo
-  await prisma.activityLog.createMany({
-    data: [
-      { businessId, action: 'LOGIN', userId: admin.id, message: 'Admin inició sesión' },
-      { businessId, action: 'NOTE', message: 'Seed inicial ejecutado', metadata: { env: 'dev' } },
-    ],
-  });
-
-  console.log('✅ Seed terminado.');
 }
 
 main()
   .catch((e) => {
-    console.error('❌ Seed error:', e);
+    console.error("[seed] Error:", e);
     process.exit(1);
   })
   .finally(async () => {

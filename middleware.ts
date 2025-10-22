@@ -6,10 +6,12 @@ type Role = "ADMIN" | "SELLER" | "USER";
 
 interface TokenPayload extends JWTPayload {
   role?: Role;
-  businessId?: string;
 }
 
-const SECRET = process.env.JWT_SECRET || "";
+const SECRET = process.env.JWT_SECRET;
+if (!SECRET) {
+  throw new Error("JWT_SECRET no está definido en las variables de entorno");
+}
 const enc = new TextEncoder();
 
 async function verifyToken(token: string): Promise<TokenPayload | null> {
@@ -33,11 +35,22 @@ function redirectToLogin(req: NextRequest, clearCookie = false) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  const publicPrefixes = ["/login", "/unauthorized", "/api/public", "/favicons", "/_next", "/robots.txt", "/sitemap.xml"];
+  // Rutas públicas (incluye /api/auth/* para login/me/logout)
+  const publicPrefixes = [
+    "/login",
+    "/unauthorized",
+    "/api/public",
+    "/api/auth",
+    "/favicons",
+    "/_next",
+    "/robots.txt",
+    "/sitemap.xml",
+  ];
   if (publicPrefixes.some((p) => pathname.startsWith(p))) {
     return NextResponse.next();
   }
 
+  // Prefijos protegidos
   const isAdmin = pathname.startsWith("/dashboard-admin");
   const isSeller = pathname.startsWith("/dashboard-seller");
   const isUser = pathname.startsWith("/dashboard-user");
@@ -46,6 +59,7 @@ export async function middleware(req: NextRequest) {
     return NextResponse.next();
   }
 
+  // Requiere token
   const token = req.cookies.get("token")?.value;
   if (!token) return redirectToLogin(req);
 
@@ -54,6 +68,7 @@ export async function middleware(req: NextRequest) {
 
   const role = payload.role;
 
+  // Reglas por prefijo
   const rules: { test: (p: string) => boolean; allowed: Role[] }[] = [
     { test: (p) => p.startsWith("/dashboard-admin"),  allowed: ["ADMIN"] },
     { test: (p) => p.startsWith("/dashboard-seller"), allowed: ["SELLER", "ADMIN"] },
@@ -61,7 +76,8 @@ export async function middleware(req: NextRequest) {
   ];
 
   const rule = rules.find((r) => r.test(pathname));
-  if (!rule) return NextResponse.next(); 
+  if (!rule) return NextResponse.next();
+
   if (!role || !rule.allowed.includes(role)) {
     const url = req.nextUrl.clone();
     url.pathname = "/unauthorized";

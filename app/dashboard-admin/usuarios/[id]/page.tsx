@@ -6,11 +6,11 @@ import AdminUserEditForm from "@/app/components/admin/AdminUserEditForm";
 export default async function AdminUserDetailPage({ params }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   // Sólo campos administrativos (nada de documentos de viaje)
   const user = await prisma.user.findFirst({
-    where: { id: params.id, businessId: auth.businessId },
+    where: { id: params.id },
     select: {
       id: true,
       name: true,
@@ -73,7 +73,7 @@ export default async function AdminUserDetailPage({ params }: { params: { id: st
             <div>
               <span className="text-gray-500">Comisión: </span>
               {user.role === "SELLER"
-                ? (user.commissionRate != null ? `${user.commissionRate}%` : "—")
+                ? (user.commissionRate != null ? `${Number(user.commissionRate)}%` : "—")
                 : "—"}
             </div>
           </div>

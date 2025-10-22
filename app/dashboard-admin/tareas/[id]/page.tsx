@@ -61,10 +61,10 @@ function priorityBadgeClass(priority: string) {
   }
 }
 
-/* Opcional: indicativos básicos (igual estilo que otras páginas) */
+/* Indicativos básicos */
 const DIAL_BY_COUNTRY: Record<string, string> = {
   Colombia: "57",
-  "México": "52",
+  México: "52",
   "Estados Unidos": "1",
   "United States": "1",
   Canadá: "1",
@@ -100,13 +100,12 @@ const waLink = (e164?: string) => {
 export default async function AdminTaskDetailPage({ params }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const now = new Date();
 
   const task = await prisma.task.findFirst({
-    where: { id: params.id, businessId },
+    where: { id: params.id },
     select: {
       id: true,
       title: true,
@@ -175,7 +174,7 @@ export default async function AdminTaskDetailPage({ params }: { params: { id: st
           </p>
         </div>
         <div className="flex gap-2">
-          <a href={`/dashboard-admin/vendedores/${task.seller.id}`} className="rounded-md border px-3 py-2 text-sm">
+          <a href={`/dashboard-admin/vendedores/${task.seller?.id ?? ""}`} className="rounded-md border px-3 py-2 text-sm">
             ← Volver
           </a>
         </div>
@@ -207,7 +206,7 @@ export default async function AdminTaskDetailPage({ params }: { params: { id: st
             {task.seller?.country ? <span className="text-gray-400">{task.seller.country}</span> : null}
           </div>
           <div className="mt-2">
-            <a href={`/dashboard-admin/vendedores/${task.seller?.id}`} className="text-sm text-primary underline">
+            <a href={`/dashboard-admin/vendedores/${task.seller?.id ?? ""}`} className="text-sm text-primary underline">
               Ver vendedor
             </a>
           </div>
@@ -234,7 +233,6 @@ export default async function AdminTaskDetailPage({ params }: { params: { id: st
               <div className="text-xs text-gray-600">
                 {fmtMoney(Number(task.reservation.totalAmount || 0), task.reservation.currency || "USD")}
               </div>
-              {/* Si existe la ruta de detalle de la reserva, puedes enlazarla: */}
               {/* <a href={`/dashboard-admin/reservas/${task.reservation.id}`} className="text-sm text-primary underline">Ver reserva</a> */}
             </div>
           ) : (

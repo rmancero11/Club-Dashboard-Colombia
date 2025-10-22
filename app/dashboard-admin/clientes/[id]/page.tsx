@@ -13,27 +13,30 @@ function fmtDate(d: Date | string) {
 }
 function money(n: number, currency = "USD") {
   try {
-    return new Intl.NumberFormat("es-CO", { style: "currency", currency }).format(n);
+    return new Intl.NumberFormat("es-CO", {
+      style: "currency",
+      currency,
+    }).format(n);
   } catch {
-    const val = Number.isFinite(n) ? n.toFixed(2) : String(n);
+    const val = Number.isFinite(n) ? (n as number).toFixed(2) : String(n);
     return `${currency} ${val}`;
   }
 }
 
 /** Etiquetas legibles para archivos (WHITELIST, igual que seller) */
 const FILE_LABELS: Record<string, string> = {
-  // Identidad / viaje
   dniFile: "Documento de identidad",
   passport: "Pasaporte",
   visa: "Visa",
-  // Operativa
   purchaseOrder: "Orden de compra",
   flightTickets: "Boletos de vuelo",
   serviceVoucher: "Voucher de servicio",
   medicalAssistanceCard: "Asistencia médica",
   travelTips: "Tips de viaje",
 };
-const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS) as (keyof typeof FILE_LABELS)[];
+const ALLOWED_DOC_FIELDS = Object.keys(
+  FILE_LABELS
+) as (keyof typeof FILE_LABELS)[];
 
 /** Detección de extensión (tolerante con URLs sin .ext) */
 function getExt(url: string) {
@@ -48,46 +51,59 @@ function getExt(url: string) {
     return m ? m[1] : "";
   }
 }
-const isImg = (e: string) => ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(e);
+const isImg = (e: string) =>
+  ["jpg", "jpeg", "png", "webp", "gif", "bmp", "avif"].includes(e);
 const isPdf = (e: string) => e === "pdf";
 const isVid = (e: string) => ["mp4", "webm", "ogg"].includes(e);
 
-/** Helpers Cloudinary + proxy (igual que seller) */
+/** Helpers Cloudinary + proxy */
 function isCloudinary(url: string) {
   try {
     const { hostname } = new URL(url);
-    return hostname === "res.cloudinary.com";
+    if (hostname === "res.cloudinary.com") return true;
+    // Opcionales para dominio custom o private CDN:
+    const sd = process.env.NEXT_PUBLIC_CLOUDINARY_SECURE_DISTRIBUTION;
+    if (sd && hostname === sd) return true;
+    const cn = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
+    if (cn && hostname === `${cn}-res.cloudinary.com`) return true;
+    return false;
   } catch {
     return false;
   }
 }
-function injectCloudinaryFlag(url: string, flag: string) {
-  if (url.includes("/raw/upload/")) return url.replace("/raw/upload/", `/raw/upload/${flag}/`);
-  if (url.includes("/upload/")) return url.replace("/upload/", `/upload/${flag}/`);
-  return url;
-}
-function toInlineCloudinary(url: string) {
-  return injectCloudinaryFlag(url, "fl_inline");
-}
-function ensurePdfExt(url: string) {
-  return /\.pdf(\?|#|$)/i.test(url) ? url : `${url}.pdf`;
-}
 function filenameForKey(key: string) {
   switch (key) {
-    case "dniFile": return "documento_identidad.pdf";
-    case "passport": return "pasaporte.pdf";
-    case "visa": return "visa.pdf";
-    case "purchaseOrder": return "orden_compra.pdf";
-    case "flightTickets": return "boletos_vuelo.pdf";
-    case "serviceVoucher": return "voucher_servicio.pdf";
-    case "medicalAssistanceCard": return "asistencia_medica.pdf";
-    case "travelTips": return "tips_viaje.pdf";
-    default: return "documento.pdf";
+    case "dniFile":
+      return "documento_identidad.pdf";
+    case "passport":
+      return "pasaporte.pdf";
+    case "visa":
+      return "visa.pdf";
+    case "purchaseOrder":
+      return "orden_compra.pdf";
+    case "flightTickets":
+      return "boletos_vuelo.pdf";
+    case "serviceVoucher":
+      return "voucher_servicio.pdf";
+    case "medicalAssistanceCard":
+      return "asistencia_medica.pdf";
+    case "travelTips":
+      return "tips_viaje.pdf";
+    default:
+      return "documento.pdf";
   }
 }
 
-/** Previsualizador (mismo comportamiento que seller: iframe + file-proxy) */
-function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
+/** Previsualizador */
+function FilePreview({
+  url,
+  fileKey,
+  clientId,
+}: {
+  url: string;
+  fileKey?: string;
+  clientId?: string;
+}) {
   const ext = getExt(url);
 
   // IMAGEN
@@ -98,7 +114,7 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
           src={url}
           alt="Documento"
           loading="lazy"
-          className="max-h-72 w-auto rounded"
+        className="max-h-72 w-auto rounded"
           style={{ objectFit: "contain" }}
         />
       </div>
@@ -114,26 +130,42 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
     );
   }
 
-  // PDF (o Cloudinary raw sin extensión)
-  const looksPdf =
-    isPdf(ext) || (isCloudinary(url) && (url.includes("/raw/upload/") || url.includes("/upload/")));
-
+  // PDF (extensión .pdf o query ?ext=pdf)
+  const looksPdf = isPdf(ext) || /(?:^|[?&])ext=pdf(?:&|$)/i.test(url);
   if (looksPdf) {
     const filename = filenameForKey(fileKey || "document");
     const src = url.includes("/api/file-proxy")
-      ? url // ya viene listo
-      : `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`;
-
-    const downloadHref = src;
+      ? url
+      : `/api/file-proxy?url=${encodeURIComponent(
+          url
+        )}&filename=${encodeURIComponent(filename)}${
+          clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""
+        }`;
 
     return (
       <div className="rounded-md border p-2 overflow-auto">
-        <iframe src={src} title={filename} className="h-80 w-full rounded" />
+        <iframe
+          src={src}
+          title={filename}
+          className="h-80 w-full rounded"
+          allow="fullscreen"
+        />
         <div className="mt-2 flex gap-2">
-          <a href={downloadHref} download={filename} className="text-xs underline" title="Descargar PDF">
+          <a
+            href={src}
+            download={filename}
+            className="text-xs underline"
+            title="Descargar PDF"
+          >
             Descargar
           </a>
-          <a href={src} target="_blank" rel="noopener noreferrer" className="text-xs underline" title="Abrir en pestaña">
+          <a
+            href={src}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-xs underline"
+            title="Abrir en pestaña"
+          >
             Abrir en pestaña
           </a>
         </div>
@@ -146,7 +178,12 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
     <div className="rounded-md border p-3 text-xs text-gray-600">
       <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
       <div className="flex gap-2">
-        <a href={url} target="_blank" rel="noopener noreferrer" className="rounded-md border px-2 py-1 underline">
+        <a
+          href={url}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="rounded-md border px-2 py-1 underline"
+        >
           Abrir
         </a>
         <a href={url} download className="rounded-md border px-2 py-1">
@@ -157,26 +194,41 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
   );
 }
 
-/** Lista de documentos (igual que seller) */
-function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
-  if (!user) return <div className="text-xs text-gray-400">No hay documentos</div>;
+/** Lista de documentos */
+function DocumentList({
+  user,
+  clientId,
+}: {
+  user?: Record<string, unknown> | null;
+  clientId?: string;
+}) {
+  if (!user)
+    return <div className="text-xs text-gray-400">No hay documentos</div>;
 
   const entries: { key: string; label: string; url: string }[] = [];
   for (const key of ALLOWED_DOC_FIELDS) {
-    const v = user[key as string];
-    if (typeof v === "string" && v.trim()) entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
+    const v = (user as any)[key as string];
+    if (typeof v === "string" && v.trim())
+      entries.push({ key, label: FILE_LABELS[key], url: v.trim() });
   }
-
-  if (entries.length === 0) return <div className="text-xs text-gray-400">No hay documentos</div>;
+  if (entries.length === 0)
+    return <div className="text-xs text-gray-400">No hay documentos</div>;
 
   return (
     <ul className="flex flex-col gap-2">
       {entries.map(({ key, label, url }) => {
         const filename = filenameForKey(key);
-        const openUrl = isCloudinary(url)
-          ? `/api/file-proxy?url=${encodeURIComponent(url)}&filename=${encodeURIComponent(filename)}`
-          : url;
-        const downloadUrl = openUrl;
+        const ext = getExt(url);
+
+        // Proxy solo para PDFs
+        const openUrl =
+          isPdf(ext)
+            ? `/api/file-proxy?url=${encodeURIComponent(
+                url
+              )}&filename=${encodeURIComponent(filename)}${
+                clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""
+              }`
+            : url;
 
         return (
           <li key={key} className="rounded-md border p-2">
@@ -193,7 +245,7 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
                   Abrir
                 </a>
                 <a
-                  href={downloadUrl}
+                  href={openUrl}
                   download={filename}
                   className="text-xs text-gray-700 underline"
                   title="Descargar"
@@ -208,7 +260,7 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
                 Previsualizar
               </summary>
               <div className="mt-2">
-                <FilePreview url={url} fileKey={key} />
+                <FilePreview url={url} fileKey={key} clientId={clientId} />
               </div>
             </details>
           </li>
@@ -218,14 +270,17 @@ function DocumentList({ user }: { user?: Record<string, unknown> | null }) {
   );
 }
 
-export default async function AdminClientDetailPage({ params }: { params: { id: string } }) {
+export default async function AdminClientDetailPage({
+  params,
+}: {
+  params: { id: string };
+}) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const client = await prisma.client.findFirst({
-    where: { id: params.id, businessId },
+    where: { id: params.id },
     select: {
       id: true,
       name: true,
@@ -241,7 +296,6 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
       createdAt: true,
       seller: { select: { id: true, name: true, email: true } },
       _count: { select: { reservations: true } },
-      // Documentos del USER (igual que seller)
       user: {
         select: {
           dniFile: true,
@@ -261,7 +315,7 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
 
   const [reservations, sellers] = await Promise.all([
     prisma.reservation.findMany({
-      where: { businessId, clientId: client.id },
+      where: { clientId: client.id },
       orderBy: { createdAt: "desc" },
       take: 10,
       select: {
@@ -276,7 +330,7 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
       },
     }),
     prisma.user.findMany({
-      where: { businessId, role: "SELLER", status: "ACTIVE" },
+      where: { role: "SELLER", status: "ACTIVE" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
@@ -288,10 +342,15 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
         <div>
           <h1 className="text-2xl font-semibold">{client.name}</h1>
           <p className="text-sm text-gray-500">
-            {client.email || "—"} · {client.phone || "—"} · {client.city ? `${client.city}, ` : ""}{client.country || "—"}
+            {client.email || "—"} · {client.phone || "—"} ·{" "}
+            {client.city ? `${client.city}, ` : ""}
+            {client.country || "—"}
           </p>
         </div>
-        <a href="/dashboard-admin/clientes" className="rounded-md border px-3 py-2 text-sm">
+        <a
+          href="/dashboard-admin/clientes"
+          className="rounded-md border px-3 py-2 text-sm"
+        >
           ← Volver
         </a>
       </header>
@@ -321,14 +380,14 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
               <span className="text-gray-500">Estado: </span>
               {client.isArchived ? "Archivado" : "Activo"}
             </div>
-            <div>
-  <span className="text-gray-500">Verificado: </span>
-  {client.user?.verified ? (
-    <span className="text-green-600 font-medium">Sí</span>
-  ) : (
-    <span className="text-red-600 font-medium">No</span>
-  )}
-</div>
+            <div className="flex items-center gap-1">
+              <span className="text-gray-500">Verificado: </span>
+              {client.user?.verified ? (
+                <span className="text-green-600 font-medium">Sí</span>
+              ) : (
+                <span className="text-red-600 font-medium">No</span>
+              )}
+            </div>
 
             <div className="mt-2">
               <div className="text-gray-500">Tags:</div>
@@ -352,20 +411,22 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
             </div>
 
             <div className="text-xs text-gray-500 mt-2">
-              Creado: {fmtDate(client.createdAt)}
+              Creado: {fmtDate(client.createdAt as any)}
             </div>
 
-            {/* Documentos (misma UX que seller) */}
+            {/* Documentos */}
             <div className="mt-4">
-              <h3 className="mb-2 text-sm font-medium">Documentos</h3>
+              <h3 className="mb-2 text-sm font-semibold">Documentos</h3>
               <details className="group">
                 <summary className="cursor-pointer text-sm text-blue-600">
                   Ver archivos
                 </summary>
                 <div className="mt-2">
-                  <ClientDocuments initialUser={client.user as any}
-  currentVerified={client.user?.verified || false}
-  clientId={client.id} />
+                  <ClientDocuments
+                    initialUser={client.user as any}
+                    currentVerified={client.user?.verified || false}
+                    clientId={client.id}
+                  />
                 </div>
               </details>
             </div>
@@ -381,7 +442,6 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
             currentArchived={client.isArchived}
             currentNotes={client.notes || ""}
             sellers={sellers}
-            
           />
         </div>
       </div>
@@ -402,10 +462,13 @@ export default async function AdminClientDetailPage({ params }: { params: { id: 
                     </div>
                     <div className="text-xs text-gray-500">
                       {new Date(r.startDate).toLocaleDateString("es-CO")} →{" "}
-                      {new Date(r.endDate).toLocaleDateString("es-CO")} · {r.status}
+                      {new Date(r.endDate).toLocaleDateString("es-CO")} ·{" "}
+                      {r.status}
                     </div>
                   </div>
-                  <div className="text-sm">{money(Number(r.totalAmount), r.currency)}</div>
+                  <div className="text-sm">
+                    {money(Number(r.totalAmount), r.currency)}
+                  </div>
                 </div>
               </li>
             ))}
