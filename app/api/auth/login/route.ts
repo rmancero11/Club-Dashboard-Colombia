@@ -9,7 +9,6 @@ if (!JWT_SECRET) {
 }
 const enc = new TextEncoder();
 
-// Firma el token con payload + subject (sub = user.id)
 async function signToken(
   payload: Record<string, unknown>,
   { expiresIn = "1d", subject }: { expiresIn?: string; subject: string }
@@ -18,7 +17,7 @@ async function signToken(
     .setProtectedHeader({ alg: "HS256" })
     .setIssuedAt()
     .setExpirationTime(expiresIn)
-    .setSubject(subject)                 // 👈 sub = user.id
+    .setSubject(subject)                 
     .sign(enc.encode(JWT_SECRET));
 }
 
@@ -54,10 +53,9 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
     }
 
-    // Incluimos 'role' en el payload para que el middleware lo lea
     const token = await signToken(
       { id: user.id, role: user.role },
-      { expiresIn: "1d", subject: user.id } // 👈 asegura sub
+      { expiresIn: "1d", subject: user.id } 
     );
 
     const res = NextResponse.json({
@@ -69,7 +67,7 @@ export async function POST(req: Request) {
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24, // 1 día
+      maxAge: 60 * 60 * 24, 
     });
 
     return res;

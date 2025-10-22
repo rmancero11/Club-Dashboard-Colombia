@@ -7,15 +7,12 @@ import { useToast } from "@/app/hooks/useToast";
 import { Button } from "@/app/components/ui/ButtonLogin";
 import { Input } from "@/app/components/ui/InputLogin";
 import Image from "next/image";
-import Link from "next/link";
 import ForgotPasswordPanel from "@/app/components/auth/ForgotPasswordPanel";
 
 type Inputs = { email: string; password: string };
 
 export default function LoginPageClient({
-  cover,
 }: {
-  cover: string;
 }) {
   const { toast } = useToast();
   const router = useRouter();
