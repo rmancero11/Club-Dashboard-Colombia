@@ -68,7 +68,6 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear usuario (role USER)
     const newUser = await prisma.user.create({
       data: {
         email,
@@ -101,7 +100,6 @@ export async function POST(req: Request) {
       },
     });
 
-    // Asignación de vendedor (simple): usar SELLER_DEFAULT_ID si es válido; si no, tomar el primer SELLER activo
     let sellerIdToUse: string | null = SELLER_DEFAULT_ID;
     if (sellerIdToUse) {
       const ok = await prisma.user.findFirst({
@@ -119,7 +117,6 @@ export async function POST(req: Request) {
       sellerIdToUse = fallback?.id ?? null;
     }
 
-    // Crear Client enlazado al nuevo usuario (obligatorio en schema)
     let clientId: string | undefined;
     if (sellerIdToUse) {
       const client = await prisma.client.create({
@@ -140,14 +137,13 @@ export async function POST(req: Request) {
       clientId = client.id;
     }
 
-    // Crear JWT corto para onboarding
     const token = await new SignJWT({ sub: newUser.id, purpose: "onboard" })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
       .setExpirationTime("2m")
       .sign(enc.encode(JWT_SECRET));
 
-    const redirectUrl = `https://clubsocial-phi.vercel.app/api/auth/accept-register?r=${encodeURIComponent(
+    const redirectUrl = `https://app.clubdeviajerossolteros.com/api/auth/accept-register?r=${encodeURIComponent(
       token
     )}&next=/dashboard-user`;
 

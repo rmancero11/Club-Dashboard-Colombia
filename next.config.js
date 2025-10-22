@@ -3,8 +3,8 @@ const nextConfig = {
   images: {
     domains: ['via.placeholder.com'],
     remotePatterns: [
-      { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' }, 
-      { protocol: 'https', hostname: 'static.vecteezy.com', pathname: '/**' }, 
+      { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' },
+      { protocol: 'https', hostname: 'static.vecteezy.com', pathname: '/**' },
     ],
   },
 
@@ -14,8 +14,17 @@ const nextConfig = {
       issuer: /\.[jt]sx?$/,
       use: ['@svgr/webpack'],
     });
-
     return config;
+  },
+
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/login',
+        permanent: false, 
+      },
+    ];
   },
 };
 

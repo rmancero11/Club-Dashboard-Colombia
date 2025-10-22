@@ -3,6 +3,17 @@ import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 import Link from "next/link";
 
+// ===== FX / Conversión =====
+const FX_COP_USD = Number(process.env.FX_COP_USD || "4000"); // p.ej. 4000 COP = 1 USD
+
+function toUSD(amount: number, currency?: string | null) {
+  const c = (currency || "USD").toUpperCase();
+  if (c === "USD") return amount;
+  if (c === "COP") return amount / FX_COP_USD;
+  // Si aparece otra moneda no contemplada, tratamos como USD para no romper la UI.
+  return amount;
+}
+
 // ===== Helpers comunes =====
 function toInt(v: string | string[] | undefined, def: number) {
   const n = Array.isArray(v) ? parseInt(v[0] || "", 10) : parseInt(v || "", 10);
@@ -120,50 +131,66 @@ export default async function AdminSellersPage({
   const PENDING_TASK_STATUSES = ["OPEN", "IN_PROGRESS", "BLOCKED"] as const;
 
   let clientsBySeller: Record<string, number> = {};
-  let resAllBySeller: Record<string, { count: number; sum: number }> = {};
+  // Cambiamos la forma de calcular resAllBySeller: contamos total de reservas y
+  // sumamos montos convirtiendo a USD por moneda (groupBy por sellerId + currency)
+  let resAllBySeller: Record<string, { count: number; sumUSD: number }> = {};
   let resPendingBySeller: Record<string, number> = {};
   let tasksPendingBySeller: Record<string, number> = {};
 
   if (sellerIds.length > 0) {
-    const [clientsGroup, resAll, resPending, tasksPending] = await Promise.all([
-      prisma.client.groupBy({
-        where: { sellerId: { in: sellerIds } },
-        by: ["sellerId"],
-        _count: { _all: true },
-      }),
-      prisma.reservation.groupBy({
-        where: { sellerId: { in: sellerIds } },
-        by: ["sellerId"],
-        _count: { _all: true },
-        _sum: { totalAmount: true },
-      }),
-      prisma.reservation.groupBy({
-        where: {
-          sellerId: { in: sellerIds },
-          status: { in: PENDING_RES_STATUSES as any },
-        },
-        by: ["sellerId"],
-        _count: { _all: true },
-      }),
-      prisma.task.groupBy({
-        where: {
-          sellerId: { in: sellerIds },
-          status: { in: PENDING_TASK_STATUSES as any },
-        },
-        by: ["sellerId"],
-        _count: { _all: true },
-      }),
-    ]);
+    const [clientsGroup, resBySellerCurrency, resPending, tasksPending] =
+      await Promise.all([
+        prisma.client.groupBy({
+          where: { sellerId: { in: sellerIds } },
+          by: ["sellerId"],
+          _count: { _all: true },
+        }),
+        prisma.reservation.groupBy({
+          where: { sellerId: { in: sellerIds } },
+          by: ["sellerId", "currency"],
+          _count: { _all: true },
+          _sum: { totalAmount: true },
+        }),
+        prisma.reservation.groupBy({
+          where: {
+            sellerId: { in: sellerIds },
+            status: { in: PENDING_RES_STATUSES as any },
+          },
+          by: ["sellerId"],
+          _count: { _all: true },
+        }),
+        prisma.task.groupBy({
+          where: {
+            sellerId: { in: sellerIds },
+            status: { in: PENDING_TASK_STATUSES as any },
+          },
+          by: ["sellerId"],
+          _count: { _all: true },
+        }),
+      ]);
 
     clientsBySeller = Object.fromEntries(
       clientsGroup.map((g) => [g.sellerId, g._count._all])
     );
-    resAllBySeller = Object.fromEntries(
-      resAll.map((g) => [
-        g.sellerId,
-        { count: g._count._all, sum: Number(g._sum.totalAmount || 0) },
-      ])
-    );
+
+    // Inicializa con 0
+    resAllBySeller = sellerIds.reduce((acc, id) => {
+      acc[id] = { count: 0, sumUSD: 0 };
+      return acc;
+    }, {} as Record<string, { count: number; sumUSD: number }>);
+
+    // Acumula por moneda, convirtiendo a USD
+    for (const g of resBySellerCurrency) {
+      const sellerId = g.sellerId as string;
+      const count = g._count._all;
+      const sum = Number(g._sum.totalAmount || 0);
+      const currency = (g as any).currency as string | null;
+
+      const usd = toUSD(sum, currency);
+      resAllBySeller[sellerId].count += count;
+      resAllBySeller[sellerId].sumUSD += usd;
+    }
+
     resPendingBySeller = Object.fromEntries(
       resPending.map((g) => [g.sellerId, g._count._all])
     );
@@ -300,7 +327,7 @@ export default async function AdminSellersPage({
               )}
               {sellersSorted.map((s) => {
                 const clients = clientsBySeller[s.id] ?? 0;
-                const ra = resAllBySeller[s.id] ?? { count: 0, sum: 0 };
+                const ra = resAllBySeller[s.id] ?? { count: 0, sumUSD: 0 };
                 const resPend = resPendingBySeller[s.id] ?? 0;
                 const tasksPend = tasksPendingBySeller[s.id] ?? 0;
 
@@ -374,7 +401,9 @@ export default async function AdminSellersPage({
                       </span>
                     </td>
                     <td className="px-2 py-2">{ra.count}</td>
-                    <td className="px-2 py-2">{fmtMoney(ra.sum)}</td>
+                    <td className="px-2 py-2">
+                      {fmtMoney(ra.sumUSD /* ya en USD */, "USD")}
+                    </td>
                     <td className="px-2 py-2 text-right">
                       <div className="flex gap-1">
                         <a

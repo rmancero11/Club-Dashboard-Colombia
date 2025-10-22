@@ -3,20 +3,15 @@ import { NextResponse } from "next/server";
 import { jwtVerify, type JWTPayload } from "jose";
 
 type Role = "ADMIN" | "SELLER" | "USER";
+interface TokenPayload extends JWTPayload { role?: Role }
 
-interface TokenPayload extends JWTPayload {
-  role?: Role;
-}
-
-const SECRET = process.env.JWT_SECRET;
-if (!SECRET) {
-  throw new Error("JWT_SECRET no está definido en las variables de entorno");
-}
 const enc = new TextEncoder();
 
 async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const { payload } = await jwtVerify(token, enc.encode(SECRET));
+    const secret = process.env.JWT_SECRET;           // <-- léelo aquí
+    if (!secret) return null;                        // <-- sin secret => no válido
+    const { payload } = await jwtVerify(token, enc.encode(secret));
     return payload as TokenPayload;
   } catch {
     return null;
@@ -33,60 +28,66 @@ function redirectToLogin(req: NextRequest, clearCookie = false) {
 }
 
 export async function middleware(req: NextRequest) {
-  const { pathname } = req.nextUrl;
+  try {
+    const { pathname } = req.nextUrl;
 
-  // Rutas públicas (incluye /api/auth/* para login/me/logout)
-  const publicPrefixes = [
-    "/login",
-    "/unauthorized",
-    "/api/public",
-    "/api/auth",
-    "/favicons",
-    "/_next",
-    "/robots.txt",
-    "/sitemap.xml",
-  ];
-  if (publicPrefixes.some((p) => pathname.startsWith(p))) {
+    // Redirige la raíz
+    if (pathname === "/") {
+      const hasToken = !!req.cookies.get("token")?.value;
+      const url = req.nextUrl.clone();
+      url.pathname = hasToken ? "/dashboard-user" : "/login";
+      return NextResponse.redirect(url);
+    }
+
+    const publicPrefixes = [
+      "/login",
+      "/unauthorized",
+      "/api/public",
+      "/api/auth",
+      "/favicons",
+      "/_next",
+      "/robots.txt",
+      "/sitemap.xml",
+    ];
+    if (publicPrefixes.some((p) => pathname.startsWith(p))) {
+      return NextResponse.next();
+    }
+
+    const isAdmin  = pathname.startsWith("/dashboard-admin");
+    const isSeller = pathname.startsWith("/dashboard-seller");
+    const isUser   = pathname.startsWith("/dashboard-user");
+
+    if (!(isAdmin || isSeller || isUser)) return NextResponse.next();
+
+    const token = req.cookies.get("token")?.value;
+    if (!token) return redirectToLogin(req);
+
+    const payload = await verifyToken(token);
+    if (!payload) return redirectToLogin(req, true);
+
+    const role = payload.role;
+    const rules: { test: (p: string) => boolean; allowed: Role[] }[] = [
+      { test: (p) => p.startsWith("/dashboard-admin"),  allowed: ["ADMIN"] },
+      { test: (p) => p.startsWith("/dashboard-seller"), allowed: ["SELLER", "ADMIN"] },
+      { test: (p) => p.startsWith("/dashboard-user"),   allowed: ["USER"] },
+    ];
+
+    const rule = rules.find((r) => r.test(pathname));
+    if (!rule) return NextResponse.next();
+
+    if (!role || !rule.allowed.includes(role)) {
+      const url = req.nextUrl.clone();
+      url.pathname = "/unauthorized";
+      return NextResponse.redirect(url);
+    }
+
     return NextResponse.next();
+  } catch (err) {
+    // Cualquier excepción en Edge => manda al login (evita 500)
+    return redirectToLogin(req, true);
   }
-
-  // Prefijos protegidos
-  const isAdmin = pathname.startsWith("/dashboard-admin");
-  const isSeller = pathname.startsWith("/dashboard-seller");
-  const isUser = pathname.startsWith("/dashboard-user");
-
-  if (!(isAdmin || isSeller || isUser)) {
-    return NextResponse.next();
-  }
-
-  // Requiere token
-  const token = req.cookies.get("token")?.value;
-  if (!token) return redirectToLogin(req);
-
-  const payload = await verifyToken(token);
-  if (!payload) return redirectToLogin(req, true);
-
-  const role = payload.role;
-
-  // Reglas por prefijo
-  const rules: { test: (p: string) => boolean; allowed: Role[] }[] = [
-    { test: (p) => p.startsWith("/dashboard-admin"),  allowed: ["ADMIN"] },
-    { test: (p) => p.startsWith("/dashboard-seller"), allowed: ["SELLER", "ADMIN"] },
-    { test: (p) => p.startsWith("/dashboard-user"),   allowed: ["USER"] },
-  ];
-
-  const rule = rules.find((r) => r.test(pathname));
-  if (!rule) return NextResponse.next();
-
-  if (!role || !rule.allowed.includes(role)) {
-    const url = req.nextUrl.clone();
-    url.pathname = "/unauthorized";
-    return NextResponse.redirect(url);
-  }
-
-  return NextResponse.next();
 }
 
 export const config = {
-  matcher: ["/dashboard-admin/:path*", "/dashboard-seller/:path*", "/dashboard-user/:path*"],
+  matcher: ["/", "/dashboard-admin/:path*", "/dashboard-seller/:path*", "/dashboard-user/:path*"],
 };
