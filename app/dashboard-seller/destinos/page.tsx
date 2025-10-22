@@ -31,10 +31,7 @@ export default async function SellerDestinationsPage({
 }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
   if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
-
-  const businessId = auth.businessId!;
 
   // Filtros (por defecto: solo activos para seller)
   const q =
@@ -59,7 +56,7 @@ export default async function SellerDestinationsPage({
   const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
   // Buscador por nombre + filtros
-  const where: any = { businessId };
+  const where: any = {};
   if (q) where.name = { contains: q, mode: "insensitive" };
   if (active === "yes") where.isActive = true;
   if (active === "no") where.isActive = false;
@@ -68,13 +65,11 @@ export default async function SellerDestinationsPage({
 
   const [countries, categories] = await Promise.all([
     prisma.destination.findMany({
-      where: { businessId },
       select: { country: true },
       distinct: ["country"],
       orderBy: { country: "asc" },
     }),
     prisma.destination.findMany({
-      where: { businessId },
       select: { category: true },
       distinct: ["category"],
       orderBy: { category: "asc" },
@@ -230,16 +225,13 @@ export default async function SellerDestinationsPage({
         <div className="overflow-auto">
           <table className="table-fixed min-w-[720px] sm:min-w-[900px] text-sm">
             <colgroup>
-              <col className="w-[40%] sm:w-[35%]" /> {/* Destino */}
-              <col className="w-[28%] sm:w-[22%]" /> {/* Ubicación */}
-              <col className="hidden sm:table-column w-[12%]" />{" "}
-              {/* Categoría */}
-              <col className="w-[16%]" /> {/* Precio */}
-              <col className="hidden md:table-column w-[10%]" />{" "}
-              {/* Reservas */}
-              <col className="hidden lg:table-column w-[12%]" />{" "}
-              {/* Popularidad */}
-              <col className="w-[12%]" /> {/* Acciones */}
+              <col className="w-[40%] sm:w-[35%]" />
+              <col className="w-[28%] sm:w-[22%]" />
+              <col className="hidden sm:table-column w-[12%]" />
+              <col className="w-[16%]" />
+              <col className="hidden md:table-column w-[10%]" />
+              <col className="hidden lg:table-column w-[12%]" />
+              <col className="w-[12%]" />
             </colgroup>
 
             <thead>
@@ -292,8 +284,7 @@ export default async function SellerDestinationsPage({
 
                   {/* UBICACIÓN */}
                   <td className="px-2 py-2 break-words">
-                    {[d.city, d.country].filter(Boolean).join(", ") ||
-                      d.country}
+                    {[d.city, d.country].filter(Boolean).join(", ") || d.country}
                   </td>
 
                   {/* CATEGORÍA (oculta en XS) */}
@@ -354,7 +345,7 @@ export default async function SellerDestinationsPage({
           </table>
         </div>
 
-        {/* Paginación (igual) */}
+        {/* Paginación */}
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}

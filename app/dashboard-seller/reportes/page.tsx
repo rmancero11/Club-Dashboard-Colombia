@@ -5,6 +5,24 @@ import { TaskStatus } from "@prisma/client";
 
 type SP = { [k: string]: string | string[] | undefined };
 
+/** === FX helpers ===
+ * Define cuántas unidades de la moneda hay por 1 USD.
+ * Ej: si 1 USD = 4000 COP => FX_PER_USD.COP = 4000
+ * Configurable por env: process.env.FX_COP_PER_USD
+ */
+const FX_PER_USD: Record<string, number> = {
+  USD: 1,
+  COP: Number(process.env.FX_COP_PER_USD ?? "4000"),
+};
+
+function toUSD(amount: number, currency?: string | null) {
+  const cur = (currency || "USD").toUpperCase();
+  const perUsd = FX_PER_USD[cur];
+  if (!Number.isFinite(amount)) return 0;
+  if (!perUsd || cur === "USD") return amount; // fallback: USD o moneda desconocida => no convertir
+  return amount / perUsd;
+}
+
 /* =============== Helpers =============== */
 function str(v: string | string[] | undefined, def = "") {
   return (Array.isArray(v) ? v[0] : v) ?? def;
@@ -66,10 +84,8 @@ export default async function SellerReportsPage({
 }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
   if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const sellerId = auth.userId!;
 
   const type = str(searchParams.type, "reservas"); // reservas | destinos | productividad
@@ -79,41 +95,33 @@ export default async function SellerReportsPage({
 
   // ====== WHEREs base (scoped al vendedor) ======
   const baseReservationWhere: any = {
-    businessId,
     sellerId, // << solo mis reservas
     startDate: { gte: start, lte: end },
   };
   const baseTaskCreatedWhere: any = {
-    businessId,
     sellerId, // << solo mis tareas
     createdAt: { gte: start, lte: end },
   };
   const baseTaskDoneWhere: any = {
-    businessId,
     sellerId, // << solo mis tareas
     status: "DONE",
     updatedAt: { gte: start, lte: end },
   };
 
   let content: React.ReactNode = null;
-
   /* ============================
    *      Reporte: RESERVAS
    * ============================ */
   if (type === "reservas") {
-    const [byStatus, totals, byCurrency] = await Promise.all([
+    // Agrupamos por status+currency para poder convertir bien a USD
+    const [byStatusCurrency, totalCount, byCurrency] = await Promise.all([
       prisma.reservation.groupBy({
         where: baseReservationWhere,
-        by: ["status"],
+        by: ["status", "currency"],
         _count: { _all: true },
         _sum: { totalAmount: true },
       }),
-      prisma.reservation.aggregate({
-        where: baseReservationWhere,
-        _count: { _all: true },
-        _sum: { totalAmount: true },
-        _avg: { totalAmount: true },
-      }),
+      prisma.reservation.count({ where: baseReservationWhere }),
       prisma.reservation.groupBy({
         where: baseReservationWhere,
         by: ["currency"],
@@ -122,40 +130,57 @@ export default async function SellerReportsPage({
       }),
     ]);
 
-    // Conversión aproximada de embudo
-    const asMap = new Map(byStatus.map((r) => [r.status, r]));
+    // Map de status => { count, sumUsd }
+    const statusAgg = new Map<string, { count: number; sumUsd: number }>();
+
+    for (const row of byStatusCurrency) {
+      const prev = statusAgg.get(row.status) || { count: 0, sumUsd: 0 };
+      const sumNative = Number(row._sum.totalAmount || 0);
+      const sumUsd = toUSD(sumNative, row.currency);
+      statusAgg.set(row.status, {
+        count: prev.count + (row._count._all || 0),
+        sumUsd: prev.sumUsd + sumUsd,
+      });
+    }
+
+    // Conversión de embudo (solo conteos)
     const leads =
-      (asMap.get("LEAD")?._count._all ?? 0) +
-      (asMap.get("QUOTED")?._count._all ?? 0) +
-      (asMap.get("HOLD")?._count._all ?? 0);
+      (statusAgg.get("LEAD")?.count ?? 0) +
+      (statusAgg.get("QUOTED")?.count ?? 0) +
+      (statusAgg.get("HOLD")?.count ?? 0);
     const wins =
-      (asMap.get("CONFIRMED")?._count._all ?? 0) +
-      (asMap.get("COMPLETED")?._count._all ?? 0);
-    const cancels = asMap.get("CANCELED")?._count._all ?? 0;
-    const expired = asMap.get("EXPIRED")?._count._all ?? 0;
+      (statusAgg.get("CONFIRMED")?.count ?? 0) +
+      (statusAgg.get("COMPLETED")?.count ?? 0);
+    const cancels = statusAgg.get("CANCELED")?.count ?? 0;
+    const expired = statusAgg.get("EXPIRED")?.count ?? 0;
     const conversion = leads > 0 ? Math.round((wins / leads) * 100) : 0;
+
+    // Totales USD (sumando por currency -> USD)
+    const totalUsd = byCurrency.reduce((acc, r) => {
+      const sumNative = Number(r._sum.totalAmount || 0);
+      return acc + toUSD(sumNative, r.currency);
+    }, 0);
+    const avgUsd = totalCount > 0 ? totalUsd / totalCount : 0;
 
     content = (
       <>
-        {/* KPIs por estado (mi embudo) */}
+        {/* KPIs por estado (en USD y conteo) */}
         <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-8 mb-4">
           {RES_ORDER.map((s) => {
-            const row = byStatus.find((r) => r.status === s);
-            const count = row?._count._all ?? 0;
-            const sum = Number(row?._sum.totalAmount || 0);
+            const row = statusAgg.get(s) || { count: 0, sumUsd: 0 };
             return (
               <div key={s} className="rounded-xl border bg-white p-3">
                 <div className="text-xs text-gray-500">{RES_LABELS[s]}</div>
-                <div className="text-xl font-semibold">{count}</div>
+                <div className="text-xl font-semibold">{row.count}</div>
                 <div className="text-xs text-gray-500">
-                  {sum ? money(sum) : "—"}
+                  {row.sumUsd ? money(row.sumUsd, "USD") : "—"}
                 </div>
               </div>
             );
           })}
         </div>
 
-        {/* Totales y métricas clave */}
+        {/* Totales y métricas clave (en USD) */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="text-sm text-gray-500">
             Rango: {start.toLocaleDateString("es-CO")} →{" "}
@@ -164,18 +189,20 @@ export default async function SellerReportsPage({
           <div className="mt-2 grid gap-3 sm:grid-cols-4">
             <div className="rounded-lg border p-3">
               <div className="text-xs text-gray-500">Total reservas</div>
-              <div className="text-lg font-semibold">{totals._count._all}</div>
+              <div className="text-lg font-semibold">{totalCount}</div>
             </div>
             <div className="rounded-lg border p-3">
-              <div className="text-xs text-gray-500">Ingresos totales</div>
+              <div className="text-xs text-gray-500">
+                Ingresos totales (USD)
+              </div>
               <div className="text-lg font-semibold">
-                {money(Number(totals._sum.totalAmount || 0))}
+                {money(Number(totalUsd || 0), "USD")}
               </div>
             </div>
             <div className="rounded-lg border p-3">
-              <div className="text-xs text-gray-500">Ticket promedio</div>
+              <div className="text-xs text-gray-500">Ticket promedio (USD)</div>
               <div className="text-lg font-semibold">
-                {money(Number(totals._avg.totalAmount || 0))}
+                {money(Number(avgUsd || 0), "USD")}
               </div>
             </div>
             <div className="rounded-lg border p-3">
@@ -187,7 +214,7 @@ export default async function SellerReportsPage({
           </div>
         </div>
 
-        {/* Ingresos por moneda */}
+        {/* Ingresos por moneda (tabla original, se mantiene) */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <h3 className="mb-2 text-lg font-semibold">Ingresos por moneda</h3>
           <div className="overflow-auto">
@@ -211,6 +238,7 @@ export default async function SellerReportsPage({
                   </tr>
                 )}
                 {byCurrency
+                  .slice()
                   .sort(
                     (a, b) =>
                       Number(b._sum.totalAmount || 0) -
@@ -263,7 +291,7 @@ export default async function SellerReportsPage({
       .map((g) => g.destinationId)
       .filter(Boolean) as string[];
     const destinations = await prisma.destination.findMany({
-      where: { businessId, id: { in: destIds } },
+      where: { id: { in: destIds } },
       select: { id: true, name: true, country: true, category: true },
     });
     const destMap = new Map(destinations.map((d) => [d.id, d]));
@@ -359,7 +387,7 @@ export default async function SellerReportsPage({
       prisma.task.count({ where: baseTaskCreatedWhere }),
       prisma.task.count({ where: baseTaskDoneWhere }),
       prisma.task.groupBy({
-        where: { businessId, sellerId, updatedAt: { gte: start, lte: end } },
+        where: { sellerId, updatedAt: { gte: start, lte: end } },
         by: ["status"],
         _count: { _all: true },
       }),

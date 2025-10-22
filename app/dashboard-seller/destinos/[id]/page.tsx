@@ -21,12 +21,10 @@ export default async function SellerDestinationDetailPage({
 }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
   if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
-  const destination = await prisma.destination.findFirst({
-    where: { id: params.id, businessId },
+  const destination = await prisma.destination.findUnique({
+    where: { id: params.id },
     select: {
       id: true,
       name: true,
@@ -49,7 +47,6 @@ export default async function SellerDestinationDetailPage({
   // Sugerencias de "similares" (mismo país o categoría)
   const related = await prisma.destination.findMany({
     where: {
-      businessId,
       isActive: true,
       id: { not: destination.id },
       OR: [
@@ -72,7 +69,10 @@ export default async function SellerDestinationDetailPage({
 
   const price = money(destination.price);
   const dprice = money(destination.discountPrice);
-  const location = [destination.city, destination.country].filter(Boolean).join(", ") || destination.country || "—";
+  const location =
+    [destination.city, destination.country].filter(Boolean).join(", ") ||
+    destination.country ||
+    "—";
 
   return (
     <div className="space-y-6">
@@ -84,7 +84,8 @@ export default async function SellerDestinationDetailPage({
             {location} {destination.category ? `· ${destination.category}` : ""}
           </p>
           <p className="text-xs text-gray-400">
-            Creado: {fmtDate(destination.createdAt)} · Actualizado: {fmtDate(destination.updatedAt)}
+            Creado: {fmtDate(destination.createdAt)} · Actualizado:{" "}
+            {fmtDate(destination.updatedAt)}
           </p>
         </div>
         <a href="/dashboard-seller/destinos" className="rounded-md border px-3 py-2 text-sm">
@@ -118,7 +119,7 @@ export default async function SellerDestinationDetailPage({
             {destination.description || "—"}
           </div>
 
-          {/* Tips de venta (derivados de la info disponible) */}
+          {/* Tips de venta */}
           <div className="mt-6 rounded-lg border p-4">
             <h3 className="mb-2 text-sm font-semibold">Tips de venta</h3>
             <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
@@ -236,7 +237,9 @@ export default async function SellerDestinationDetailPage({
                       {d.discountPrice != null ? (
                         <>
                           <span className="line-through text-gray-400">{money(d.price)}</span>
-                          <span className="rounded bg-primary px-1.5 py-0.5 text-white">{money(d.discountPrice)}</span>
+                          <span className="rounded bg-primary px-1.5 py-0.5 text-white">
+                            {money(d.discountPrice)}
+                          </span>
                         </>
                       ) : money(d.price) ? (
                         <span className="rounded bg-gray-100 px-1.5 py-0.5">{money(d.price)}</span>
