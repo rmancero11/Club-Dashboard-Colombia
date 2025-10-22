@@ -1,36 +1,63 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { useForm, SubmitHandler } from "react-hook-form";
+import { useState, useMemo } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useForm, SubmitHandler, Controller } from "react-hook-form";
 import { useToast } from "@/app/hooks/useToast";
 import { Button } from "@/app/components/ui/ButtonLogin";
 import { Input } from "@/app/components/ui/InputLogin";
 
+import PhoneInput from "react-phone-input-2";
+import "react-phone-input-2/lib/style.css"; 
+
 type Inputs = {
   name: string;
   email: string;
-  whatsapp?: string;     // UI field -> se mapeará a whatsappNumber
+  whatsapp?: string;     
   country?: string;
   password: string;
   confirmPassword: string;
-  commissionRate?: string; // UI string -> se convierte a number (Decimal)
+  commissionRate?: string;
 };
 
 export default function SignupForm() {
   const { toast } = useToast();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const nextParam = searchParams.get("next");
+  const redirectTarget = nextParam || "/dashboard-admin/vendedores";
+
   const [loading, setLoading] = useState(false);
 
-  const { register, handleSubmit, watch } = useForm<Inputs>();
+  const {
+    register,
+    handleSubmit,
+    watch,
+    control,
+    formState: { errors },
+  } = useForm<Inputs>({
+    defaultValues: {
+      country: "Colombia",
+    },
+  });
+
   const pwd = watch("password");
+
+  const toE164 = (v?: string) => {
+    if (!v) return "";
+    const digits = String(v).replace(/\D/g, "");
+    return digits ? `+${digits}` : "";
+  };
+
+  const waHref = (raw?: string) => {
+    const e164 = toE164(raw);
+    const digits = e164.replace(/\D/g, "");
+    return digits ? `https://wa.me/${digits}` : "";
+  };
 
   const onSubmit: SubmitHandler<Inputs> = async (values) => {
     if (values.password !== values.confirmPassword) {
-      toast({
-        title: "Las contraseñas no coinciden",
-        variant: "destructive",
-      });
+      toast({ title: "Las contraseñas no coinciden", variant: "destructive" });
       return;
     }
 
@@ -41,19 +68,15 @@ export default function SignupForm() {
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         body: JSON.stringify({
-          // Campos del modelo User
           name: values.name,
           email: values.email,
           country: values.country || undefined,
           password: values.password,
-          // Ajuste al schema:
-          whatsappNumber: values.whatsapp || undefined,
+          whatsapp: values.whatsapp ? toE164(values.whatsapp) : undefined,
           commissionRate:
-            values.commissionRate !== undefined && values.commissionRate !== ""
+            values.commissionRate && values.commissionRate !== ""
               ? Number(values.commissionRate)
               : undefined,
-          // El rol SELLER debe asignarlo el endpoint (o puedes enviarlo si tu API lo permite)
-          // role: "SELLER",
         }),
       });
 
@@ -71,13 +94,12 @@ export default function SignupForm() {
 
       toast({
         title: "Cuenta creada",
-        description: "Bienvenido al panel de vendedores.",
+        description: "Vendedor creado correctamente.",
         variant: "success",
       });
 
-      // El endpoint setea cookie y loguea; redirigimos al dashboard
-      router.replace("/dashboard-seller");
-    } catch (e) {
+      router.replace(redirectTarget);
+    } catch {
       toast({
         title: "Error de conexión",
         description: "No se pudo conectar con el servidor.",
@@ -106,6 +128,7 @@ export default function SignupForm() {
           placeholder="Tu nombre"
           required
         />
+
         <Input
           name="email"
           label="Email"
@@ -115,18 +138,51 @@ export default function SignupForm() {
           required
           autoComplete="email"
         />
-        <Input
-          name="whatsapp"
-          label="WhatsApp"
-          register={register}
-          placeholder="+57 300 000 0000"
-        />
+
+        {/* === Teléfono/WhatsApp con selector de indicativo === */}
+        <div className="flex flex-col gap-1">
+          <label className="text-xs text-gray-600">WhatsApp</label>
+
+          <div className="relative">
+            <Controller
+              name="whatsapp"
+              control={control}
+              rules={{
+                validate: (v) => !v || String(v).replace(/\D/g, "").length >= 8 || "Número inválido",
+              }}
+              render={({ field }) => (
+                <PhoneInput
+                  country={"co"}                 
+                  value={field.value || ""}
+                  onChange={(val) => field.onChange(val)}
+                  inputProps={{
+                    name: "whatsapp",
+                    id: "whatsapp",
+                    required: false,
+                  }}
+                  containerClass="!w-full"
+                  inputClass="!w-full !py-2 !pl-12 !pr-14 !text-sm !border !rounded-md !border-gray-300 focus:!outline-none focus:!ring-1 focus:!ring-primary"
+                  buttonClass="!border !border-gray-300 !rounded-l-md"
+                  dropdownClass="!text-sm"
+                  enableSearch
+                  disableSearchIcon
+                />
+              )}
+            />
+          </div>
+
+          {errors.whatsapp?.message && (
+            <span className="text-xs text-red-600">{errors.whatsapp.message}</span>
+          )}
+        </div>
+
         <Input
           name="country"
           label="País"
           register={register}
-          placeholder="CO"
+          placeholder="Colombia"
         />
+
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input
             name="password"
@@ -147,6 +203,7 @@ export default function SignupForm() {
             minLength={6}
           />
         </div>
+
         <Input
           name="commissionRate"
           label="Comisión (%) (opcional)"
@@ -156,7 +213,6 @@ export default function SignupForm() {
           register={register}
           placeholder="10.00"
         />
-        {/* businessSlug eliminado: no existe en el schema */}
       </div>
 
       <div className="flex items-start gap-2 text-xs text-gray-600">
@@ -171,7 +227,7 @@ export default function SignupForm() {
       </div>
 
       <div className="mt-1 flex flex-col justify-center items-center gap-3">
-        <Button type="submit" variant="primary" loading={loading}>
+        <Button type="submit" variant="primary" loading={loading} disabled={loading}>
           Crear cuenta
         </Button>
       </div>

@@ -13,10 +13,8 @@ import ForgotPasswordPanel from "@/app/components/auth/ForgotPasswordPanel";
 type Inputs = { email: string; password: string };
 
 export default function LoginPageClient({
-  icon,
   cover,
 }: {
-  icon: string;
   cover: string;
 }) {
   const { toast } = useToast();
@@ -79,7 +77,7 @@ export default function LoginPageClient({
               <div className="flex flex-col gap-2 items-center">
                 <h4 className="flex items-center text-primary text-3xl md:text-5xl">
                   <Image
-                    src={icon}
+                    src="/images/logo-1000-viajeros-w.png"
                     className="h-25 w-auto"
                     alt="logo"
                     width={250}
@@ -112,14 +110,6 @@ export default function LoginPageClient({
                   <Button type="submit" variant="primary" loading={loading}>
                     Iniciar sesión
                   </Button>
-                  <Link
-                    className="flex justify-center gap-2 px-4 py-3 bg-white text-primary hover:bg-primary
-                    hover:text-white border hover:border-primary w-full text-center rounded-md duration-200
-                    shadow-md"
-                    href="/signup"
-                  >
-                    Crear una cuenta
-                  </Link>
                 </div>
               </div>
 
@@ -164,7 +154,7 @@ export default function LoginPageClient({
 
         <div className="fixed hidden md:relative top-0 md:flex w-full md:w-3/5 h-[30vh] md:h-full rounded-bl-full rounded-br-full md:rounded-br-none md:rounded-tl-full md:rounded-l-full overflow-hidden bg-gradient-to-b relative">
           <Image
-            src={cover}
+            src="/images/rome.jpg"
             alt="banner"
             fill
             className="object-cover object-center"

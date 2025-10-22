@@ -1,6 +1,7 @@
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 // ===== Helpers comunes =====
 function toInt(v: string | string[] | undefined, def: number) {
@@ -27,49 +28,21 @@ function fmtMoney(n: number, currency = "USD") {
   }
 }
 
-// --- Indicativos por país ---
-const DIAL_BY_COUNTRY: Record<string, string> = {
-  Colombia: "57",
-  México: "52",
-  "Estados Unidos": "1",
-  "United States": "1",
-  Canadá: "1",
-  Canada: "1",
-  Perú: "51",
-  Chile: "56",
-  Argentina: "54",
-  Ecuador: "593",
-  Venezuela: "58",
-  Brasil: "55",
-  España: "34",
-  Portugal: "351",
-  Francia: "33",
-  Italia: "39",
-  Alemania: "49",
-};
-function dialCodeForCountry(country?: string | null) {
-  if (!country) return "";
-  const key = country.trim();
-  return DIAL_BY_COUNTRY[key] ?? "";
-}
-function normalizePhone(raw?: string | null) {
-  return (raw || "").replace(/[^\d+]/g, "");
-}
+// --- Utils para WhatsApp ---
 function digitsOnly(raw?: string) {
   return (raw || "").replace(/\D/g, "");
 }
-function toE164(phone?: string | null, country?: string | null) {
-  const raw = normalizePhone(phone);
+/** Crea el link a WhatsApp usando API oficial (más estable que wa.me)
+ *  Ej: https://api.whatsapp.com/send?phone=573001234567&text=Hola
+ */
+function waLinkFromStored(raw?: string | null, text?: string) {
   if (!raw) return "";
-  if (raw.startsWith("+")) return `+${digitsOnly(raw)}`;
-  const dial = dialCodeForCountry(country || undefined);
-  const localDigits = digitsOnly(raw);
-  if (!localDigits) return "";
-  return dial ? `+${dial}${localDigits}` : `+${localDigits}`;
-}
-function waLink(e164?: string) {
-  const d = digitsOnly(e164);
-  return d ? `https://wa.me/${d}` : "";
+  const d = digitsOnly(raw);
+  if (!d) return "";
+  const params = new URLSearchParams();
+  params.set("phone", d);
+  if (text && text.trim()) params.set("text", text);
+  return `https://api.whatsapp.com/send?${params.toString()}`;
 }
 
 // =================== Página ===================
@@ -118,6 +91,7 @@ export default async function AdminSellersPage({
         name: true,
         email: true,
         phone: true,
+        whatsappNumber: true, // 👈 importante
         country: true,
         status: true,
         commissionRate: true,
@@ -223,11 +197,23 @@ export default async function AdminSellersPage({
           <h1 className="text-2xl font-semibold">Vendedores</h1>
           <p className="text-sm text-gray-500">Gestión de agentes.</p>
         </div>
+        <Link
+          href={`/signup?as=seller&next=${encodeURIComponent(
+            "/dashboard-admin/vendedores"
+          )}`}
+          className="inline-flex items-center gap-2 rounded-md bg-primary px-4 py-2 text-sm font-medium text-white hover:opacity-90"
+        >
+          <span className="text-lg leading-none">＋</span>
+          Crear vendedor
+        </Link>
       </header>
 
       {/* Filtros / Orden */}
       <div className="rounded-xl border bg-white p-4">
-        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5" method="GET">
+        <form
+          className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-5"
+          method="GET"
+        >
           <input
             name="q"
             defaultValue={q}
@@ -270,10 +256,16 @@ export default async function AdminSellersPage({
           </select>
           <div className="flex items-center gap-2">
             <input type="hidden" name="page" value="1" />
-            <button className="rounded-md border px-3 py-2 text-sm" type="submit">
+            <button
+              className="rounded-md border px-3 py-2 text-sm"
+              type="submit"
+            >
               Aplicar
             </button>
-            <a href="/dashboard-admin/vendedores" className="rounded-md border px-3 py-2 text-sm">
+            <a
+              href="/dashboard-admin/vendedores"
+              className="rounded-md border px-3 py-2 text-sm"
+            >
               Borrar filtros
             </a>
           </div>
@@ -298,7 +290,10 @@ export default async function AdminSellersPage({
             <tbody>
               {sellersSorted.length === 0 && (
                 <tr>
-                  <td colSpan={10} className="px-2 py-10 text-center text-gray-400">
+                  <td
+                    colSpan={10}
+                    className="px-2 py-10 text-center text-gray-400"
+                  >
                     Sin resultados
                   </td>
                 </tr>
@@ -309,20 +304,25 @@ export default async function AdminSellersPage({
                 const resPend = resPendingBySeller[s.id] ?? 0;
                 const tasksPend = tasksPendingBySeller[s.id] ?? 0;
 
-                const e164 = toE164(s.phone, s.country);
-                const wa = waLink(e164);
+                // Prioriza whatsappNumber; si no, usa phone (ambos se guardan con indicativo)
+                const storedNumber = s.whatsappNumber ?? s.phone ?? "";
+                const wa = waLinkFromStored(storedNumber);
 
                 return (
                   <tr key={s.id} className="border-t">
                     <td className="px-2 py-2">
                       <div className="font-medium">{s.name || "—"}</div>
                       <div className="text-xs text-gray-600">
-                        Creado: {new Date(s.createdAt).toLocaleDateString("es-CO")}
+                        Creado:{" "}
+                        {new Date(s.createdAt).toLocaleDateString("es-CO")}
                       </div>
                     </td>
                     <td className="px-2 py-2">
                       {s.email ? (
-                        <a href={`mailto:${s.email}`} className="text-xs text-blue-600 underline">
+                        <a
+                          href={`mailto:${s.email}`}
+                          className="text-xs text-blue-600 underline"
+                        >
                           {s.email}
                         </a>
                       ) : (
@@ -330,19 +330,23 @@ export default async function AdminSellersPage({
                       )}
                     </td>
                     <td className="px-2 py-2">
-                      {e164 ? (
+                      {wa ? (
                         <a
                           href={wa}
                           target="_blank"
                           rel="noopener noreferrer"
-                          className="text-xs text-green-700 underline"
+                          className="inline-flex items-center gap-1 text-xs text-green-700 underline"
                           title="Abrir WhatsApp"
                         >
-                          {e164}
+                          {storedNumber}
+                          <span aria-hidden>↗</span>
                         </a>
-                      ) : s.phone ? (
-                        <span className="text-xs text-gray-600">{s.phone}</span>
+                      ) : storedNumber ? (
+                        <span className="text-xs text-gray-600">
+                          {storedNumber}
+                        </span>
                       ) : (
+                        // 👇 Si no hay número en la base de datos, se muestra vacío como antes
                         <span className="text-xs text-gray-400">—</span>
                       )}
                     </td>
@@ -373,7 +377,10 @@ export default async function AdminSellersPage({
                     <td className="px-2 py-2">{fmtMoney(ra.sum)}</td>
                     <td className="px-2 py-2 text-right">
                       <div className="flex gap-1">
-                        <a href={`/dashboard-admin/vendedores/${s.id}`} className="text-primary underline">
+                        <a
+                          href={`/dashboard-admin/vendedores/${s.id}`}
+                          className="text-primary underline"
+                        >
                           Ver
                         </a>
                       </div>
@@ -390,14 +397,18 @@ export default async function AdminSellersPage({
           <div className="text-xs text-gray-500">
             Página {page} de {totalPages} — Mostrando{" "}
             {sellers.length > 0
-              ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + sellers.length}`
+              ? `${(page - 1) * pageSize + 1}–${
+                  (page - 1) * pageSize + sellers.length
+                }`
               : "0"}{" "}
             de {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
               aria-disabled={page <= 1}
-              className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
+              className={`rounded-md border px-3 py-2 text-sm ${
+                page <= 1 ? "pointer-events-none opacity-50" : ""
+              }`}
               href={
                 page > 1
                   ? `/dashboard-admin/vendedores${qstr({

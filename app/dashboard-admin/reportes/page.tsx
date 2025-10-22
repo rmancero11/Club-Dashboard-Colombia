@@ -2,6 +2,7 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 
+// ================= Utils =================
 type SP = { [k: string]: string | string[] | undefined };
 
 function str(v: string | string[] | undefined, def = "") {
@@ -60,34 +61,33 @@ const RES_ORDER: Array<keyof typeof RES_LABELS> = [
 export default async function AdminReportsPage({ searchParams }: { searchParams: SP }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const type = str(searchParams.type, "reservas"); // reservas | destinos | productividad
   const from = str(searchParams.from);
   const to = str(searchParams.to);
   const sellerId = str(searchParams.sellerId);
   const { start, end } = parseRange(from, to);
 
-  // Filtros comunes
-  const baseReservationWhere: any = { businessId, startDate: { gte: start, lte: end } };
+  // ============== Filtros base (ajustados al schema: SIN businessId) ==============
+  const baseReservationWhere: any = { startDate: { gte: start, lte: end } };
   if (sellerId) baseReservationWhere.sellerId = sellerId;
 
-  const baseTaskCreatedWhere: any = { businessId, createdAt: { gte: start, lte: end } };
-  const baseTaskDoneWhere: any = { businessId, status: "DONE", updatedAt: { gte: start, lte: end } };
+  const baseTaskCreatedWhere: any = { createdAt: { gte: start, lte: end } };
+  const baseTaskDoneWhere: any = { status: "DONE", updatedAt: { gte: start, lte: end } };
   if (sellerId) {
     baseTaskCreatedWhere.sellerId = sellerId;
     baseTaskDoneWhere.sellerId = sellerId;
   }
 
-  // Opciones de filtro
+  // Opciones de filtro (lista de vendedores)
   const sellers = await prisma.user.findMany({
-    where: { businessId, role: "SELLER", status: "ACTIVE" },
+    where: { role: "SELLER", status: "ACTIVE" },
     select: { id: true, name: true, email: true },
     orderBy: { name: "asc" },
   });
 
-  // Datos por tipo
+  // ================= Contenido según tipo =================
   let content: React.ReactNode = null;
 
   // ======= Reporte: RESERVAS =======
@@ -277,7 +277,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
 
     const destIds = group.map((g) => g.destinationId).filter(Boolean) as string[];
     const destinations = await prisma.destination.findMany({
-      where: { businessId, id: { in: destIds } },
+      where: { id: { in: destIds } },
       select: { id: true, name: true, country: true, category: true },
     });
     const destMap = new Map(destinations.map((d) => [d.id, d]));

@@ -15,7 +15,7 @@ type SidebarUser = {
 
 export default function AdminSidebar({
   user,
-  onNavigate, 
+  onNavigate,
 }: {
   user: SidebarUser;
   onNavigate?: () => void;
@@ -34,14 +34,22 @@ export default function AdminSidebar({
   ];
 
   const isActive = useCallback(
-    (href: string, exact?: boolean) =>
-      exact ? pathname === href : pathname?.startsWith(href),
+    (href: string, exact?: boolean) => (exact ? pathname === href : pathname?.startsWith(href)),
     [pathname]
   );
 
   const logout = async () => {
-    await fetch("/api/logout", { method: "POST" });
-    router.replace("/login");
+    try {
+      await fetch("/api/auth/logout", {
+        method: "POST",
+        credentials: "include",
+      });
+    } catch {
+    } finally {
+      onNavigate?.();
+      router.replace("/login");
+      router.refresh();
+    }
   };
 
   return (
@@ -98,7 +106,7 @@ export default function AdminSidebar({
       {/* Footer actions */}
       <div className="border-t p-3">
         <button
-          onClick={() => { onNavigate?.(); logout(); }}
+          onClick={logout}
           className="w-full rounded-md border px-3 py-2 text-left text-sm font-medium text-red-600 hover:bg-red-50"
         >
           Cerrar sesión
