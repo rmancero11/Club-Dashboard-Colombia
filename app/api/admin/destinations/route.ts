@@ -3,11 +3,7 @@ import prisma from "@/app/lib/prisma";
 import { Prisma } from "@prisma/client";
 import { z } from "zod";
 import { uploadToCloudinary } from "@/app/lib/cloudinary";
-import { cookies } from "next/headers";
-import { jwtVerify } from "jose";
-
-const JWT_SECRET = process.env.JWT_SECRET || "";
-const enc = new TextEncoder();
+import { getAuth } from "@/app/lib/auth";
 
 const DestinationSchema = z.object({
   name: z.string().min(2),
@@ -24,22 +20,11 @@ const DestinationSchema = z.object({
     .nullable(),
 });
 
-async function getBusinessIdFromCookie(): Promise<string | null> {
-  const token = cookies().get("token")?.value;
-  if (!token) return null;
-  try {
-    const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
-    return (payload as any)?.businessId ?? null;
-  } catch {
-    return null;
-  }
-}
-
 export async function POST(req: Request) {
   try {
-    const businessId = await getBusinessIdFromCookie();
-    if (!businessId) {
-      return NextResponse.json({ error: "No autenticado o sin empresa" }, { status: 401 });
+    const auth = await getAuth();
+    if (!auth || auth.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
     const formData = await req.formData();
@@ -56,30 +41,35 @@ export async function POST(req: Request) {
       description: (formData.get("description") as string) || undefined,
       category: (formData.get("category") as string) || undefined,
       isActive: formData.get("isActive") === "true",
-      price: normalizeDecimal(formData.get("price") as string),
+      price: normalizeDecimal(formData.get("price") as string)!,
       discountPrice: normalizeDecimal(formData.get("discountPrice") as string),
     });
 
-    let imageUrl = "";
+    // Subida de imagen (opcional)
+    let imageUrl: string | undefined = undefined;
     const image = formData.get("image");
     if (image && image instanceof File) {
       const uploadResult: any = await uploadToCloudinary(image);
-      imageUrl = uploadResult.secure_url;
+      imageUrl = uploadResult.secure_url as string;
     }
+
+    // Normalizar strings vacíos a null donde aplique
+    const norm = (v?: string) => (v && v.trim() !== "" ? v.trim() : null);
 
     const nuevoDestino = await prisma.destination.create({
       data: {
-        businessId,
-        name: body.name,
-        country: body.country,
-        city: body.city,
-        description: body.description,
-        category: body.category,
-        isActive: body.isActive,
+        name: body.name.trim(),
+        country: body.country.trim(),
+        city: norm(body.city),
+        description: norm(body.description),
+        category: norm(body.category),
+        isActive: body.isActive ?? true,
         imageUrl,
         price: new Prisma.Decimal(body.price),
         discountPrice: body.discountPrice ? new Prisma.Decimal(body.discountPrice) : null,
+        // *** clave para resolver el error de tipos: relación requerida ***
       },
+      select: { id: true },
     });
 
     return NextResponse.json({ destination: nuevoDestino }, { status: 201 });
@@ -87,6 +77,10 @@ export async function POST(req: Request) {
     console.error("Error creando destino:", error);
     if (error?.name === "ZodError") {
       return NextResponse.json({ error: "Payload inválido", issues: error.issues }, { status: 400 });
+    }
+    // Prisma conflictos de unicidad (@@unique([name, country, city]))
+    if (error?.code === "P2002") {
+      return NextResponse.json({ error: "Ya existe un destino con ese nombre/país/ciudad" }, { status: 409 });
     }
     return NextResponse.json({ error: "Error al crear destino" }, { status: 500 });
   }

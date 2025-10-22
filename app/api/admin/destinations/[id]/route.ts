@@ -5,11 +5,11 @@ import fs from "fs";
 import path from "path";
 
 /**
- * PATCH: Actualiza un destino existente
+ * PATCH: Actualiza un destino existente (sin businessId en el schema)
  */
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const auth = await getAuth();
-  if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
+  if (!auth || auth.role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
@@ -53,12 +53,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     // Procesamos los campos para actualizar
     if (typeof body.name === "string") data.name = body.name.trim();
     if (typeof body.country === "string") data.country = body.country.trim();
-    if (body.city === null || typeof body.city === "string") data.city = body.city ? body.city.trim() : null;
-    if (body.category === null || typeof body.category === "string") data.category = body.category ? body.category.trim() : null;
-    if (body.description === null || typeof body.description === "string") data.description = body.description ? body.description.trim() : null;
+    if (body.city === null || typeof body.city === "string") data.city = body.city ? String(body.city).trim() : null;
+    if (body.category === null || typeof body.category === "string") data.category = body.category ? String(body.category).trim() : null;
+    if (body.description === null || typeof body.description === "string") data.description = body.description ? String(body.description).trim() : null;
     if (typeof body.isActive === "boolean") data.isActive = body.isActive;
 
-    // Campos numéricos
+    // Campos numéricos (Decimal en Prisma acepta number o string)
     if (body.price !== undefined) {
       const parsedPrice = parseFloat(body.price);
       if (!isNaN(parsedPrice)) data.price = parsedPrice;
@@ -70,7 +70,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     }
 
     const updated = await prisma.destination.update({
-      where: { id: params.id, businessId: auth.businessId },
+      where: { id: params.id },
       data,
       select: { id: true },
     });
@@ -86,18 +86,18 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 }
 
 /**
- * DELETE: Elimina un destino existente
+ * DELETE: Elimina un destino existente (sin businessId en el schema)
  */
 export async function DELETE(req: Request, { params }: { params: { id: string } }) {
   const auth = await getAuth();
-  if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
+  if (!auth || auth.role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
     // Buscar el destino
-    const dest = await prisma.destination.findFirst({
-      where: { id: params.id, businessId: auth.businessId },
+    const dest = await prisma.destination.findUnique({
+      where: { id: params.id },
       select: { id: true, imageUrl: true },
     });
 

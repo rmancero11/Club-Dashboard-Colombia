@@ -90,31 +90,57 @@ export default function EditReservationForm({
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     if (saving) return;
+
+    // Validación básica cliente (coherente con el handler del backend)
+    if (startDate && endDate) {
+      const sd = new Date(startDate);
+      const ed = new Date(endDate);
+      if (isNaN(sd.getTime()) || isNaN(ed.getTime())) {
+        alert("Fechas inválidas.");
+        return;
+      }
+      if (sd > ed) {
+        alert("La fecha de inicio no puede ser posterior a la fecha de fin.");
+        return;
+      }
+    }
+    if (paxAdults < 1) {
+      alert("Debe haber al menos 1 adulto.");
+      return;
+    }
+    if (paxChildren < 0) {
+      alert("El número de niños no puede ser negativo.");
+      return;
+    }
+
     setSaving(true);
     try {
+      // Construimos el payload SIN campos vacíos que disparen validaciones innecesarias
+      const payload: Record<string, unknown> = {
+        startDate,
+        endDate,
+        paxAdults,
+        paxChildren,
+        currency,
+        totalAmount: totalAmount ? Number(totalAmount) : 0,
+        // Enviamos notes como JSON string (timeline) o null
+        notes: notes || null,
+      };
+      if (sellerId) payload.sellerId = sellerId;
+      if (clientId) payload.clientId = clientId;
+      if (destinationId) payload.destinationId = destinationId;
+
       const res = await fetch(`/api/admin/reservations/${reservation.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          sellerId,
-          clientId,
-          destinationId,
-          startDate,
-          endDate,
-          paxAdults,
-          paxChildren,
-          currency,
-          totalAmount: totalAmount ? Number(totalAmount) : 0,
-          // Enviamos notes como JSON string (timeline) o null
-          notes: notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
       if (!res.ok) {
         const data = await res.json().catch(() => ({}));
         alert(data?.error || "No se pudo actualizar");
         return;
-      }
+        }
       location.reload();
     } finally {
       setSaving(false);
@@ -150,7 +176,7 @@ export default function EditReservationForm({
             <option value="">—</option>
             {clients.map((c) => (
               <option key={c.id} value={c.id}>
-                {c.name}
+                {c.name ?? "—"}
               </option>
             ))}
           </select>
@@ -167,7 +193,7 @@ export default function EditReservationForm({
           <option value="">—</option>
           {destinations.map((d) => (
             <option key={d.id} value={d.id}>
-              {d.name} · {d.country}
+              {d.name ?? "—"} {d.country ? `· ${d.country}` : ""}
             </option>
           ))}
         </select>
@@ -245,7 +271,7 @@ export default function EditReservationForm({
       </div>
 
       <label className="grid gap-1 text-sm">
-        <span className="font-medium">Total</span>
+        <span className="font-medium">Total ({currency})</span>
         <input
           type="number"
           step="0.01"

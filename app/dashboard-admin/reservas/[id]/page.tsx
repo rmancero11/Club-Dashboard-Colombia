@@ -70,11 +70,11 @@ export default async function AdminReservationDetailPage({
 }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
-  const businessId = auth.businessId!;
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  const r = await prisma.reservation.findFirst({
-    where: { id: params.id, businessId },
+  // Ya no hay businessId en el esquema; buscamos por ID directo
+  const r = await prisma.reservation.findUnique({
+    where: { id: params.id },
     select: {
       id: true,
       code: true,
@@ -84,7 +84,7 @@ export default async function AdminReservationDetailPage({
       paxAdults: true,
       paxChildren: true,
       currency: true,
-      totalAmount: true,
+      totalAmount: true, // Decimal
       notes: true,
       createdAt: true,
       updatedAt: true,
@@ -95,20 +95,20 @@ export default async function AdminReservationDetailPage({
   });
   if (!r) notFound();
 
+  // Listas para selects (sin businessId en filtros)
   const [sellers, clients, destinations] = await Promise.all([
     prisma.user.findMany({
-      where: { businessId, role: "SELLER", status: "ACTIVE" },
+      where: { role: "SELLER", status: "ACTIVE" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
     prisma.client.findMany({
-      where: { businessId },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
       take: 300,
     }),
     prisma.destination.findMany({
-      where: { businessId },
+      where: { isActive: true },
       select: { id: true, name: true, country: true },
       orderBy: [{ popularityScore: "desc" }, { name: "asc" }],
       take: 300,

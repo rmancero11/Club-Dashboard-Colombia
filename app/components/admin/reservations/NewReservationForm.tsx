@@ -30,7 +30,7 @@ export default function NewReservationForm({
 }) {
   const router = useRouter();
 
-  // Opciones de moneda: si llegan por props se usan; si no, todas las del helper.
+  // Opciones de moneda
   const currencyOptionsAll = useMemo<CurrencyOption[]>(
     () => currencyOptions ?? getCurrencyOptions(),
     [currencyOptions]
@@ -55,32 +55,76 @@ export default function NewReservationForm({
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (loading) return;
     setLoading(true);
     setErr(null);
+
+    // Validaciones básicas coherentes con el backend
+    if (!sellerId || !clientId || !destinationId) {
+      setErr("Vendedor, cliente y destino son obligatorios.");
+      setLoading(false);
+      return;
+    }
+    if (!startDate || !endDate) {
+      setErr("Las fechas de inicio y fin son obligatorias.");
+      setLoading(false);
+      return;
+    }
+    const sd = new Date(startDate);
+    const ed = new Date(endDate);
+    if (isNaN(sd.getTime()) || isNaN(ed.getTime())) {
+      setErr("Fechas inválidas.");
+      setLoading(false);
+      return;
+    }
+    if (sd > ed) {
+      setErr("La fecha de inicio no puede ser posterior a la fecha de fin.");
+      setLoading(false);
+      return;
+    }
+    if (paxAdults < 1) {
+      setErr("Debe haber al menos 1 adulto.");
+      setLoading(false);
+      return;
+    }
+    if (paxChildren < 0) {
+      setErr("El número de niños no puede ser negativo.");
+      setLoading(false);
+      return;
+    }
+
+    // Construimos payload
+    const payload = {
+      sellerId,
+      clientId,
+      destinationId,
+      startDate,
+      endDate,
+      paxAdults,
+      paxChildren,
+      currency,
+      totalAmount: totalAmount ? Number(totalAmount) : 0, // Prisma Decimal acepta number
+      notes: notes || null, // permite texto legacy o JSON string si luego migras
+    };
 
     try {
       const res = await fetch("/api/admin/reservations", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          sellerId,
-          clientId,
-          destinationId,
-          startDate,
-          endDate,
-          paxAdults,
-          paxChildren,
-          currency,
-          totalAmount: totalAmount ? Number(totalAmount) : 0,
-          notes: notes || null,
-        }),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
+      const data = await res.json().catch(() => ({} as any));
       if (!res.ok) {
         setErr(data?.error || "No se pudo crear");
       } else {
-        router.replace(`/dashboard-admin/reservas/${data.reservation.id}`);
+        const newId = data?.id ?? data?.reservation?.id;
+        if (newId) {
+          router.replace(`/dashboard-admin/reservas/${newId}`);
+        } else {
+          // fallback: volver al listado si no entregan id
+          router.replace("/dashboard-admin/reservas");
+        }
       }
     } catch {
       setErr("Error de red");
@@ -127,7 +171,7 @@ export default function NewReservationForm({
               <option value="">Selecciona...</option>
               {clients.map((c) => (
                 <option key={c.id} value={c.id}>
-                  {c.name}
+                  {c.name ?? "—"}
                 </option>
               ))}
             </select>
@@ -145,7 +189,7 @@ export default function NewReservationForm({
             <option value="">Selecciona...</option>
             {destinations.map((d) => (
               <option key={d.id} value={d.id}>
-                {d.name} · {d.country}
+                {d.name ?? "—"} {d.country ? `· ${d.country}` : ""}
               </option>
             ))}
           </select>
@@ -234,7 +278,7 @@ export default function NewReservationForm({
         </div>
 
         <label className="grid gap-1 text-sm">
-          <span className="font-medium">Total</span>
+          <span className="font-medium">Total ({currency})</span>
           <input
             type="number"
             step="0.01"

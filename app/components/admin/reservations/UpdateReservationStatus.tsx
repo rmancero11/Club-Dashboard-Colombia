@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 type Status =
   | "LEAD"
@@ -23,17 +23,6 @@ const LABELS_ES: Record<Status, string> = {
   EXPIRED: "Vencida",
 };
 
-const PILL_CLASS: Record<Status, string> = {
-  LEAD: "border-gray-200 bg-gray-50 text-gray-700",
-  QUOTED: "border-indigo-200 bg-indigo-50 text-indigo-700",
-  HOLD: "border-amber-200 bg-amber-50 text-amber-700",
-  CONFIRMED: "border-sky-200 bg-sky-50 text-sky-700",
-  TRAVELING: "border-cyan-200 bg-cyan-50 text-cyan-700",
-  COMPLETED: "border-emerald-200 bg-emerald-50 text-emerald-700",
-  CANCELED: "border-rose-200 bg-rose-50 text-rose-700",
-  EXPIRED: "border-stone-200 bg-stone-50 text-stone-700",
-};
-
 const ALLOWED: Partial<Record<Status, Status[]>> = {
   LEAD: ["QUOTED", "CANCELED"],
   QUOTED: ["HOLD", "CONFIRMED", "CANCELED", "EXPIRED"],
@@ -53,7 +42,6 @@ function canTransition(from: Status, to: Status, now: Date, start?: Date, end?: 
   if (!(ALLOWED[from] || []).includes(to)) {
     return { ok: false, reason: "Transición no permitida" };
   }
-  // Si no tengo fechas, no bloqueo por tiempo
   if (!start || !end) return { ok: true };
 
   if (to === "TRAVELING" && now < start) {
@@ -76,15 +64,38 @@ export default function UpdateReservationStatus({
 }: {
   id: string;
   status: Status;
-  startDate?: string; // ISO
-  endDate?: string;   // ISO
+  startDate?: string; // ISO (opcional)
+  endDate?: string;   // ISO (opcional)
 }) {
   const [value, setValue] = useState<Status>(status);
   const [loading, setLoading] = useState(false);
 
-  const start = useMemo(() => (startDate ? new Date(startDate) : undefined), [startDate]);
-  const end = useMemo(() => (endDate ? new Date(endDate) : undefined), [endDate]);
-  const now = useMemo(() => new Date(), []); // recalcula al cambiar estado (opcional)
+  // Si no llegan por props, intentamos leer las metas del DOM
+  const [metaStartISO, setMetaStartISO] = useState<string | undefined>(undefined);
+  const [metaEndISO, setMetaEndISO] = useState<string | undefined>(undefined);
+
+  useEffect(() => {
+    if (!startDate) {
+      const el = document.getElementById("res-start");
+      const iso = el?.getAttribute("content") || undefined;
+      setMetaStartISO(iso);
+    }
+    if (!endDate) {
+      const el = document.getElementById("res-end");
+      const iso = el?.getAttribute("content") || undefined;
+      setMetaEndISO(iso);
+    }
+  }, [startDate, endDate]);
+
+  // Prioridad: props -> metas -> undefined
+  const start = useMemo(
+    () => (startDate ? new Date(startDate) : metaStartISO ? new Date(metaStartISO) : undefined),
+    [startDate, metaStartISO]
+  );
+  const end = useMemo(
+    () => (endDate ? new Date(endDate) : metaEndISO ? new Date(metaEndISO) : undefined),
+    [endDate, metaEndISO]
+  );
 
   const buttons: Status[] = [
     "LEAD",
@@ -99,6 +110,14 @@ export default function UpdateReservationStatus({
 
   async function update(newStatus: Status) {
     if (loading || newStatus === value) return;
+
+    // Validamos con "now" fresco en cada click
+    const check = canTransition(value, newStatus, new Date(), start, end);
+    if (!check.ok) {
+      alert(`No permitido: ${check.reason}`);
+      return;
+    }
+
     setLoading(true);
     try {
       const res = await fetch(`/api/admin/reservations/${id}`, {
@@ -121,7 +140,7 @@ export default function UpdateReservationStatus({
   return (
     <div className="flex flex-wrap gap-2" aria-label="Actualizar estado de la reserva">
       {buttons.map((s) => {
-        const check = canTransition(value, s, now, start, end);
+        const check = canTransition(value, s, new Date(), start, end); // para tooltips/disabled en render
         const isSelected = value === s;
         const disabled = loading || (!isSelected && !check.ok);
 

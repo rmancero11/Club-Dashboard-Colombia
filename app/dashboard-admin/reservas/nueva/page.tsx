@@ -6,24 +6,22 @@ import NewReservationForm from "@/app/components/admin/reservations/NewReservati
 export default async function NewReservationPage() {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
-
-  const businessId = auth.businessId!;
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   const [sellers, clients, destinations] = await Promise.all([
     prisma.user.findMany({
-      where: { businessId, role: "SELLER", status: "ACTIVE" },
+      where: { role: "SELLER", status: "ACTIVE" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
     prisma.client.findMany({
-      where: { businessId, isArchived: false },
+      where: { isArchived: false },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
       take: 200,
     }),
     prisma.destination.findMany({
-      where: { businessId, isActive: true },
+      where: { isActive: true },
       select: { id: true, name: true, country: true },
       orderBy: [{ popularityScore: "desc" }, { name: "asc" }],
       take: 200,

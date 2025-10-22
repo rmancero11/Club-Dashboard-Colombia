@@ -17,11 +17,10 @@ function money(n: number, currency = "USD") {
 export default async function AdminDestinationDetailPage({ params }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
-  const businessId = auth.businessId!;
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  const d = await prisma.destination.findFirst({
-    where: { id: params.id, businessId },
+  const d = await prisma.destination.findUnique({
+    where: { id: params.id },
     select: {
       id: true,
       name: true,
@@ -32,8 +31,8 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
       imageUrl: true,
       isActive: true,
       popularityScore: true,
-      price: true, // 👈 Decimal
-      discountPrice: true, // 👈 Decimal
+      price: true,          // Decimal | null
+      discountPrice: true,  // Decimal | null
       createdAt: true,
       updatedAt: true,
       _count: { select: { reservations: true } },
@@ -42,18 +41,18 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
 
   if (!d) notFound();
 
-  // 👇 Convertimos Decimals a Number de forma segura
-  const price = d.price ? Number(d.price) : 0;
-  const discountPrice = d.discountPrice ? Number(d.discountPrice) : null;
+  // Convertimos Decimals a number, preservando null
+  const price = d.price !== null ? Number(d.price) : null;
+  const discountPrice = d.discountPrice !== null ? Number(d.discountPrice) : null;
 
   const recentReservations = await prisma.reservation.findMany({
-    where: { businessId, destinationId: d.id },
+    where: { destinationId: d.id },
     orderBy: { createdAt: "desc" },
     take: 8,
     select: {
       id: true,
       code: true,
-      totalAmount: true,
+      totalAmount: true, // Decimal
       currency: true,
       status: true,
       client: { select: { name: true } },
@@ -89,8 +88,10 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
               category: d.category,
               description: d.description,
               imageUrl: d.imageUrl,
-              price,
-              discountPrice,
+              // price: string | number
+              price: price !== null ? price : "",
+              // discountPrice: string | number | null
+              discountPrice: discountPrice !== null ? discountPrice : null,
             }}
           />
 
@@ -104,15 +105,18 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
             Actualizado: {new Date(d.updatedAt).toLocaleString("es-CO")}
           </div>
 
-          {/* 👇 mostramos precios actuales */}
+          {/* Precios actuales */}
           <div className="mt-3 text-sm">
             <p>
               <strong>Precio:</strong>{" "}
-              {price ? money(price) : <span className="text-gray-400">No definido</span>}
+              {price !== null ? money(price) : <span className="text-gray-400">No definido</span>}
             </p>
             <p>
               <strong>Precio con descuento:</strong>{" "}
-              {discountPrice ? money(discountPrice) : <span className="text-gray-400">No definido</span>}
+              {discountPrice !== null ? money(discountPrice) : <span className="text-gray-400">No definido</span>}
+            </p>
+            <p className="text-xs text-gray-500 mt-1">
+              Reservas vinculadas: {d._count.reservations}
             </p>
           </div>
         </div>
@@ -136,7 +140,9 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
                         {new Date(r.endDate).toLocaleDateString("es-CO")} · {r.status}
                       </div>
                     </div>
-                    <div className="text-sm">{money(Number(r.totalAmount), r.currency)}</div>
+                    <div className="text-sm">
+                      {money(Number(r.totalAmount), r.currency)}
+                    </div>
                   </div>
                 </li>
               ))}

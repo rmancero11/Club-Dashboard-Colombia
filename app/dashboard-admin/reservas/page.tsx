@@ -1,6 +1,7 @@
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
+import { Prisma } from "@prisma/client";
 
 function toInt(v: string | string[] | undefined, def: number) {
   const n = Array.isArray(v) ? parseInt(v[0] || "", 10) : parseInt(v || "", 10);
@@ -61,8 +62,7 @@ export default async function AdminReservationsPage({
 }: { searchParams: { [k: string]: string | string[] | undefined } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (auth.role !== "ADMIN" || !auth.businessId) redirect("/unauthorized");
-  const businessId = auth.businessId!;
+  if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
   const status = (Array.isArray(searchParams.status) ? searchParams.status[0] : searchParams.status) ?? ""; // "", LEAD, QUOTED...
@@ -85,30 +85,34 @@ export default async function AdminReservationsPage({
     }
   }
 
-  const where: any = { businessId };
-  if (status) where.status = status; // debe ser EXACTO al enum
-  if (sellerId) where.sellerId = sellerId;
-  if (destinationId) where.destinationId = destinationId;
-  if (month && (dateFilter.gte || dateFilter.lte)) where.startDate = dateFilter;
+  // whereBase: filtros comunes SIN el estado (para KPIs y sum global)
+  const whereBase: Prisma.ReservationWhereInput = {};
+  if (sellerId) whereBase.sellerId = sellerId;
+  if (destinationId) whereBase.destinationId = destinationId;
+  if (month && (dateFilter.gte || dateFilter.lte)) whereBase.startDate = dateFilter;
 
-  // ⬇️ Buscador SOLO por número de reserva (code) y nombre del cliente
   if (q) {
-    where.OR = [
+    whereBase.OR = [
       { code: { contains: q, mode: "insensitive" } },
-      // FIX: relación debe ir con "is: {...}"
       { client: { is: { name: { contains: q, mode: "insensitive" } } } },
     ];
   }
 
+  // where: mismos filtros + estado (si viene)
+  const where: Prisma.ReservationWhereInput = {
+    ...whereBase,
+    ...(status ? { status: status as any } : {}),
+  };
+
   // opciones de filtros
   const [sellers, destinations] = await Promise.all([
     prisma.user.findMany({
-      where: { businessId, role: "SELLER", status: "ACTIVE" },
+      where: { role: "SELLER", status: "ACTIVE" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
     }),
     prisma.destination.findMany({
-      where: { businessId, isActive: true },
+      where: { isActive: true },
       select: { id: true, name: true, country: true },
       orderBy: [{ popularityScore: "desc" }, { name: "asc" }],
     }),
@@ -131,22 +135,32 @@ export default async function AdminReservationsPage({
       },
     }),
     prisma.reservation.groupBy({
-      where: { businessId },
+      where: whereBase,
       by: ["status"],
       _count: { _all: true },
     }),
     prisma.reservation.aggregate({
-      where: { businessId },
+      where: whereBase,
       _sum: { totalAmount: true },
     }),
   ]);
 
   const totalPages = Math.max(1, Math.ceil(total / pageSize));
   if (page > totalPages) {
-    redirect(`/dashboard-admin/reservas${qstr({ q, status, sellerId, destinationId, month, page: String(totalPages), pageSize: String(pageSize) })}`);
+    redirect(
+      `/dashboard-admin/reservas${qstr({
+        q,
+        status,
+        sellerId,
+        destinationId,
+        month,
+        page: String(totalPages),
+        pageSize: String(pageSize),
+      })}`,
+    );
   }
 
-  const statusMap = Object.fromEntries(statusAgg.map(s => [s.status, s._count._all])) as Record<string, number>;
+  const statusMap = Object.fromEntries(statusAgg.map((s) => [s.status, s._count._all])) as Record<string, number>;
   const totalSum = Number(sumAgg._sum.totalAmount || 0);
 
   return (
@@ -165,7 +179,7 @@ export default async function AdminReservationsPage({
 
       {/* KPIs por estado (enum real) */}
       <div className="grid gap-3 sm:grid-cols-4 lg:grid-cols-8">
-        {RES_ORDER.map(s => (
+        {RES_ORDER.map((s) => (
           <div key={s} className="rounded-xl border bg-white p-3">
             <div className="text-xs text-gray-500">{RES_LABELS[s]}</div>
             <div className="text-xl font-semibold">{statusMap[s] || 0}</div>
@@ -184,21 +198,21 @@ export default async function AdminReservationsPage({
           />
           <select name="status" defaultValue={status} className="rounded-md border px-3 py-2 text-sm">
             <option value="">Estado (todos)</option>
-            {RES_ORDER.map(s => (
+            {RES_ORDER.map((s) => (
               <option key={s} value={s}>{RES_LABELS[s]}</option>
             ))}
           </select>
           <select name="sellerId" defaultValue={sellerId} className="rounded-md border px-3 py-2 text-sm">
             <option value="">Vendedor (todos)</option>
-            {sellers.map(s => <option key={s.id} value={s.id}>{s.name || s.email}</option>)}
+            {sellers.map((s) => <option key={s.id} value={s.id}>{s.name || s.email}</option>)}
           </select>
           <select name="destinationId" defaultValue={destinationId} className="rounded-md border px-3 py-2 text-sm">
             <option value="">Destino (todos)</option>
-            {destinations.map(d => <option key={d.id} value={d.id}>{d.name} · {d.country}</option>)}
+            {destinations.map((d) => <option key={d.id} value={d.id}>{d.name} · {d.country}</option>)}
           </select>
           <input type="month" name="month" defaultValue={month || undefined} className="rounded-md border px-3 py-2 text-sm" />
           <select name="pageSize" defaultValue={String(pageSize)} className="rounded-md border px-3 py-2 text-sm">
-            {[10,20,30,50].map(n => <option key={n} value={n}>{n} / pág.</option>)}
+            {[10, 20, 30, 50].map((n) => <option key={n} value={n}>{n} / pág.</option>)}
           </select>
           <input type="hidden" name="page" value="1" />
           <div className="flex items-center gap-2">
@@ -236,7 +250,7 @@ export default async function AdminReservationsPage({
               {items.length === 0 && (
                 <tr><td colSpan={9} className="px-2 py-10 text-center text-gray-400">Sin resultados</td></tr>
               )}
-              {items.map(r => {
+              {items.map((r) => {
                 const pill = RES_PILL[r.status] || "bg-gray-50 border-gray-200 text-gray-700";
                 return (
                   <tr key={r.id} className="border-t">
