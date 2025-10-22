@@ -3,37 +3,31 @@ import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
 import SellerTaskTable from "@/app/components/seller/tasks/SellerTaskTable";
 
-/* Etiquetas en español (ajústalas a tus enums reales si difieren) */
+/* Etiquetas en español según los enums actuales */
 const PRIORITY_LABELS: Record<string, string> = {
   LOW: "Baja",
   MEDIUM: "Media",
   HIGH: "Alta",
-  URGENT: "Urgente",
 };
 
 const STATUS_LABELS: Record<string, string> = {
-  TODO: "Pendiente",
+  OPEN: "Abierta",
   IN_PROGRESS: "En progreso",
-  DONE: "Completada",
-  CANCELED: "Cancelada",
   BLOCKED: "Bloqueada",
+  DONE: "Completada",
+  CANCELLED: "Cancelada",
 };
 
 export default async function SellerTasksPage() {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
   if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const sellerId = auth.userId!;
 
-  // Solo tareas del vendedor (o todas si es ADMIN)
+  // Tareas del vendedor si es SELLER; todas si es ADMIN
   const tasks = await prisma.task.findMany({
-    where: {
-      businessId,
-      ...(auth.role !== "ADMIN" ? { sellerId } : {}),
-    },
+    where: auth.role !== "ADMIN" ? { sellerId } : {},
     select: {
       id: true,
       title: true,
@@ -69,7 +63,6 @@ export default async function SellerTasksPage() {
       </header>
 
       <section className="rounded-xl border bg-white p-4">
-        {/* Pasa diccionarios para mostrar etiquetas en ES */}
         <SellerTaskTable
           tasks={tasks}
           priorityLabels={PRIORITY_LABELS}

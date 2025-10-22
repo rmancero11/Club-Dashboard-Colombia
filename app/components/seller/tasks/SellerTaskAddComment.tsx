@@ -8,23 +8,30 @@ export default function SellerTaskAddComment({ taskId }: { taskId: string }) {
   const [text, setText] = useState("");
   const [loading, setLoading] = useState(false);
 
-  async function submit() {
-    const body = { text: text.trim() };
-    if (!body.text) return;
+  async function handleSubmit() {
+    const trimmed = text.trim();
+    if (!trimmed) return;
+
     setLoading(true);
-    const res = await fetch(`/api/seller/tasks/${taskId}/comments`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-    });
-    setLoading(false);
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err?.error || "No se pudo agregar el comentario.");
-      return;
+    try {
+      const res = await fetch(`/api/seller/tasks/${taskId}/comments`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: trimmed }),
+      });
+
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "No se pudo agregar el comentario.");
+      }
+
+      setText(""); // limpiar el campo al guardar
+      router.refresh();
+    } catch (err: any) {
+      alert(err?.message ?? "Error al agregar el comentario.");
+    } finally {
+      setLoading(false);
     }
-    setText("");
-    router.refresh();
   }
 
   return (
@@ -35,18 +42,21 @@ export default function SellerTaskAddComment({ taskId }: { taskId: string }) {
         onChange={(e) => setText(e.target.value)}
         placeholder="Escribe una nota…"
         className="rounded-md border px-3 py-2 text-sm"
+        disabled={loading}
       />
       <div className="flex gap-2">
         <button
-          onClick={submit}
+          type="button"
+          onClick={handleSubmit}
           disabled={loading || !text.trim()}
-          className="rounded-md bg-black px-4 py-2 text-white text-sm"
+          className="rounded-md bg-black px-4 py-2 text-white text-sm disabled:opacity-50"
         >
           {loading ? "Agregando…" : "Agregar comentario"}
         </button>
         <button
           type="button"
           onClick={() => setText("")}
+          disabled={loading}
           className="rounded-md border px-4 py-2 text-sm"
         >
           Limpiar

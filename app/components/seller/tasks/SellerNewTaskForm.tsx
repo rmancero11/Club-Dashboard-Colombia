@@ -4,7 +4,11 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type ClientOpt = { id: string; name: string };
-type ResOpt = { id: string; code: string; destination?: { name?: string | null } | null };
+type ResOpt = {
+  id: string;
+  code: string;
+  destination?: { name?: string | null } | null;
+};
 
 export default function SellerNewTaskForm({
   defaultClientId,
@@ -20,24 +24,28 @@ export default function SellerNewTaskForm({
   const router = useRouter();
   const [loading, setLoading] = useState(false);
   const [clientId, setClientId] = useState<string>(defaultClientId || "");
-  const [reservations, setReservations] = useState<ResOpt[]>(initialReservations || []);
-  const [reservationId, setReservationId] = useState<string>(defaultReservationId || "");
+  const [reservations, setReservations] = useState<ResOpt[]>(
+    initialReservations || []
+  );
+  const [reservationId, setReservationId] = useState<string>(
+    defaultReservationId || ""
+  );
 
   useEffect(() => {
-    // si hay cliente preseleccionado pero no trajimos reservas (por navegación directa), cargarlas
-    if (clientId && initialReservations.length === 0) {
+    // si hay cliente preseleccionado pero no trajimos reservas, cargarlas
+    if (clientId && (!initialReservations || initialReservations.length === 0)) {
       fetch(`/api/seller/clients/${clientId}/reservations`)
-        .then(r => r.ok ? r.json() : Promise.reject())
-        .then(json => setReservations(json.items || []))
+        .then((r) => (r.ok ? r.json() : Promise.reject()))
+        .then((json) => setReservations(json.items || []))
         .catch(() => setReservations([]));
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function onClientChange(e: React.ChangeEvent<HTMLSelectElement>) {
     const value = e.target.value;
     setClientId(value);
-    setReservationId(""); // reset
+    setReservationId("");
     if (!value) {
       setReservations([]);
       return;
@@ -51,42 +59,62 @@ export default function SellerNewTaskForm({
     }
   }
 
-  async function onSubmit(formData: FormData) {
-    setLoading(true);
+  function normalizeDateToISO(dateStr: string) {
+    if (!dateStr) return null;
+    // yyyy-mm-dd -> Date at local midnight -> ISO
+    const [y, m, d] = dateStr.split("-").map((n) => parseInt(n, 10));
+    const dt = new Date(y, (m ?? 1) - 1, d ?? 1, 0, 0, 0, 0);
+    return dt.toISOString();
+  }
+
+  async function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    if (loading) return;
+
+    const formData = new FormData(e.currentTarget);
     const payload = {
       title: String(formData.get("title") || "").trim(),
       description: String(formData.get("description") || "").trim(),
-      dueDate: String(formData.get("dueDate") || ""), // yyyy-mm-dd
+      dueDate: normalizeDateToISO(String(formData.get("dueDate") || "")),
       priority: String(formData.get("priority") || "MEDIUM"),
-      // asociaciones:
       clientId: clientId || null,
       reservationId: reservationId || null,
     };
 
-    const res = await fetch("/api/seller/tasks", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(payload),
-    });
-    setLoading(false);
-
-    if (!res.ok) {
-      const err = await res.json().catch(() => ({}));
-      alert(err?.error || "No se pudo crear la tarea.");
+    if (!payload.title) {
+      alert("El título es obligatorio.");
       return;
     }
 
-    const json = await res.json();
-    const rid = json?.task?.reservationId;
-    const cid = payload.clientId;
+    setLoading(true);
+    try {
+      const res = await fetch("/api/seller/tasks", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
 
-    if (rid) return router.push(`/dashboard-seller/reservas/${rid}`);
-    if (cid) return router.push(`/dashboard-seller/clientes/${cid}`);
-    return router.push(`/dashboard-seller/tareas`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err?.error || "No se pudo crear la tarea.");
+      }
+
+      const json = await res.json();
+      const rid = json?.task?.reservationId;
+      const cid = payload.clientId;
+
+      if (rid) return router.push(`/dashboard-seller/reservas/${rid}`);
+      if (cid) return router.push(`/dashboard-seller/clientes/${cid}`);
+      return router.push(`/dashboard-seller/tareas`);
+    } catch (err: any) {
+      alert(err?.message ?? "Error al crear la tarea.");
+    } finally {
+      setLoading(false);
+    }
   }
 
   return (
-    <form action={onSubmit} className="grid gap-3">
+    <form onSubmit={handleSubmit} className="grid gap-3">
       {/* Asociaciones */}
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="grid gap-1">
@@ -98,7 +126,11 @@ export default function SellerNewTaskForm({
             className="rounded-md border px-3 py-2 text-sm"
           >
             <option value="">— Sin cliente —</option>
-            {clients.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+            {clients.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
+            ))}
           </select>
         </div>
 
@@ -112,7 +144,7 @@ export default function SellerNewTaskForm({
             disabled={!clientId || reservations.length === 0}
           >
             <option value="">— Sin reserva —</option>
-            {reservations.map(r => (
+            {reservations.map((r) => (
               <option key={r.id} value={r.id}>
                 {r.code} · {r.destination?.name || "—"}
               </option>
@@ -127,22 +159,38 @@ export default function SellerNewTaskForm({
       {/* Datos de la tarea */}
       <div className="grid gap-1">
         <label className="text-sm">Título</label>
-        <input name="title" className="rounded-md border px-3 py-2 text-sm" required />
+        <input
+          name="title"
+          className="rounded-md border px-3 py-2 text-sm"
+          required
+        />
       </div>
 
       <div className="grid gap-1">
         <label className="text-sm">Descripción</label>
-        <textarea name="description" rows={3} className="rounded-md border px-3 py-2 text-sm" />
+        <textarea
+          name="description"
+          rows={3}
+          className="rounded-md border px-3 py-2 text-sm"
+        />
       </div>
 
       <div className="grid sm:grid-cols-2 gap-3">
         <div className="grid gap-1">
           <label className="text-sm">Vencimiento</label>
-          <input type="date" name="dueDate" className="rounded-md border px-3 py-2 text-sm" />
+          <input
+            type="date"
+            name="dueDate"
+            className="rounded-md border px-3 py-2 text-sm"
+          />
         </div>
         <div className="grid gap-1">
           <label className="text-sm">Prioridad</label>
-          <select name="priority" defaultValue="MEDIUM" className="rounded-md border px-3 py-2 text-sm">
+          <select
+            name="priority"
+            defaultValue="MEDIUM"
+            className="rounded-md border px-3 py-2 text-sm"
+          >
             <option value="LOW">Baja</option>
             <option value="MEDIUM">Media</option>
             <option value="HIGH">Alta</option>
@@ -151,10 +199,18 @@ export default function SellerNewTaskForm({
       </div>
 
       <div className="flex gap-2">
-        <button type="submit" disabled={loading} className="rounded-md bg-black px-4 py-2 text-white text-sm">
+        <button
+          type="submit"
+          disabled={loading}
+          className="rounded-md bg-black px-4 py-2 text-white text-sm"
+        >
           {loading ? "Creando…" : "Crear tarea"}
         </button>
-        <button type="button" onClick={() => history.back()} className="rounded-md border px-4 py-2 text-sm">
+        <button
+          type="button"
+          onClick={() => history.back()}
+          className="rounded-md border px-4 py-2 text-sm"
+        >
           Cancelar
         </button>
       </div>

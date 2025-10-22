@@ -3,30 +3,38 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 
 export async function GET(
-  req: Request,
+  _req: Request,
   { params }: { params: { id: string } }
 ) {
   const auth = await getAuth();
   if (!auth) return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  if (!auth.businessId) return NextResponse.json({ error: "No business" }, { status: 400 });
-  if (!["SELLER","ADMIN"].includes(auth.role)) {
+  if (!["SELLER", "ADMIN"].includes(auth.role)) {
     return NextResponse.json({ error: "Forbidden" }, { status: 403 });
   }
 
-  const businessId = auth.businessId!;
-  const sellerId = auth.userId!;
   const clientId = params.id;
 
-  // validar ownership del cliente
+  // Validar ownership/visibilidad del cliente (si no es ADMIN)
   const client = await prisma.client.findFirst({
-    where: { id: clientId, businessId, ...(auth.role !== "ADMIN" ? { sellerId } : {}) },
+    where: {
+      id: clientId,
+      ...(auth.role !== "ADMIN" ? { sellerId: auth.userId! } : {}),
+    },
     select: { id: true },
   });
   if (!client) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
+  // Reservas del cliente (filtradas por seller si aplica)
   const items = await prisma.reservation.findMany({
-    where: { businessId, ...(auth.role !== "ADMIN" ? { sellerId } : {}), clientId },
-    select: { id: true, code: true, destination: { select: { name: true } } },
+    where: {
+      clientId,
+      ...(auth.role !== "ADMIN" ? { sellerId: auth.userId! } : {}),
+    },
+    select: {
+      id: true,
+      code: true,
+      destination: { select: { name: true } },
+    },
     orderBy: { createdAt: "desc" },
     take: 200,
   });

@@ -5,29 +5,42 @@ import SellerNewTaskForm from "@/app/components/seller/tasks/SellerNewTaskForm";
 
 export default async function NewSellerTaskPage({
   searchParams,
-}: { searchParams?: { clientId?: string; reservationId?: string } }) {
+}: {
+  searchParams?: { clientId?: string; reservationId?: string };
+}) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
-  if (!["SELLER","ADMIN"].includes(auth.role)) redirect("/unauthorized");
+  if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
   const sellerId = auth.userId!;
 
-  // Clientes del vendedor (activos)
+  // Clientes visibles: si es SELLER, solo sus clientes; si es ADMIN, todos los no archivados
   const clients = await prisma.client.findMany({
-    where: { businessId, sellerId, isArchived: false },
+    where: {
+      isArchived: false,
+      ...(auth.role !== "ADMIN" ? { sellerId } : {}),
+    },
     select: { id: true, name: true },
     orderBy: { name: "asc" },
     take: 300,
   });
 
-  // Si viene clientId, precargamos reservas de ese cliente; si no, dejamos vacío (el form las pedirá por fetch)
-  let reservations: { id: string; code: string; destination: { name: string } | null }[] = [];
+  // Si viene clientId, precargamos reservas; filtradas por seller si no es ADMIN
+  let reservations:
+    | { id: string; code: string; destination: { name: string } | null }[]
+    | [] = [];
+
   if (searchParams?.clientId) {
     reservations = await prisma.reservation.findMany({
-      where: { businessId, sellerId, clientId: searchParams.clientId },
-      select: { id: true, code: true, destination: { select: { name: true } } },
+      where: {
+        clientId: searchParams.clientId,
+        ...(auth.role !== "ADMIN" ? { sellerId } : {}),
+      },
+      select: {
+        id: true,
+        code: true,
+        destination: { select: { name: true } },
+      },
       orderBy: { createdAt: "desc" },
       take: 200,
     });
@@ -37,7 +50,12 @@ export default async function NewSellerTaskPage({
     <div className="space-y-4">
       <header className="flex items-center justify-between">
         <h1 className="text-2xl font-semibold">Nueva tarea</h1>
-        <a href="/dashboard-seller/tareas" className="rounded-md border px-3 py-2 text-sm">← Volver</a>
+        <a
+          href="/dashboard-seller/tareas"
+          className="rounded-md border px-3 py-2 text-sm"
+        >
+          ← Volver
+        </a>
       </header>
 
       <div className="rounded-xl border bg-white p-4">

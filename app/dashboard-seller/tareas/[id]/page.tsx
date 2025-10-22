@@ -35,10 +35,7 @@ function fmtDateTime(d?: Date | string | null) {
   return date.toLocaleString("es-CO");
 }
 
-/** Timeline: guardamos comentarios como JSON en Task.description.
- *  Estructura: [{ ts, text, author, type }]
- *  Si description no es JSON válido, hacemos fallback a mostrar el texto una vez.
- */
+/** Timeline en Task.description como JSON: [{ ts, text, author, type }] */
 function parseTimeline(raw?: string | null) {
   if (!raw) return { items: [] as any[], legacy: "" };
   try {
@@ -63,11 +60,13 @@ export default async function SellerTaskDetailPage({
 }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
-  if (!auth.businessId) redirect("/unauthorized");
+  if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  const businessId = auth.businessId!;
-  const where: any = { id: params.id, businessId };
-  if (auth.role !== "ADMIN") where.sellerId = auth.userId;
+  // Si es SELLER, solo puede ver sus tareas
+  const where: any = {
+    id: params.id,
+    ...(auth.role !== "ADMIN" ? { sellerId: auth.userId } : {}),
+  };
 
   const t = await prisma.task.findFirst({
     where,

@@ -8,6 +8,7 @@ const STATUS_LABEL_DEFAULT: Record<string, string> = {
   IN_PROGRESS: "En progreso",
   BLOCKED: "Bloqueada",
   DONE: "Completada",
+  CANCELLED: "Cancelada",
 };
 
 const STATUS_PILL: Record<string, string> = {
@@ -15,23 +16,22 @@ const STATUS_PILL: Record<string, string> = {
   IN_PROGRESS: "bg-sky-50 border-sky-200 text-sky-700",
   BLOCKED: "bg-rose-50 border-rose-200 text-rose-700",
   DONE: "bg-emerald-50 border-emerald-200 text-emerald-700",
+  CANCELLED: "bg-gray-50 border-gray-200 text-gray-600",
 };
 
 const PRIORITY_LABEL_DEFAULT: Record<string, string> = {
   LOW: "Baja",
   MEDIUM: "Media",
   HIGH: "Alta",
-  URGENT: "Urgente",
 };
 
 const PRIORITY_COLOR: Record<string, string> = {
   LOW: "text-gray-500",
   MEDIUM: "text-blue-600",
   HIGH: "text-red-600",
-  URGENT: "text-red-700",
 };
 
-function fmtDate(d?: string | null) {
+function fmtDate(d?: string | Date | null) {
   if (!d) return "—";
   const date = new Date(d);
   return date.toLocaleDateString("es-CO");
@@ -73,8 +73,7 @@ export default function SellerTaskTable({
           {tasks.map((t) => {
             const statusPill =
               STATUS_PILL[t.status] ?? "bg-gray-50 border-gray-200 text-gray-700";
-            const priorityColor =
-              PRIORITY_COLOR[t.priority] ?? "text-gray-600";
+            const priorityColor = PRIORITY_COLOR[t.priority] ?? "text-gray-600";
             const statusText = ST_LABELS[t.status] ?? t.status;
             const priorityText = PR_LABELS[t.priority] ?? t.priority;
 
