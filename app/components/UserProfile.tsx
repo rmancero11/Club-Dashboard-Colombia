@@ -8,6 +8,7 @@ import DestinationsList from "./DestinationList";
 import Memberships from "./Memberships";
 import DestinationCard from "./DestinationCard";
 import { div } from "framer-motion/client";
+import UserPreferences from "./UserPreferences";
 
 type Role = "ADMIN" | "SELLER" | "USER";
 
@@ -49,6 +50,21 @@ export default function UserProfile({ user }: { user: UserShape }) {
     imageUrl?: string | null;
     description?: string | null;
   } | null>(null);
+
+  async function handleSave(data: { gustos: string[]; destinos: string[] }) {
+    const formData = new FormData();
+    data.gustos.forEach((g) => formData.append("preference", g));
+    data.destinos.forEach((d) => formData.append("destino", d));
+
+    const res = await fetch("/api/user/preferences", {
+      method: "POST",
+      body: formData,
+    });
+    if (!res.ok) {
+      const errData = await res.json().catch(() => null);
+      throw new Error(errData?.error || "Error al guardar preferencias");
+    }
+  }
 
   React.useEffect(() => {
     const fetchReservation = async () => {
@@ -97,10 +113,14 @@ export default function UserProfile({ user }: { user: UserShape }) {
     router.replace("/login");
   };
 
-  const destinos =
-    typeof user.destino === "string"
-      ? user.destino.split(",").map((d) => d.trim())
-      : user.destino || [];
+  const destinos: string[] = React.useMemo(() => {
+    if (!user.destino) return [];
+    if (typeof user.destino === "string")
+      return user.destino.split(",").map((d) => d.trim());
+    if (Array.isArray(user.destino))
+      return user.destino.map((d) => String(d).trim());
+    return [];
+  }, [user.destino]);
 
   const gustos =
     typeof user.preference === "string"
@@ -110,8 +130,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
   return (
     <div className="font-montserrat w-full max-w-5xl mx-auto px-4 md:px-6 pb-16">
       {/* HEADER */}
-      <div className="relative bg-white shadow-md p-6 rounded-2xl flex flex-col items-center text-center md:grid md:grid-cols-[auto_1fr_auto] md:text-left md:items-center gap-6">
-        {/* Dropdown arriba derecha */}
+      <div className="relative bg-white md:shadow-md md:border md:border-gray-200 p-6 rounded-2xl flex flex-col items-center text-center md:grid md:grid-cols-[auto_1fr_auto] md:text-left md:items-center gap-6">
         <div className="absolute top-4 right-4">
           <button
             onClick={() => setMenuOpen((prev) => !prev)}
@@ -241,7 +260,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
                 />
 
                 {/* Overlay info arriba izquierda */}
-                <div className="absolute text-left top-4 left-4 text-white font-montserrat space-y-1">
+                <div className="absolute text-left top-4 left-4 text-white font-montserrat flex flex-col items-start space-y-1">
                   <div className="flex items-center gap-2">
                     <h2 className="text-lg font-semibold">{user.name}</h2>
                     {user.verified && (
@@ -254,12 +273,16 @@ export default function UserProfile({ user }: { user: UserShape }) {
                     )}
                   </div>
 
-                  {/* País alineado a la izquierda */}
-                  {user.country && <p className="text-sm">{user.country}</p>}
+                  {/* País */}
+                  {user.country && (
+                    <p className="inline-block text-sm font-montserrat bg-white/90 text-black px-3 py-1 rounded-full shadow-sm">
+                      {user.country}
+                    </p>
+                  )}
 
                   {/* Gustos */}
                   {gustos.length > 0 ? (
-                    <ul className="flex flex-wrap gap-3 font-montserrat">
+                    <ul className="flex flex-wrap gap-1 font-montserrat justify-start">
                       {gustos.map((g, i) => {
                         const icons: string[] = [];
                         if (g.toLowerCase() === "playa")
@@ -276,14 +299,15 @@ export default function UserProfile({ user }: { user: UserShape }) {
                           );
 
                         return (
-                          <li key={i} className="flex items-center gap-1">
+                          <li key={i} className="flex items-center gap-0.5">
                             {icons.map((icon, idx) => (
                               <Image
                                 key={idx}
                                 src={icon}
                                 alt={g}
-                                width={20}
-                                height={20}
+                                width={26}
+                                height={26}
+                                className="object-contain"
                               />
                             ))}
                           </li>
@@ -296,7 +320,6 @@ export default function UserProfile({ user }: { user: UserShape }) {
                     </p>
                   )}
                 </div>
-                {user.country && <p>{user.country}</p>}
 
                 {/* Botón cambiar foto abajo */}
                 <div className="absolute bottom-4 w-full flex justify-center">
@@ -349,79 +372,11 @@ export default function UserProfile({ user }: { user: UserShape }) {
               : "Administrador"}
           </span>
 
-          {/* Destinos de interés */}
-          <div className="mt-5 w-full text-left">
-            <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
-              Destinos de interés
-            </h2>
-            {destinos.length > 0 ? (
-              <ul
-                className={`grid gap-3 text-sm text-gray-600 font-montserrat ${
-                  destinos.length === 1
-                    ? "grid-cols-1 sm:grid-cols-1 justify-start" // un solo destino, alineado a la izquierda
-                    : "grid-cols-1 sm:grid-cols-2" // 2 columnas en escritorio, 1 en mobile
-                }`}
-              >
-                {destinos.map((d, i) => (
-                  <li
-                    key={i}
-                    className="bg-gray-100 rounded-xl py-2 px-3 text-left max-w-fit"
-                  >
-                    {d}
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="text-gray-500 text-sm font-montserrat">
-                No especificado
-              </p>
-            )}
-          </div>
-
-          {/* Tus gustos */}
-          <div className="mt-6 w-full text-left">
-            <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
-              Tus gustos
-            </h2>
-            {gustos.length > 0 ? (
-              <ul className="flex flex-wrap gap-3 font-montserrat">
-                {gustos.map((g, i) => {
-                  // Determinar los iconos según el gusto
-                  const icons: string[] = [];
-                  if (g.toLowerCase() === "playa")
-                    icons.push("/favicon/playa-club-solteros.svg");
-                  if (g.toLowerCase() === "aventura")
-                    icons.push("/favicon/aventura-club-solteros.svg");
-                  if (g.toLowerCase() === "cultura")
-                    icons.push("/favicon/cultura-club-solteros.svg");
-                  if (g.toLowerCase() === "mixto")
-                    icons.push(
-                      "/favicon/playa-club-solteros.svg",
-                      "/favicon/aventura-club-solteros.svg",
-                      "/favicon/cultura-club-solteros.svg"
-                    );
-
-                  return (
-                    <li key={i} className="flex items-center gap-2">
-                      {icons.map((icon, idx) => (
-                        <Image
-                          key={idx}
-                          src={icon}
-                          alt={g}
-                          width={50}
-                          height={50}
-                        />
-                      ))}
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : (
-              <p className="text-gray-500 text-sm font-montserrat">
-                No especificado
-              </p>
-            )}
-          </div>
+          <UserPreferences
+            gustosIniciales={gustos}
+            destinosIniciales={destinos}
+            onSave={handleSave}
+          />
         </div>
       </div>
 

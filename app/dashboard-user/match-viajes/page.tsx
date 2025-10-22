@@ -1,10 +1,10 @@
-'use client';
+"use client";
 
 import { useEffect, useState, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import type { DestinationDTO } from "@/app/types/destination";
-import AvatarModal from "@/app/components/AvatarModal"; 
+import AvatarModal from "@/app/components/AvatarModal";
 import { createPortal } from "react-dom";
 
 export default function TravelersMatchList() {
@@ -24,6 +24,7 @@ export default function TravelersMatchList() {
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
 
+  // Cargar destinos y ordenarlos por cantidad de viajeros
   useEffect(() => {
     const fetchDestinos = async () => {
       setLoading(true);
@@ -32,7 +33,13 @@ export default function TravelersMatchList() {
         const res = await fetch("/api/destination", { cache: "no-store" });
         if (!res.ok) throw new Error("Error al cargar destinos");
         const { items } = await res.json();
-        setDestinos(items);
+
+        const sortedItems = items.sort(
+          (a: DestinationDTO, b: DestinationDTO) =>
+            (b.travelers?.length || 0) - (a.travelers?.length || 0)
+        );
+
+        setDestinos(sortedItems);
       } catch (err: any) {
         console.error(err);
         setError(err.message || "Error desconocido");
@@ -43,6 +50,7 @@ export default function TravelersMatchList() {
     fetchDestinos();
   }, []);
 
+  // Scroll del carrusel
   const scroll = (destinoId: string, direction: "left" | "right") => {
     const ref = carouselRefs.current[destinoId];
     if (!ref) return;
@@ -54,11 +62,16 @@ export default function TravelersMatchList() {
   };
 
   if (loading)
-    return <p className="text-gray-500 text-center mt-4">Cargando viajeros...</p>;
-  if (error)
-    return <p className="text-red-500 text-center mt-4">⚠️ {error}</p>;
+    return (
+      <p className="text-gray-500 text-center mt-4">Cargando viajeros...</p>
+    );
+  if (error) return <p className="text-red-500 text-center mt-4">⚠️ {error}</p>;
   if (destinos.length === 0)
-    return <p className="text-gray-400 text-center mt-4">No hay viajeros disponibles</p>;
+    return (
+      <p className="text-gray-400 text-center mt-4">
+        No hay viajeros disponibles
+      </p>
+    );
 
   return (
     <div className="relative p-6 space-y-10">
@@ -75,26 +88,33 @@ export default function TravelersMatchList() {
           stroke="currentColor"
           className="w-4 h-4"
         >
-          <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
+          <path
+            strokeLinecap="round"
+            strokeLinejoin="round"
+            d="M15 19l-7-7 7-7"
+          />
         </svg>
         Volver
       </button>
 
-      <h1 className="text-xl md:text-2xl font-bold text-gray-800 mb-6 text-center md:text-left">
-        Descubrir Match de viajes
-      </h1>
+      {/* Título centrado con subrayado amarillo */}
+      <div className="w-full flex justify-center">
+        <h1 className="relative text-xl md:text-2xl font-bold text-gray-800 mb-6 inline-block">
+          Descubrir Match de viajes
+          <span className="absolute left-0 bottom-1 w-full h-2 bg-yellow-400 -z-10"></span>
+        </h1>
+      </div>
 
       {destinos.map((destino) => (
         <div key={destino.id} className="relative">
           {/* Título del destino */}
           <div className="mb-4">
-            <h2 className="text-md font-semibold text-yellow-600">
-              Destino:{" "}
-              <span className="text-purple-800">{destino.name}</span>
+            <h2 className="text-md font-semibold">
+              Destino: <span className="text-purple-800">{destino.name}</span>
             </h2>
           </div>
 
-          {/* Flechas de scroll solo si hay varios viajeros */}
+          {/* Flechas de scroll solo si hay más de un viajero */}
           {destino.travelers && destino.travelers.length > 1 && (
             <>
               <button
@@ -112,14 +132,18 @@ export default function TravelersMatchList() {
             </>
           )}
 
-          {/* Carrusel horizontal en desktop / una columna en mobile */}
+          {/* Carrusel horizontal mobile y desktop */}
           <div
             ref={(el) => {
               carouselRefs.current[destino.id] = el;
             }}
             className="
-              flex md:flex-row flex-col gap-4 md:overflow-x-auto md:scroll-smooth md:snap-x md:snap-mandatory
-              scrollbar-hide pb-2
+              flex gap-4
+              overflow-x-auto md:overflow-x-hidden
+              flex-nowrap md:flex-nowrap
+              scroll-smooth snap-x snap-mandatory
+              scrollbar-hide
+              pb-2
             "
           >
             {destino.travelers?.length ? (
@@ -140,8 +164,8 @@ export default function TravelersMatchList() {
                     })
                   }
                   className="
-                    flex-shrink-0 w-full md:w-64 rounded-xl overflow-hidden shadow-md hover:shadow-lg
-                    transition duration-300 cursor-pointer md:snap-center bg-white
+                    flex-shrink-0 w-64 rounded-xl overflow-hidden shadow-md hover:shadow-lg
+                    transition duration-300 cursor-pointer snap-center bg-white
                   "
                 >
                   <div className="relative w-full h-56">
@@ -178,7 +202,9 @@ export default function TravelersMatchList() {
         </div>
       ))}
 
-      {mounted && selectedTraveler &&
+      {/* Modal de Avatar */}
+      {mounted &&
+        selectedTraveler &&
         createPortal(
           <AvatarModal
             isOpen={!!selectedTraveler}
@@ -189,8 +215,7 @@ export default function TravelersMatchList() {
             preferences={selectedTraveler.preferences}
           />,
           document.body
-        )
-      }
+        )}
     </div>
   );
 }

@@ -50,49 +50,84 @@ export default function AvatarModal({
             onClick={(e) => e.stopPropagation()}
           >
             {/* Imagen de fondo */}
-            <Image src={avatar} alt={name ?? "Avatar"} fill className="object-cover" />
+            <Image
+              src={avatar}
+              alt={name ?? "Avatar"}
+              fill
+              className="object-cover"
+            />
 
             {/* Overlay info */}
-<div className="absolute top-4 left-4 text-white font-montserrat space-y-2">
-  <div className="flex items-center gap-2">
-    <h2 className="text-lg font-semibold">{name}</h2>
-    {verified && (
-      <Image
-        src="/favicon/check-aprobacion-club-solteros.svg"
-        alt="Verificado"
-        width={20}
-        height={20}
-      />
-    )}
-  </div>
+            <div className="absolute top-4 left-4 text-white font-montserrat space-y-2">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold font-montserrat">
+                  {name}
+                </h2>
+                {verified && (
+                  <Image
+                    src="/favicon/check-aprobacion-club-solteros.svg"
+                    alt="Verificado"
+                    width={20}
+                    height={20}
+                  />
+                )}
+              </div>
 
-  {country && (
-    <div className="flex items-center gap-2">
-      <p>{country}</p>
-    </div>
-  )}
+              {country && (
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-montserrat bg-white/90 text-black px-3 py-1 rounded-full shadow-sm">
+                    {country}
+                  </p>
+                </div>
+              )}
 
-  {preferences.length > 0 ? (
-    <ul className="flex flex-wrap gap-3">
-      {preferences.map((g, i) => (
-        <li key={i} className="flex items-center gap-1">
-          <p className="text-xs bg-white px-2 py-0.5 rounded">{g}</p>
-        </li>
-      ))}
-    </ul>
-  ) : (
-    <p className="text-gray-500 text-sm">No especificado</p>
-  )}
-</div>
+              {preferences.length > 0 ? (
+                <ul className="flex flex-wrap gap-3 font-montserrat">
+                  {preferences.map((g, i) => {
+                    const icons: string[] = [];
+                    if (g.toLowerCase() === "playa")
+                      icons.push("/favicon/playa-club-solteros.svg");
+                    if (g.toLowerCase() === "aventura")
+                      icons.push("/favicon/aventura-club-solteros.svg");
+                    if (g.toLowerCase() === "cultura")
+                      icons.push("/favicon/cultura-club-solteros.svg");
+                    if (g.toLowerCase() === "mixto")
+                      icons.push(
+                        "/favicon/playa-club-solteros.svg",
+                        "/favicon/aventura-club-solteros.svg",
+                        "/favicon/cultura-club-solteros.svg"
+                      );
+
+                    return (
+                      <li key={i} className="flex items-center gap-1">
+                        {icons.map((icon, idx) => (
+                          <Image
+                            key={idx}
+                            src={icon}
+                            alt={g}
+                            width={20}
+                            height={20}
+                          />
+                        ))}
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : (
+                <p className="text-gray-500 text-sm font-montserrat">
+                  No especificado
+                </p>
+              )}
+            </div>
 
             {/* Sección inferior */}
-            <div className="absolute bottom-4 w-full flex flex-col items-center gap-2">
+            <div className="absolute bottom-4 w-full flex flex-col items-center gap-2 font-montserrat">
               {nextDestination && (
                 <>
                   <span className="bg-purple-600 text-white text-xs px-3 py-1 rounded-full font-montserrat">
                     Próximo destino
                   </span>
-                  <p className="text-black font-semibold font-montserrat text-center">
+                  <p className="text-black font-semibold text-center font-montserrat">
                     {nextDestination}
                   </p>
                 </>
@@ -134,10 +169,13 @@ export default function AvatarModal({
                     initial={{ scale: 0.8 }}
                     animate={{ scale: 1 }}
                     exit={{ scale: 0.8 }}
-                    className="bg-white rounded-xl w-[80%] max-w-xs p-4 relative"
+                    className="bg-white rounded-xl w-[80%] max-w-xs p-4 relative font-montserrat"
                     onClick={(e) => e.stopPropagation()}
                   >
-                    <PremiumModal isOpen={isPremiumOpen} onClose={() => setIsPremiumOpen(false)} />
+                    <PremiumModal
+                      isOpen={isPremiumOpen}
+                      onClose={() => setIsPremiumOpen(false)}
+                    />
                     <button
                       onClick={() => setIsPremiumOpen(false)}
                       className="absolute top-2 right-2 text-black text-xl font-bold"
