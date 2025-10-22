@@ -2,6 +2,17 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect, notFound } from "next/navigation";
 
+// ===== FX / Conversión =====
+const FX_COP_USD = Number(process.env.FX_COP_USD || "4000");
+
+function toUSD(amount: number, currency?: string | null) {
+  const c = (currency || "USD").toUpperCase();
+  if (c === "USD") return amount;
+  if (c === "COP") return amount / FX_COP_USD;
+  return amount;
+}
+
+// ===== Utilidades =====
 function startEndOfMonth(d = new Date()) {
   const start = new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
   const end = new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
@@ -9,11 +20,7 @@ function startEndOfMonth(d = new Date()) {
 }
 function fmtMoney(n: number, currency = "USD") {
   try {
-    return new Intl.NumberFormat("es-CO", {
-      style: "currency",
-      currency,
-      maximumFractionDigits: 2,
-    }).format(n);
+    return new Intl.NumberFormat("es-CO", { style: "currency", currency, maximumFractionDigits: 2 }).format(n);
   } catch {
     return `${currency} ${n.toFixed(2)}`;
   }
@@ -48,14 +55,107 @@ const TASK_PRIORITY_LABELS: Record<string, string> = {
   LOW: "Baja",
 };
 
-export default async function AdminSellerDetailPage({
-  params,
-}: { params: { id: string } }) {
+// Etiquetas en español para acciones
+const ACTION_LABEL_ES: Record<string, string> = {
+  LOGIN: "Inicio de sesión",
+  LOGOUT: "Cierre de sesión",
+  CREATE_CLIENT: "Cliente creado",
+  UPDATE_CLIENT: "Cliente actualizado",
+  LEAD_CREATED_FROM_WP: "Lead creado desde web",
+  LEAD_ASSIGNED: "Lead asignado",
+  CREATE_RESERVATION: "Reserva creada",
+  UPDATE_RESERVATION: "Reserva actualizada",
+  CHANGE_STATUS: "Cambio de estado",
+  QUOTE_SENT: "Cotización enviada",
+  HOLD_SET: "Reserva en espera",
+  EXPIRED_AUTO: "Reserva vencida",
+  WHATSAPP_SENT: "WhatsApp enviado",
+  WHATSAPP_RECEIVED: "WhatsApp recibido",
+  GENERATE_REPORT: "Reporte generado",
+  NOTE: "Nota",
+};
+
+// Helpers para acción CHANGE_STATUS
+const UUID_RE = /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/gi;
+function mapStatusEs(code?: string | null) {
+  if (!code) return "";
+  return TASK_STATUS_LABELS[code] ?? RES_STATUS_LABELS[code] ?? code;
+}
+function cleanIds(text?: string | null) {
+  if (!text) return "";
+  return text.replace(UUID_RE, "").replace(/\s{2,}/g, " ").trim();
+}
+
+// Construye título y cuerpo en español para cada actividad
+function formatActivityEs(a: {
+  action: string;
+  message?: string | null;
+  metadata?: any;
+  // relaciones opcionales para nombrar el recurso
+  reservation?: { code?: string | null } | null;
+  client?: { name?: string | null } | null;
+}): { title: string; body?: string } {
+  const title = (ACTION_LABEL_ES[a.action] ?? a.action).toUpperCase();
+
+  if (a.action === "NOTE") {
+    const meta = a.metadata ?? {};
+    const note = meta.note ?? meta.text ?? meta.content ?? a.message ?? "";
+    return { title, body: note };
+  }
+
+  if (a.action === "CHANGE_STATUS") {
+    const meta = a.metadata ?? {};
+    // Intentamos identificar recurso y nombre
+    const kindRaw = meta.entity ?? meta.targetType ?? meta.kind ?? meta.resource ?? "";
+    const kind = String(kindRaw || "").toUpperCase();
+    let recurso = "";
+    if (kind.includes("TASK") || /tarea/i.test(a.message ?? "")) recurso = "Tarea";
+    else if (kind.includes("RESERVATION") || /reserva/i.test(a.message ?? "")) recurso = "Reserva";
+    else if (kind.includes("CLIENT") || /cliente/i.test(a.message ?? "")) recurso = "Cliente";
+
+    // Nombre amigable
+    const nombre =
+      meta.title ??
+      meta.name ??
+      meta.code ??
+      a.reservation?.code ??
+      a.client?.name ??
+      ""; // si no hay, se omite
+
+    const fromEs = mapStatusEs(meta.from ?? meta.old ?? meta.prev);
+    const toEs = mapStatusEs(meta.to ?? meta.new ?? meta.next);
+
+    // Mensaje base: “Estado actualizado: De X a Y”
+    let cuerpo = "";
+    if (fromEs || toEs) {
+      cuerpo = fromEs ? `Estado actualizado: de ${fromEs} a ${toEs || "—"}` : `Estado actualizado: ${toEs}`;
+    }
+
+    // Prefijo con recurso y nombre si lo tenemos
+    if (recurso && nombre) cuerpo = `${recurso} ${nombre} — ${cuerpo || "Estado actualizado"}`;
+    else if (recurso) cuerpo = `${recurso} — ${cuerpo || "Estado actualizado"}`;
+
+    // Si todavía no hay nada, limpiamos el message original como fallback (sin IDs)
+    if (!cuerpo) cuerpo = cleanIds(a.message) || "Estado actualizado";
+
+    return { title, body: cuerpo };
+  }
+
+  // Otras acciones: prioriza message o metadata.summary/description/info
+  const body =
+    cleanIds(a.message) ||
+    a.metadata?.summary ||
+    a.metadata?.description ||
+    a.metadata?.info ||
+    "";
+  return { title, body };
+}
+
+export default async function AdminSellerDetailPage({ params }: { params: { id: string } }) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
   if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  // ---------- Perfil ----------
   const seller = await prisma.user.findFirst({
     where: { id: params.id, role: "SELLER" },
     select: {
@@ -74,11 +174,12 @@ export default async function AdminSellerDetailPage({
   const now = new Date();
   const { start, end } = startEndOfMonth();
 
-  // ---------- Métricas principales en paralelo ----------
   const [
     clientsCount,
-    resTotalAgg,
-    resMonthAgg,
+    totalResCountAgg,
+    monthResCountAgg,
+    resTotalByCurrency,
+    resMonthByCurrency,
     tasksPendingCount,
     tasksOverdueCount,
     resByStatus,
@@ -88,64 +189,31 @@ export default async function AdminSellerDetailPage({
     recentReservations,
     recentTasks,
     recentClients,
+    // 👇 incluimos relaciones y metadata para formatear mejor
     recentActivity,
   ] = await Promise.all([
     prisma.client.count({ where: { sellerId: seller.id } }),
-    prisma.reservation.aggregate({
-      where: { sellerId: seller.id },
-      _count: { _all: true },
-      _sum: { totalAmount: true },
-    }),
-    prisma.reservation.aggregate({
+    prisma.reservation.aggregate({ where: { sellerId: seller.id }, _count: { _all: true } }),
+    prisma.reservation.aggregate({ where: { sellerId: seller.id, startDate: { gte: start, lte: end } }, _count: { _all: true } }),
+    prisma.reservation.groupBy({ where: { sellerId: seller.id }, by: ["currency"], _sum: { totalAmount: true }, _count: { _all: true } }),
+    prisma.reservation.groupBy({
       where: { sellerId: seller.id, startDate: { gte: start, lte: end } },
-      _count: { _all: true },
+      by: ["currency"],
       _sum: { totalAmount: true },
-    }),
-    prisma.task.count({
-      where: { sellerId: seller.id, status: { in: TASK_PENDING as any } },
-    }),
-    prisma.task.count({
-      where: {
-        sellerId: seller.id,
-        status: { in: TASK_PENDING as any },
-        dueDate: { lt: now },
-      },
-    }),
-    prisma.reservation.groupBy({
-      where: { sellerId: seller.id },
-      by: ["status"],
-      _count: { _all: true },
-      _sum: { totalAmount: true },
-    }),
-    prisma.task.groupBy({
-      where: { sellerId: seller.id },
-      by: ["status"],
       _count: { _all: true },
     }),
-    prisma.task.groupBy({
-      where: { sellerId: seller.id },
-      by: ["priority"],
-      _count: { _all: true },
-    }),
-    prisma.reservation.groupBy({
-      where: { sellerId: seller.id },
-      by: ["destinationId"],
-      _count: { _all: true },
-      _sum: { totalAmount: true },
-    }),
+    prisma.task.count({ where: { sellerId: seller.id, status: { in: TASK_PENDING as any } } }),
+    prisma.task.count({ where: { sellerId: seller.id, status: { in: TASK_PENDING as any }, dueDate: { lt: now } } }),
+    prisma.reservation.groupBy({ where: { sellerId: seller.id }, by: ["status"], _count: { _all: true }, _sum: { totalAmount: true } }),
+    prisma.task.groupBy({ where: { sellerId: seller.id }, by: ["status"], _count: { _all: true } }),
+    prisma.task.groupBy({ where: { sellerId: seller.id }, by: ["priority"], _count: { _all: true } }),
+    prisma.reservation.groupBy({ where: { sellerId: seller.id }, by: ["destinationId", "currency"], _count: { _all: true }, _sum: { totalAmount: true } }),
     prisma.reservation.findMany({
       where: { sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
       select: {
-        id: true,
-        code: true,
-        status: true,
-        startDate: true,
-        endDate: true,
-        totalAmount: true,
-        currency: true,
-        createdAt: true,
+        id: true, code: true, status: true, startDate: true, endDate: true, totalAmount: true, currency: true, createdAt: true,
         client: { select: { name: true } },
         destination: { select: { name: true } },
       },
@@ -154,58 +222,59 @@ export default async function AdminSellerDetailPage({
       where: { sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
-      select: {
-        id: true,
-        title: true,
-        status: true,
-        priority: true,
-        dueDate: true,
-        createdAt: true,
-      },
+      select: { id: true, title: true, status: true, priority: true, dueDate: true, createdAt: true },
     }),
     prisma.client.findMany({
       where: { sellerId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 6,
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        phone: true,
-        createdAt: true,
-      },
+      select: { id: true, name: true, email: true, phone: true, createdAt: true },
     }),
     prisma.activityLog.findMany({
       where: { userId: seller.id },
       orderBy: { createdAt: "desc" },
       take: 8,
-      select: { id: true, action: true, message: true, createdAt: true },
+      select: {
+        id: true,
+        action: true,
+        message: true,
+        metadata: true,
+        createdAt: true,
+        // relaciones opcionales para enriquecer mensajes
+        reservation: { select: { code: true } },
+        client: { select: { name: true } },
+      },
     }),
   ]);
 
-  const totalResCount = resTotalAgg._count?._all ?? 0;
-  const totalResSum = Number(resTotalAgg._sum?.totalAmount ?? 0);
-  const monthResCount = resMonthAgg._count?._all ?? 0;
-  const monthResSum = Number(resMonthAgg._sum?.totalAmount ?? 0);
-
+  // Totales en USD
+  const totalResCount = totalResCountAgg._count?._all ?? 0;
+  const monthResCount = monthResCountAgg._count?._all ?? 0;
+  const totalResSumUSD = resTotalByCurrency.reduce((acc, r) => acc + toUSD(Number(r._sum.totalAmount ?? 0), (r as any).currency), 0);
+  const monthResSumUSD = resMonthByCurrency.reduce((acc, r) => acc + toUSD(Number(r._sum.totalAmount ?? 0), (r as any).currency), 0);
   const pendingResCount = resByStatus
     .filter((r) => (RES_PENDING as readonly string[]).includes(r.status))
     .reduce((acc, r) => acc + (r._count?._all ?? 0), 0);
+  const avgTicketUSD = totalResCount > 0 ? totalResSumUSD / totalResCount : 0;
+  const tenureDays = daysBetween(seller.createdAt, new Date());
 
-  const avgTicket = totalResCount > 0 ? totalResSum / totalResCount : 0;
-  const tenureDays = daysBetween(seller.createdAt, now);
-
-  // Top destinos: ordenar en memoria y mapear IDs -> nombres
-  const topDestSorted = [...topDestGroupRaw]
-    .sort((a, b) => (b._count?._all ?? 0) - (a._count?._all ?? 0))
+  // Top destinos en USD
+  const topDestUSDMap: Record<string, { count: number; sumUSD: number }> = {};
+  for (const row of topDestGroupRaw) {
+    const destId = row.destinationId as string;
+    const usd = toUSD(Number(row._sum.totalAmount ?? 0), (row as any).currency);
+    if (!topDestUSDMap[destId]) topDestUSDMap[destId] = { count: 0, sumUSD: 0 };
+    topDestUSDMap[destId].count += row._count._all;
+    topDestUSDMap[destId].sumUSD += usd;
+  }
+  const topDestSorted = Object.entries(topDestUSDMap)
+    .map(([destinationId, v]) => ({ destinationId, ...v }))
+    .sort((a, b) => b.count - a.count)
     .slice(0, 5);
 
   const topDestIds = topDestSorted.map((d) => d.destinationId);
   const topDestinationNames = topDestIds.length
-    ? await prisma.destination.findMany({
-        where: { id: { in: topDestIds } },
-        select: { id: true, name: true },
-      })
+    ? await prisma.destination.findMany({ where: { id: { in: topDestIds } }, select: { id: true, name: true } })
     : [];
   const destNameById = Object.fromEntries(topDestinationNames.map((d) => [d.id, d.name]));
 
@@ -234,12 +303,8 @@ export default async function AdminSellerDetailPage({
           </p>
         </div>
         <div className="flex gap-2">
-          <a href={`/dashboard-admin/usuarios/${seller.id}`} className="rounded-md border px-3 py-2 text-sm">
-            Editar
-          </a>
-          <a href="/dashboard-admin/vendedores" className="rounded-md border px-3 py-2 text-sm">
-            ← Volver
-          </a>
+          <a href={`/dashboard-admin/usuarios/${seller.id}`} className="rounded-md border px-3 py-2 text-sm">Editar</a>
+          <a href="/dashboard-admin/vendedores" className="rounded-md border px-3 py-2 text-sm">← Volver</a>
         </div>
       </header>
 
@@ -274,14 +339,14 @@ export default async function AdminSellerDetailPage({
 
         <div className="min-w-0 rounded-xl border bg-white p-4">
           <div className="text-sm text-gray-500">Ticket promedio</div>
-          <div className="text-2xl font-semibold">{fmtMoney(avgTicket)}</div>
-          <div className="text-[11px] text-gray-500">en todas las reservas</div>
+          <div className="text-2xl font-semibold">{fmtMoney(avgTicketUSD, "USD")}</div>
+          <div className="text-[11px] text-gray-500">en todas las reservas (USD)</div>
         </div>
 
         <div className="min-w-0 rounded-xl border bg-white p-4">
           <div className="text-sm text-gray-500">Ventas (mes)</div>
-          <div className="text-2xl font-semibold">{fmtMoney(monthResSum)}</div>
-          <div className="text-[11px] text-gray-500">{monthResCount} reservas</div>
+          <div className="text-2xl font-semibold">{fmtMoney(monthResSumUSD, "USD")}</div>
+          <div className="text-[11px] text-gray-500">{monthResCount} reservas (USD)</div>
         </div>
       </section>
 
@@ -367,6 +432,9 @@ export default async function AdminSellerDetailPage({
                   r.status === "TRAVELING" ? "bg-cyan-50 border-cyan-200 text-cyan-700" :
                   r.status === "CANCELED" ? "bg-rose-50 border-rose-200 text-rose-700" :
                   "bg-stone-50 border-stone-200 text-stone-700";
+
+                const amountUSD = toUSD(Number(r.totalAmount ?? 0), r.currency);
+
                 return (
                   <li key={r.id} className="py-2">
                     <div className="flex items-start justify-between gap-3">
@@ -386,7 +454,7 @@ export default async function AdminSellerDetailPage({
                         </div>
                       </div>
                       <div className="text-sm whitespace-nowrap">
-                        {fmtMoney(Number(r.totalAmount), r.currency)}
+                        {fmtMoney(amountUSD, "USD")}
                       </div>
                     </div>
                   </li>
@@ -438,8 +506,8 @@ export default async function AdminSellerDetailPage({
                 <li key={d.destinationId} className="flex items-center justify-between py-2">
                   <div className="truncate">{destNameById[d.destinationId] || "Destino"}</div>
                   <div className="flex items-baseline gap-3">
-                    <span className="font-semibold">{d._count?._all ?? 0}</span>
-                    <span className="text-gray-500">{fmtMoney(Number(d._sum?.totalAmount ?? 0))}</span>
+                    <span className="font-semibold">{d.count}</span>
+                    <span className="text-gray-500">{fmtMoney(d.sumUSD, "USD")}</span>
                   </div>
                 </li>
               ))}
@@ -474,17 +542,20 @@ export default async function AdminSellerDetailPage({
             <div className="text-gray-400">Sin actividad</div>
           ) : (
             <ul className="divide-y text-sm">
-              {recentActivity.map((a) => (
-                <li key={a.id} className="py-2">
-                  <div className="flex items-center justify-between">
-                    <span className="font-medium">{a.action}</span>
-                    <span className="text-[11px] text-gray-500">
-                      {new Date(a.createdAt).toLocaleDateString("es-CO")}
-                    </span>
-                  </div>
-                  {a.message && <div className="text-xs text-gray-600">{a.message}</div>}
-                </li>
-              ))}
+              {recentActivity.map((a) => {
+                const { title, body } = formatActivityEs(a);
+                return (
+                  <li key={a.id} className="py-2">
+                    <div className="flex items-center justify-between">
+                      <span className="font-medium">{title}</span>
+                      <span className="text-[11px] text-gray-500">
+                        {new Date(a.createdAt).toLocaleDateString("es-CO")}
+                      </span>
+                    </div>
+                    {body ? <div className="text-xs text-gray-700 whitespace-pre-wrap">{body}</div> : null}
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

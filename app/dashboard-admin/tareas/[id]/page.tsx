@@ -2,6 +2,16 @@ import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect, notFound } from "next/navigation";
 
+/* ===== FX / Conversión ===== */
+const FX_COP_USD = Number(process.env.FX_COP_USD || "4000"); // 4000 COP = 1 USD (por defecto)
+
+function toUSD(amount: number, currency?: string | null) {
+  const c = (currency || "USD").toUpperCase();
+  if (c === "USD") return amount;
+  if (c === "COP") return amount / FX_COP_USD;
+  return amount; // fallback: tratar como USD si la moneda no está contemplada
+}
+
 /* ===== Utilidades ===== */
 function fmtMoney(n: number, currency = "USD") {
   try {
@@ -115,7 +125,7 @@ export default async function AdminTaskDetailPage({ params }: { params: { id: st
       dueDate: true,
       createdAt: true,
       updatedAt: true,
-      seller: { select: { id: true, name: true, email: true, phone: true, country: true } },
+      seller: { select: { id: true, name: true, email: true, phone: true, country: true} },
       reservation: {
         select: {
           id: true,
@@ -147,6 +157,11 @@ export default async function AdminTaskDetailPage({ params }: { params: { id: st
   const sellerWa = waLink(sellerPhoneE164);
 
   const resStatusEs = task.reservation ? (RES_STATUS_LABEL[task.reservation.status] ?? task.reservation.status) : "";
+
+  // --- Conversión de monto de la reserva a USD ---
+  const reservationAmountUSD = task.reservation
+    ? toUSD(Number(task.reservation.totalAmount || 0), task.reservation.currency)
+    : 0;
 
   return (
     <div className="space-y-6">
@@ -231,7 +246,8 @@ export default async function AdminTaskDetailPage({ params }: { params: { id: st
                 {new Date(task.reservation.endDate).toLocaleDateString("es-CO")}
               </div>
               <div className="text-xs text-gray-600">
-                {fmtMoney(Number(task.reservation.totalAmount || 0), task.reservation.currency || "USD")}
+                {/* Mostrar directamente en USD */}
+                {fmtMoney(reservationAmountUSD, "USD")} <span className="text-gray-400">(USD)</span>
               </div>
               {/* <a href={`/dashboard-admin/reservas/${task.reservation.id}`} className="text-sm text-primary underline">Ver reserva</a> */}
             </div>

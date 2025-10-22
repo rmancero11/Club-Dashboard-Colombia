@@ -147,7 +147,7 @@ export async function POST(req: Request) {
       .setExpirationTime("2m")
       .sign(enc.encode(JWT_SECRET));
 
-    const redirectUrl = `https://clubsocial-phi.vercel.app/api/auth/accept-register?r=${encodeURIComponent(
+    const redirectUrl = `https://app.clubdeviajerossolteros.com/api/auth/accept-register?r=${encodeURIComponent(
       token
     )}&next=/dashboard-user`;
 
