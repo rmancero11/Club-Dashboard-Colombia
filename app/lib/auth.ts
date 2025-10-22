@@ -18,7 +18,6 @@ export async function getAuth(): Promise<AuthContext | null> {
 
   try {
     const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
-    // Preferimos sub (lo acabamos de garantizar en login); dejamos fallback a id por compatibilidad
     const userId =
       (payload.sub as string | undefined) ||
       ((payload as any)?.id as string | undefined);

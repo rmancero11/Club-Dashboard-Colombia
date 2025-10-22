@@ -2,7 +2,6 @@ import prisma from "@/app/lib/prisma";
 
 export interface AutoAssignClientOptions {
   userId: string;
-  // businessId eliminado del schema; lo dejamos opcional por compatibilidad pero no se usa
   businessId?: string;
   name: string;
   email: string;
@@ -17,14 +16,12 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
   const { userId, name, email, phone, country, destino, preferencia, sellerDefaultId } = options;
 
   return prisma.$transaction(async (tx) => {
-    // 1) Buscar el SELLER activo con menos clientes
     let seller = await tx.user.findFirst({
       where: { role: "SELLER", status: "ACTIVE" },
       orderBy: { sellerClients: { _count: "asc" } },
       select: { id: true },
     });
 
-    // Fallback a un seller por defecto (si es válido)
     if (!seller && sellerDefaultId) {
       const s = await tx.user.findUnique({
         where: { id: sellerDefaultId },
@@ -40,7 +37,6 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
       return null;
     }
 
-    // 2) Verificar si ya existe un Client por email o phone (sin businessId en el nuevo schema)
     const existingClient = await tx.client.findFirst({
       where: {
         OR: [
@@ -51,7 +47,6 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
       select: { id: true, userId: true, tags: true },
     });
 
-    // 3) Preparar tags y notas
     const newTags: string[] = [];
     if (preferencia) newTags.push(`pref:${preferencia}`);
     if (destino) newTags.push(`dest:${destino}`);
@@ -67,7 +62,6 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
     let clientId: string;
 
     if (existingClient) {
-      // Evitar duplicados de tags al hacer push
       const tagsToPush =
         newTags.filter(
           (t) => !(existingClient.tags ?? []).includes(t)
@@ -76,12 +70,10 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
       const updated = await tx.client.update({
         where: { id: existingClient.id },
         data: {
-          userId: existingClient.userId ?? userId, // respeta el vínculo si ya existía
+          userId: existingClient.userId ?? userId, 
           phone: phone ?? undefined,
           country: country ?? undefined,
-          // push solo si hay tags nuevas
           ...(tagsToPush.length ? { tags: { push: tagsToPush } } : {}),
-          // actualizar notas si generamos algo nuevo
           ...(notes ? { notes } : {}),
           sellerId: seller.id,
         },
@@ -89,7 +81,6 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
       });
       clientId = updated.id;
     } else {
-      // Crear un nuevo cliente (name es requerido en el schema)
       const created = await tx.client.create({
         data: {
           sellerId: seller.id,
@@ -106,7 +97,6 @@ export async function assignSellerAutomatically(options: AutoAssignClientOptions
       clientId = created.id;
     }
 
-    // 4) Registrar actividad (sin businessId en el nuevo schema)
     await tx.activityLog.create({
       data: {
         action: "CREATE_CLIENT",

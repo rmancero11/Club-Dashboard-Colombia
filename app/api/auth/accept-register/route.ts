@@ -53,7 +53,7 @@ export async function GET(req: Request) {
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
-      ...(process.env.VERCEL ? { domain: "clubsocial-phi.vercel.app" } : {}),
+      ...(process.env.VERCEL ? { domain: "app.clubdeviajerossolteros.com" } : {}),
     });
     return res;
   } catch {
