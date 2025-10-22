@@ -35,7 +35,13 @@ function redirectToLogin(req: NextRequest, clearCookie = false) {
 export async function middleware(req: NextRequest) {
   const { pathname } = req.nextUrl;
 
-  // Rutas públicas (incluye /api/auth/* para login/me/logout)
+  if (pathname === "/") {
+    const hasToken = !!req.cookies.get("token")?.value;
+    const url = req.nextUrl.clone();
+    url.pathname = hasToken ? "dashboard-user" : "/login";
+    return NextResponse.redirect(url);
+  }
+
   const publicPrefixes = [
     "/login",
     "/unauthorized",
@@ -88,5 +94,5 @@ export async function middleware(req: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/dashboard-admin/:path*", "/dashboard-seller/:path*", "/dashboard-user/:path*"],
+  matcher: ["/", "/dashboard-admin/:path*", "/dashboard-seller/:path*", "/dashboard-user/:path*"],
 };
