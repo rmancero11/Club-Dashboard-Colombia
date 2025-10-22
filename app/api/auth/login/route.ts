@@ -3,22 +3,23 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import prisma from "@/app/lib/prisma";
 
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) {
-  throw new Error("JWT_SECRET no está definido en las variables de entorno");
-}
+export const runtime = "nodejs";           
+export const dynamic = "force-dynamic";    
+
 const enc = new TextEncoder();
 
 async function signToken(
   payload: Record<string, unknown>,
   { expiresIn = "1d", subject }: { expiresIn?: string; subject: string }
 ) {
+  const secret = process.env.JWT_SECRET;
+  if (!secret) throw new Error("JWT_SECRET missing"); 
   return new SignJWT(payload)
-    .setProtectedHeader({ alg: "HS256" })
+    .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt()
     .setExpirationTime(expiresIn)
-    .setSubject(subject)                 
-    .sign(enc.encode(JWT_SECRET));
+    .setSubject(subject)
+    .sign(enc.encode(secret));
 }
 
 export async function POST(req: Request) {
@@ -29,6 +30,11 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
     }
 
+    if (!process.env.JWT_SECRET) {
+      console.error("[LOGIN] JWT_SECRET no definido en Production");
+      return NextResponse.json({ error: "Error de configuración" }, { status: 500 });
+    }
+
     const user = await prisma.user.findUnique({
       where: { email },
       select: {
@@ -36,8 +42,8 @@ export async function POST(req: Request) {
         name: true,
         email: true,
         password: true,
-        role: true,   // "ADMIN" | "SELLER" | "USER"
-        status: true, // "ACTIVE" | "INACTIVE"
+        role: true,   
+        status: true,
       },
     });
 
@@ -55,7 +61,7 @@ export async function POST(req: Request) {
 
     const token = await signToken(
       { id: user.id, role: user.role },
-      { expiresIn: "1d", subject: user.id } 
+      { expiresIn: "1d", subject: user.id }
     );
 
     const res = NextResponse.json({

@@ -1,60 +1,58 @@
+// app/api/register/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 
-const allowedOrigin = "https://clubdeviajerossolteros.com";
-const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
-const JWT_SECRET = process.env.JWT_SECRET;
-if (!JWT_SECRET) throw new Error("JWT_SECRET no definido");
+const allowedOrigins = new Set([
+  "https://clubdeviajerossolteros.com",
+  "https://www.clubdeviajerossolteros.com",
+]);
 
 const enc = new TextEncoder();
 
-function corsHeaders(origin: string) {
+function buildCorsHeaders(origin: string | null) {
+  // Solo reflejamos el origin si está en la whitelist
+  const allowOrigin = origin && allowedOrigins.has(origin) ? origin : "https://clubdeviajerossolteros.com";
   return {
-    "Access-Control-Allow-Origin": origin,
+    "Access-Control-Allow-Origin": allowOrigin,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true",
+    "Access-Control-Max-Age": "86400",
     Vary: "Origin",
   };
 }
 
 export async function OPTIONS(req: Request) {
-  const origin = req.headers.get("origin") || "";
-  return new NextResponse(null, { status: 200, headers: corsHeaders(origin) });
+  const origin = req.headers.get("origin");
+  // Siempre responde 204 + headers CORS para el preflight
+  return new NextResponse(null, { status: 204, headers: buildCorsHeaders(origin) });
 }
 
 export async function POST(req: Request) {
-  const origin = req.headers.get("origin") || "";
+  const origin = req.headers.get("origin");
+  const headers = buildCorsHeaders(origin);
+
   try {
-    if (origin !== allowedOrigin) {
+    // Bloquea orígenes no permitidos
+    if (!origin || !allowedOrigins.has(origin)) {
       return NextResponse.json(
-        { success: false, message: "Origin no permitido" },
-        { status: 403, headers: corsHeaders(origin) }
+        { success: false, message: "Origin no permitido", originRecibido: origin ?? null },
+        { status: 403, headers }
       );
     }
 
     const body = await req.json();
     const {
-      name,
-      email,
-      country,
-      whatsapp,
-      destino,
-      password,
-      comentario,
-      soltero,
-      afirmacion,
-      gustos,
-      acepta_terminos,
-      flujo,
+      name, email, country, whatsapp, destino, password, comentario,
+      soltero, afirmacion, gustos, acepta_terminos, flujo,
     } = body ?? {};
 
     if (!email || !password) {
       return NextResponse.json(
         { success: false, message: "Email y contraseña son obligatorios" },
-        { status: 200, headers: corsHeaders(origin) }
+        { status: 400, headers }
       );
     }
 
@@ -62,7 +60,7 @@ export async function POST(req: Request) {
     if (existingUser) {
       return NextResponse.json(
         { success: false, message: "El correo ya está registrado" },
-        { status: 200, headers: corsHeaders(origin) }
+        { status: 409, headers }
       );
     }
 
@@ -88,18 +86,13 @@ export async function POST(req: Request) {
         verified: false,
       },
       select: {
-        id: true,
-        email: true,
-        name: true,
-        phone: true,
-        country: true,
-        role: true,
-        status: true,
-        avatar: true,
-        createdAt: true,
+        id: true, email: true, name: true, phone: true, country: true,
+        role: true, status: true, avatar: true, createdAt: true,
       },
     });
 
+    // --- Seller opcional (igual que antes) ---
+    const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
     let sellerIdToUse: string | null = SELLER_DEFAULT_ID;
     if (sellerIdToUse) {
       const ok = await prisma.user.findFirst({
@@ -137,25 +130,33 @@ export async function POST(req: Request) {
       clientId = client.id;
     }
 
+    // ✅ Lee el secreto aquí; no en top-level
+    const JWT_SECRET = process.env.JWT_SECRET;
+    if (!JWT_SECRET) {
+      // Sin secreto no firmamos; pero la creación ya ocurrió
+      return NextResponse.json(
+        { success: false, message: "Config JWT faltante" },
+        { status: 500, headers }
+      );
+    }
+
     const token = await new SignJWT({ sub: newUser.id, purpose: "onboard" })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
       .setExpirationTime("2m")
-      .sign(enc.encode(JWT_SECRET));
+      .sign(new TextEncoder().encode(JWT_SECRET));
 
-    const redirectUrl = `https://app.clubdeviajerossolteros.com/api/auth/accept-register?r=${encodeURIComponent(
-      token
-    )}&next=/dashboard-user`;
+    const redirectUrl = `https://app.clubdeviajerossolteros.com/api/auth/accept-register?r=${encodeURIComponent(token)}&next=/dashboard-user`;
 
     return NextResponse.json(
       { success: true, usuario: newUser, clientId, redirectUrl },
-      { status: 201, headers: corsHeaders(origin) }
+      { status: 201, headers }
     );
   } catch (error) {
     console.error("Error al registrar:", error);
     return NextResponse.json(
       { success: false, error: "Error al registrar" },
-      { status: 500, headers: corsHeaders(origin) }
+      { status: 500, headers: buildCorsHeaders(origin) }
     );
   }
 }
