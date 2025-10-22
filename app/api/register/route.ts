@@ -1,21 +1,24 @@
-// app/api/register/route.ts
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 
-const allowedOrigins = new Set([
+export const runtime = "nodejs"; // evita Edge para esta ruta
+
+const enc = new TextEncoder();
+
+// 🔒 Whitelist de orígenes permitidos (ajusta si usas más)
+const ALLOWED_ORIGINS = new Set([
   "https://clubdeviajerossolteros.com",
   "https://www.clubdeviajerossolteros.com",
 ]);
 
-const enc = new TextEncoder();
-
-function buildCorsHeaders(origin: string | null) {
-  // Solo reflejamos el origin si está en la whitelist
-  const allowOrigin = origin && allowedOrigins.has(origin) ? origin : "https://clubdeviajerossolteros.com";
+function corsHeaders(origin: string | null) {
+  const allow = origin && ALLOWED_ORIGINS.has(origin)
+    ? origin
+    : "https://clubdeviajerossolteros.com";
   return {
-    "Access-Control-Allow-Origin": allowOrigin,
+    "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
     "Access-Control-Allow-Headers": "Content-Type, Authorization",
     "Access-Control-Allow-Credentials": "true",
@@ -24,19 +27,19 @@ function buildCorsHeaders(origin: string | null) {
   };
 }
 
+// ✅ SIEMPRE responder el preflight con 204 + headers CORS
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
-  // Siempre responde 204 + headers CORS para el preflight
-  return new NextResponse(null, { status: 204, headers: buildCorsHeaders(origin) });
+  return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
 }
 
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
-  const headers = buildCorsHeaders(origin);
+  const headers = corsHeaders(origin);
 
   try {
-    // Bloquea orígenes no permitidos
-    if (!origin || !allowedOrigins.has(origin)) {
+    // Bloquea orígenes no permitidos, pero devuelve CORS headers
+    if (!origin || !ALLOWED_ORIGINS.has(origin)) {
       return NextResponse.json(
         { success: false, message: "Origin no permitido", originRecibido: origin ?? null },
         { status: 403, headers }
@@ -68,14 +71,10 @@ export async function POST(req: Request) {
 
     const newUser = await prisma.user.create({
       data: {
-        email,
-        name,
-        phone: whatsapp,
-        country,
-        destino,
+        email, name,
+        phone: whatsapp, country, destino,
         password: hashedPassword,
-        role: "USER",
-        status: "ACTIVE",
+        role: "USER", status: "ACTIVE",
         comment: comentario ?? null,
         singleStatus: soltero ?? null,
         affirmation: afirmacion ?? null,
@@ -91,7 +90,7 @@ export async function POST(req: Request) {
       },
     });
 
-    // --- Seller opcional (igual que antes) ---
+    // Asignación de seller (igual que tenías)
     const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
     let sellerIdToUse: string | null = SELLER_DEFAULT_ID;
     if (sellerIdToUse) {
@@ -130,10 +129,10 @@ export async function POST(req: Request) {
       clientId = client.id;
     }
 
-    // ✅ Lee el secreto aquí; no en top-level
+    // ⚠️ Lee JWT_SECRET AQUÍ (no en top-level)
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
-      // Sin secreto no firmamos; pero la creación ya ocurrió
+      console.error("[REGISTER] JWT_SECRET faltante");
       return NextResponse.json(
         { success: false, message: "Config JWT faltante" },
         { status: 500, headers }
@@ -144,9 +143,11 @@ export async function POST(req: Request) {
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
       .setExpirationTime("2m")
-      .sign(new TextEncoder().encode(JWT_SECRET));
+      .sign(enc.encode(JWT_SECRET));
 
-    const redirectUrl = `https://app.clubdeviajerossolteros.com/api/auth/accept-register?r=${encodeURIComponent(token)}&next=/dashboard-user`;
+    const redirectUrl =
+      `https://app.clubdeviajerossolteros.com/api/auth/accept-register` +
+      `?r=${encodeURIComponent(token)}&next=/dashboard-user`;
 
     return NextResponse.json(
       { success: true, usuario: newUser, clientId, redirectUrl },
@@ -154,9 +155,10 @@ export async function POST(req: Request) {
     );
   } catch (error) {
     console.error("Error al registrar:", error);
+    // AÚN en errores, devuelve headers CORS
     return NextResponse.json(
       { success: false, error: "Error al registrar" },
-      { status: 500, headers: buildCorsHeaders(origin) }
+      { status: 500, headers }
     );
   }
 }
