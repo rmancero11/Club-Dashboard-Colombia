@@ -49,7 +49,6 @@ export async function GET() {
         verified: true,
         avatar: true,
         galleryImages: true,
-        // businessId: true,  // ❌ ya no existe
         dniFile: true,
         passport: true,
         visa: true,

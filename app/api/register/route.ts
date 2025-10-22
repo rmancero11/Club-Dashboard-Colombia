@@ -1,10 +1,10 @@
-// app/api/register/route.ts
+export const runtime = "nodejs"; 
+
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 
-export const runtime = "nodejs"; // Prisma/bcrypt -> Node, no Edge
 
 const enc = new TextEncoder();
 
