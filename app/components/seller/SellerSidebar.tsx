@@ -45,7 +45,7 @@ export default function SellerSidebar({
   );
 
   const logout = async () => {
-    await fetch("/api/logout", { method: "POST" });
+    await fetch("/api/auth/logout", { method: "POST" });
     router.replace("/login");
   };
 

@@ -10,7 +10,7 @@ function genTempPassword(len = 10) {
 
 export async function POST(req: Request) {
   const auth = await getAuth();
-  if (!auth || auth.role !== "ADMIN" || !auth.businessId) {
+  if (!auth || auth.role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
@@ -35,17 +35,19 @@ export async function POST(req: Request) {
       email,
       name,
       password: hash,
-      role: "SELLER",
-      status: "ACTIVE",
-      businessId: auth.businessId,
-      commissionRate: commissionRateNum.toFixed(2),
+      role: "SELLER",              // enum Role
+      status: "ACTIVE",            // enum UserStatus
+      commissionRate: commissionRateNum.toFixed(2), // Decimal(5,2)
       timezone: "America/Bogota",
+      verified: false,
     },
     select: { id: true, email: true, name: true, role: true, commissionRate: true },
   });
 
   // (Opcional) registrar actividad
-  // await prisma.activityLog.create({ data: { businessId: auth.businessId, action: "NOTE", message: `Invitado SELLER ${email}`, userId: auth.userId } });
+  // await prisma.activityLog.create({
+  //   data: { action: "NOTE", message: `Invitado SELLER ${email}`, userId: auth.userId }
+  // });
 
   return NextResponse.json({ user: created, tempPassword }, { status: 201 });
 }

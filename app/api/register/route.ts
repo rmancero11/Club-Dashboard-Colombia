@@ -2,10 +2,8 @@ import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
-import { assignSellerAutomatically } from "@/app/lib/userService";
 
 const allowedOrigin = "https://clubdeviajerossolteros.com";
-const BUSINESS_SLUG_DEFAULT = process.env.BUSINESS_SLUG_DEFAULT ?? "clubdeviajeros";
 const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) throw new Error("JWT_SECRET no definido");
@@ -38,22 +36,20 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { 
-  name,
-  email,
-  country,
-  whatsapp,
-  destino,
-  password,
-  businessSlug,
-  comentario,
-  soltero,
-  afirmacion,
-  gustos,
-  acepta_terminos,
-  flujo
-} = body ?? {};
-
+    const {
+      name,
+      email,
+      country,
+      whatsapp,
+      destino,
+      password,
+      comentario,
+      soltero,
+      afirmacion,
+      gustos,
+      acepta_terminos,
+      flujo,
+    } = body ?? {};
 
     if (!email || !password) {
       return NextResponse.json(
@@ -70,32 +66,28 @@ export async function POST(req: Request) {
       );
     }
 
-    const business = await prisma.business.findUnique({
-      where: { slug: businessSlug ?? BUSINESS_SLUG_DEFAULT },
-      select: { id: true },
-    });
-
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // Crear usuario
+    // Crear usuario (role USER)
     const newUser = await prisma.user.create({
       data: {
-  email,
-  name,
-  phone: whatsapp,
-  country,
-  destino,
-  password: hashedPassword,
-  role: "USER",
-  businessId: business?.id ?? null,
-  comment: comentario,
-  singleStatus: soltero,          
-  affirmation: afirmacion,       
-  preference: gustos,            
-  acceptedTerms: acepta_terminos === "on",
-  flow: flujo,
-}
-,
+        email,
+        name,
+        phone: whatsapp,
+        country,
+        destino,
+        password: hashedPassword,
+        role: "USER",
+        status: "ACTIVE",
+        comment: comentario ?? null,
+        singleStatus: soltero ?? null,
+        affirmation: afirmacion ?? null,
+        preference: gustos ?? null,
+        acceptedTerms: acepta_terminos === "on" || acepta_terminos === true,
+        flow: flujo ?? null,
+        timezone: "America/Bogota",
+        verified: false,
+      },
       select: {
         id: true,
         email: true,
@@ -105,38 +97,62 @@ export async function POST(req: Request) {
         role: true,
         status: true,
         avatar: true,
-        businessId: true,
         createdAt: true,
       },
     });
 
-    // Asignación automática de vendedor y creación/actualización del client
-    let clientData = null;
-    if (business?.id) {
-      clientData = await assignSellerAutomatically({
-        userId: newUser.id,
-        businessId: business.id,
-        name,
-        email,
-        phone: whatsapp,
-        country,
-        destino,
-        preferencia: gustos,
-        sellerDefaultId: SELLER_DEFAULT_ID,
+    // Asignación de vendedor (simple): usar SELLER_DEFAULT_ID si es válido; si no, tomar el primer SELLER activo
+    let sellerIdToUse: string | null = SELLER_DEFAULT_ID;
+    if (sellerIdToUse) {
+      const ok = await prisma.user.findFirst({
+        where: { id: sellerIdToUse, role: "SELLER", status: "ACTIVE" },
+        select: { id: true },
       });
+      if (!ok) sellerIdToUse = null;
+    }
+    if (!sellerIdToUse) {
+      const fallback = await prisma.user.findFirst({
+        where: { role: "SELLER", status: "ACTIVE" },
+        orderBy: { createdAt: "asc" },
+        select: { id: true },
+      });
+      sellerIdToUse = fallback?.id ?? null;
     }
 
-    // Crear JWT para redirección
+    // Crear Client enlazado al nuevo usuario (obligatorio en schema)
+    let clientId: string | undefined;
+    if (sellerIdToUse) {
+      const client = await prisma.client.create({
+        data: {
+          sellerId: sellerIdToUse,
+          userId: newUser.id,
+          name: name || email,
+          email,
+          phone: whatsapp ?? null,
+          country: country ?? null,
+          city: null,
+          notes: comentario ?? null,
+          tags: [],
+          isArchived: false,
+        },
+        select: { id: true },
+      });
+      clientId = client.id;
+    }
+
+    // Crear JWT corto para onboarding
     const token = await new SignJWT({ sub: newUser.id, purpose: "onboard" })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
       .setExpirationTime("2m")
       .sign(enc.encode(JWT_SECRET));
 
-    const redirectUrl = `https://clubsocial-phi.vercel.app/api/auth/accept-register?r=${encodeURIComponent(token)}&next=/dashboard-user`;
+    const redirectUrl = `https://clubsocial-phi.vercel.app/api/auth/accept-register?r=${encodeURIComponent(
+      token
+    )}&next=/dashboard-user`;
 
     return NextResponse.json(
-      { success: true, usuario: newUser, clientId: clientData?.clientId, redirectUrl },
+      { success: true, usuario: newUser, clientId, redirectUrl },
       { status: 201, headers: corsHeaders(origin) }
     );
   } catch (error) {

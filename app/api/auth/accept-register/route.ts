@@ -10,6 +10,7 @@ export async function GET(req: Request) {
     const url = new URL(req.url);
     const r = url.searchParams.get("r");
     const next = url.searchParams.get("next") || "/dashboard-user";
+
     if (!r) {
       const u = new URL("/login", url.origin);
       u.searchParams.set("next", next);
@@ -26,8 +27,9 @@ export async function GET(req: Request) {
     const userId = String(payload.sub);
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { id: true, email: true, role: true, businessId: true, status: true },
+      select: { id: true, email: true, role: true, status: true },
     });
+
     if (!user || user.status !== "ACTIVE") {
       const u = new URL("/login", url.origin);
       u.searchParams.set("next", next);
@@ -37,8 +39,7 @@ export async function GET(req: Request) {
     const token = await new SignJWT({
       sub: user.id,
       email: user.email,
-      role: user.role,
-      businessId: user.businessId ?? null,
+      role: user.role, // enum Role
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
@@ -49,7 +50,7 @@ export async function GET(req: Request) {
     res.cookies.set("token", token, {
       httpOnly: true,
       secure: true,
-      sameSite: "lax",        
+      sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
       ...(process.env.VERCEL ? { domain: "clubsocial-phi.vercel.app" } : {}),
