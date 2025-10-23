@@ -1,6 +1,12 @@
-export const dynamic = "force-dynamic"; // temporal para evitar 404 por CSR puro
-import LoginPageClient from "@/app/login/LoginPageClient";
+export const dynamic = 'force-dynamic'; // temporal, fuerza que Vercel pueda servir /login
 
 export default function LoginPage() {
-  return <LoginPageClient />;
+  return (
+    <main style={{display:'grid',placeItems:'center',minHeight:'100vh',fontFamily:'system-ui, Arial'}}>
+      <div>
+        <h1 style={{marginBottom:8}}>Login</h1>
+        <p style={{opacity:.8}}>Página de login mínima para verificación.</p>
+      </div>
+    </main>
+  );
 }
