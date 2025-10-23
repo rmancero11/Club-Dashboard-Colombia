@@ -1,12 +1,12 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-export function middleware(request: NextRequest) {
-  // Puedes hacer verificaciones aquí si quieres
+export function middleware(_request: NextRequest) {
+  // Middleware "edge-safe" sin imports de Node
   return NextResponse.next();
 }
 
-// Aplica el middleware solo a rutas específicas
+// Evita ejecutar en assets estáticos
 export const config = {
   matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
 };
