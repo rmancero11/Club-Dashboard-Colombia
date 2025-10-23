@@ -9,8 +9,8 @@ const enc = new TextEncoder();
 
 async function verifyToken(token: string): Promise<TokenPayload | null> {
   try {
-    const secret = process.env.JWT_SECRET;           // <-- léelo aquí
-    if (!secret) return null;                        // <-- sin secret => no válido
+    const secret = process.env.JWT_SECRET;           
+    if (!secret) return null;                       
     const { payload } = await jwtVerify(token, enc.encode(secret));
     return payload as TokenPayload;
   } catch {
@@ -31,7 +31,6 @@ export async function middleware(req: NextRequest) {
   try {
     const { pathname } = req.nextUrl;
 
-    // Redirige la raíz
     if (pathname === "/") {
       const hasToken = !!req.cookies.get("token")?.value;
       const url = req.nextUrl.clone();

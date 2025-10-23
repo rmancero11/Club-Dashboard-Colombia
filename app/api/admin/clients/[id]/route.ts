@@ -10,7 +10,6 @@ export async function PATCH(
   { params }: { params: { id: string } }
 ) {
   const auth = await getAuth();
-  // Nuevo schema: NO hay businessId. Solo ADMIN puede modificar.
   if (!auth || auth.role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
@@ -28,10 +27,8 @@ export async function PATCH(
   const sellerId = (formData.get("sellerId") as string | null) || null;
   const isArchived = formData.get("isArchived") === "true";
   const notes = (formData.get("notes") as string | null) || null;
-  // IMPORTANTE: solo actualizar `verified` si vino en el formData
   const verifiedField = formData.get("verified");
 
-  // Validar existencia del cliente y obtener userId
   const existingClient = await prisma.client.findUnique({
     where: { id: params.id },
     select: { userId: true },
@@ -40,7 +37,6 @@ export async function PATCH(
     return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
   }
 
-  // Validar seller si vino sellerId (debe existir y ser SELLER ACTIVO)
   if (sellerId) {
     const seller = await prisma.user.findUnique({
       where: { id: sellerId },
@@ -51,14 +47,12 @@ export async function PATCH(
     }
   }
 
-  // Datos del cliente a actualizar
   const clientData: any = {
     isArchived,
     notes,
   };
   if (sellerId) clientData.sellerId = sellerId;
 
-  // Campos de archivos que se suben (viven en User)
   const fileFields = [
     "purchaseOrder",
     "flightTickets",
@@ -67,26 +61,23 @@ export async function PATCH(
     "travelTips",
   ] as const;
 
-  // Datos para actualizar en user (archivos y verified)
   const userData: Record<string, any> = {};
   if (verifiedField !== null) {
     userData.verified = verifiedField === "true";
   }
 
-  // Helper para subir con autodetección (PDF -> raw)
   async function handleUpload(key: (typeof fileFields)[number]) {
     const file = formData.get(key) as File | null;
     if (!file || typeof file !== "object" || (file as any).size <= 0) return;
     const result: any = await uploadToCloudinary(file, {
-      access: "public",            // público; usa "authenticated" si quieres proteger
-      folder: "docs",               // carpeta destino
-      filename: (file as File).name, // nombre visible
+      access: "public",            
+      folder: "docs",               
+      filename: (file as File).name, 
     });
     userData[key] = result.secure_url;
   }
 
   try {
-    // Subidas (secuenciales para simplicidad; puedes paralelizar si gustas)
     for (const key of fileFields) {
       await handleUpload(key);
     }
@@ -119,7 +110,6 @@ export async function PATCH(
         : Promise.resolve(null),
     ]);
 
-    // Devolver estructura estable para el frontend
     return NextResponse.json({ client: updatedClient, user: updatedUser });
   } catch (err) {
     console.error(err);
