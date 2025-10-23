@@ -1,13 +1,11 @@
-import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
-import { ROUTES } from "@/app/lib/routes";
-
 export default function Home() {
-  const role = cookies().get("role")?.value as "ADMIN" | "SELLER" | "USER" | undefined;
-
-  if (!role) redirect(ROUTES.login);
-  if (role === "ADMIN") redirect(ROUTES.admin.home);
-  if (role === "SELLER") redirect(ROUTES.seller.home);
-  redirect(ROUTES.user.home);
+  return (
+    <main style={{display:'grid',placeItems:'center',minHeight:'100vh',fontFamily:'system-ui, Arial'}}>
+      <div>
+        <h1 style={{marginBottom:8}}>Home</h1>
+        <p style={{opacity:.8}}>Página raíz temporal. Si ves esto, / funciona.</p>
+        <a href="/login" style={{textDecoration:'underline'}}>Ir a /login</a>
+      </div>
+    </main>
+  );
 }
-
