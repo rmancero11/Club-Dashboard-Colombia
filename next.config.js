@@ -14,16 +14,22 @@ const nextConfig = {
       issuer: /\.[jt]sx?$/,
       use: ['@svgr/webpack'],
     });
+
+    // Evita que Vercel intente incluir módulos de Node en runtime edge
+    config.resolve = config.resolve || {};
+    config.resolve.fallback = {
+      ...(config.resolve.fallback || {}),
+      fs: false,
+      path: false,
+      os: false,
+    };
+
     return config;
   },
 
   async redirects() {
     return [
-      {
-        source: '/',
-        destination: '/login',
-        permanent: false, 
-      },
+      { source: '/', destination: '/login', permanent: false },
     ];
   },
 };

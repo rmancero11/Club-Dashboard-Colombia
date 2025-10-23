@@ -10,4 +10,3 @@ export default function Home() {
   if (role === "SELLER") redirect(ROUTES.seller.home);
   redirect(ROUTES.user.home);
 }
-
