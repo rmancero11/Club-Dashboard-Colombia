@@ -53,3 +53,7 @@ Check out our [Next.js deployment documentation](https://nextjs.org/docs/deploym
 ### `1.0.0-alpha.1` _(08-10-2023)_
 - Refactor: Refactor FeedbackForm (componetization).
 - Update: form values using business country attribute.
+- Redeploy test - 23 de octubre de 2025
+
+
+
