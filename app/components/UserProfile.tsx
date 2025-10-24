@@ -9,6 +9,7 @@ import Memberships from "./Memberships";
 import DestinationCard from "./DestinationCard";
 import { div } from "framer-motion/client";
 import UserPreferences from "./UserPreferences";
+import { useSearchParams } from "next/navigation";
 
 type Role = "ADMIN" | "SELLER" | "USER";
 
@@ -41,7 +42,9 @@ export default function UserProfile({ user }: { user: UserShape }) {
   );
   const [loading, setLoading] = React.useState(false);
   const [menuOpen, setMenuOpen] = React.useState(false);
-  const [activeTab, setActiveTab] = React.useState("destinos");
+  const searchParams = useSearchParams();
+  const tabFromQuery = searchParams.get("tab");
+  const [activeTab, setActiveTab] = React.useState(tabFromQuery ?? "destinos");
   const [isAvatarModalOpen, setIsAvatarModalOpen] = React.useState(false);
   const [nextDestination, setNextDestination] = React.useState<{
     id: string;

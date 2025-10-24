@@ -48,57 +48,56 @@ export default function EditProfilePage() {
   const MAX_GALLERY_IMAGES = 3;
 
   useEffect(() => {
-  async function fetchUser() {
-    try {
-      const res = await fetch("/api/auth/me", { credentials: "include" });
-      const data = await res.json();
+    async function fetchUser() {
+      try {
+        const res = await fetch("/api/auth/me", { credentials: "include" });
+        const data = await res.json();
 
-      if (data.user) {
-        // --- CORRECCIÓN AQUÍ ---
-        const isISODate = (str: string) => /^\d{4}-\d{2}-\d{2}$/.test(str);
-        const birthday =
-          data.user.birthday && !isISODate(data.user.birthday)
-            ? new Date(data.user.birthday).toISOString().split("T")[0]
-            : data.user.birthday || null;
+        if (data.user) {
+          // --- CORRECCIÓN AQUÍ ---
+          const isISODate = (str: string) => /^\d{4}-\d{2}-\d{2}$/.test(str);
+          const birthday =
+            data.user.birthday && !isISODate(data.user.birthday)
+              ? new Date(data.user.birthday).toISOString().split("T")[0]
+              : data.user.birthday || null;
 
-        const singleStatus =
-          data.user.singleStatus === true || data.user.singleStatus === "true"
-            ? "Sí"
-            : data.user.singleStatus === false ||
-              data.user.singleStatus === "false"
-            ? "No"
-            : null;
+          const singleStatus =
+            data.user.singleStatus === true || data.user.singleStatus === "true"
+              ? "Sí"
+              : data.user.singleStatus === false ||
+                data.user.singleStatus === "false"
+              ? "No"
+              : null;
 
-        const verified =
-          data.user.verified === true ||
-          data.user.verified === 1 ||
-          data.user.verified === "true";
+          const verified =
+            data.user.verified === true ||
+            data.user.verified === 1 ||
+            data.user.verified === "true";
 
-        const galleryImages = Array.isArray(data.user.galleryImages)
-          ? data.user.galleryImages
-          : [];
+          const galleryImages = Array.isArray(data.user.galleryImages)
+            ? data.user.galleryImages
+            : [];
 
-        setUser({
-          ...data.user,
-          birthday,
-          verified,
-          singleStatus,
-          galleryImages,
-        });
+          setUser({
+            ...data.user,
+            birthday,
+            verified,
+            singleStatus,
+            galleryImages,
+          });
+        }
+      } catch (err) {
+        console.error("Error fetching user:", err);
       }
-    } catch (err) {
-      console.error("Error fetching user:", err);
     }
-  }
 
-  fetchUser();
-}, []);
-
+    fetchUser();
+  }, []);
 
   const handleUploadGallery = async () => {
     if (!uploadFile || !user) return;
-    // Prevención cliente: no permitir subir más de MAX
-    if (user.galleryImages && user.galleryImages.length >= MAX_GALLERY_IMAGES) {
+
+    if (user.galleryImages.length >= MAX_GALLERY_IMAGES) {
       alert(`Solo se permiten ${MAX_GALLERY_IMAGES} imágenes en la galería.`);
       return;
     }
@@ -119,51 +118,26 @@ export default function EditProfilePage() {
       const data = await res.json();
 
       if (res.ok) {
-        // Manejo robusto según lo que devuelva la API:
-        // 1) Si viene data.user -> reemplazamos el user
-        // 2) Si viene data.imageUrl -> lo agregamos a la galería localmente
-        // 3) Si viene data.images -> lo reemplazamos
-        if (data.user) {
-          // Asegurar galleryImages inicializado
-          const galleryImages = Array.isArray(data.user.galleryImages)
-            ? data.user.galleryImages
-            : user.galleryImages.concat(
-                data.imageUrl ? [data.imageUrl] : []
-              );
-          setUser({ ...data.user, galleryImages });
-        } else if (data.images && Array.isArray(data.images)) {
-          setUser((prev) =>
-            prev ? { ...prev, galleryImages: data.images } : prev
-          );
-        } else if (data.imageUrl) {
-          // Append localmente (por si la API solo devuelve el url de la img subida)
-          setUser((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  galleryImages: [...(prev.galleryImages || []), data.imageUrl],
-                }
-              : prev
-          );
-        } else {
-          // Fallback: intentar obtener la lista desde un GET si la API no devuelve nada útil
-          // (si quieres, podrías llamar a un endpoint para refrescar el user)
-          // Aquí hacemos un append local con un objeto URL si es posible (no ideal)
-          const maybeLocalUrl =
-            typeof URL !== "undefined" ? URL.createObjectURL(uploadFile) : null;
-          if (maybeLocalUrl) {
-            setUser((prev) =>
-              prev
-                ? { ...prev, galleryImages: [...(prev.galleryImages || []), maybeLocalUrl] }
-                : prev
-            );
-          }
-        }
+        setUser((prev) => {
+          if (!prev) return prev;
+
+          // Mantiene todos los campos del usuario
+          const newImages =
+            data.user?.galleryImages ||
+            data.images ||
+            (data.imageUrl
+              ? [...(prev.galleryImages || []), data.imageUrl]
+              : prev.galleryImages);
+
+          return {
+            ...prev,
+            galleryImages: newImages,
+          };
+        });
 
         setUploadFile(null);
         setIsGalleryModalOpen(false);
       } else {
-        // Si la API respondió con error, mostrar mensaje si lo trae
         alert(data?.error || "Error al subir imagen");
       }
     } catch (err) {
@@ -177,10 +151,10 @@ export default function EditProfilePage() {
   const handleDeleteImage = async (imageUrl: string) => {
     if (!user) return;
 
-    const confirmDelete = confirm("¿Eliminar esta imagen?");
-    if (!confirmDelete) return;
+    if (!confirm("¿Eliminar esta imagen?")) return;
 
     setLoading(true);
+
     try {
       const res = await fetch("/api/user/gallery", {
         method: "DELETE",
@@ -189,26 +163,23 @@ export default function EditProfilePage() {
         credentials: "include",
       });
 
+      const data = await res.json();
+
       if (res.ok) {
-        const data = await res.json();
-        if (data.user && Array.isArray(data.user.galleryImages)) {
-          setUser((prev) =>
-            prev ? { ...data.user, galleryImages: data.user.galleryImages } : prev
-          );
-        } else {
-          // Si la API no devuelve el user actualizado, actualizamos localmente
-          setUser((prev) =>
-            prev
-              ? {
-                  ...prev,
-                  galleryImages: prev.galleryImages.filter((img) => img !== imageUrl),
-                }
-              : prev
-          );
-        }
+        setUser((prev) => {
+          if (!prev) return prev;
+
+          const newImages =
+            data.user?.galleryImages ||
+            prev.galleryImages.filter((img) => img !== imageUrl);
+
+          return {
+            ...prev,
+            galleryImages: newImages,
+          };
+        });
       } else {
-        const errData = await res.json().catch(() => null);
-        alert(errData?.error || "Error al eliminar imagen");
+        alert(data?.error || "Error al eliminar imagen");
       }
     } catch (err) {
       console.error("Error deleting image:", err);
@@ -246,22 +217,26 @@ export default function EditProfilePage() {
       });
 
       if (res.ok) {
-        // Intentamos obtener el user actualizado
         const data = await res.json().catch(() => null);
+
         if (data && data.user) {
-          const galleryImages = Array.isArray(data.user.galleryImages)
-            ? data.user.galleryImages
-            : user.galleryImages || [];
-          setUser({ ...data.user, galleryImages });
-        } else {
-          // Fallback local (si no vino user)
           setUser((prev) => {
-            if (!prev) return prev;
-            if (tempFile)
-              return { ...prev, [editingField]: URL.createObjectURL(tempFile) };
-            else return { ...prev, [editingField]: tempValue };
+            if (!prev) return data.user;
+
+            return {
+              ...prev,
+              ...data.user,
+              galleryImages: Array.isArray(data.user.galleryImages)
+                ? data.user.galleryImages
+                : prev.galleryImages || [],
+              ...(tempFile && {
+                [editingField]: URL.createObjectURL(tempFile),
+              }),
+            };
           });
         }
+
+        // Cerramos el modal
         closeEditor();
       } else {
         console.error("Error al actualizar el campo");
@@ -419,23 +394,24 @@ export default function EditProfilePage() {
       {/* Galería de imágenes */}
       <h2 className="text-lg font-semibold mb-2">Galería de Imágenes</h2>
       <div className="grid grid-cols-3 gap-4 mb-6">
-        {/* Mostramos cada imagen con <img> en vez de next/image para evitar problemas de CORS/domains */}
         {(user.galleryImages || []).map((img, idx) => (
-          <div key={idx} className="relative w-full h-40 rounded-lg overflow-hidden border">
+          <div
+            key={idx}
+            className="relative w-full h-40 rounded-lg overflow-hidden border"
+          >
             <img
               src={img}
               alt={`Imagen ${idx + 1}`}
               className="object-cover w-full h-full"
-              // small fallback style if image fails to load
               onError={(e) => {
                 const target = e.currentTarget as HTMLImageElement;
                 target.style.objectFit = "contain";
-                target.src = "/images/image-placeholder.png"; // opcional: placeholder local
+                target.src = "/images/image-placeholder.png";
               }}
             />
             <button
               onClick={() => handleDeleteImage(img)}
-              className="absolute top-2 right-2 bg-red-600 text-white rounded-full w-6 h-6 flex items-center justify-center hover:bg-red-700"
+              className="absolute top-2 right-2 text-purple-600 hover:text-purple-800 text-2xl font-bold leading-none"
               aria-label={`Eliminar imagen ${idx + 1}`}
             >
               ×
@@ -443,20 +419,15 @@ export default function EditProfilePage() {
           </div>
         ))}
 
-        {/* Botón +: lo mostramos solo si hay menos que el máximo */}
-        {user.galleryImages.length < MAX_GALLERY_IMAGES ? (
+        {/* Botón +: se muestra solo si hay menos de 3 imágenes */}
+        {user.galleryImages.length < MAX_GALLERY_IMAGES && (
           <button
             onClick={() => setIsGalleryModalOpen(true)}
-            className="flex items-center justify-center border-dashed border-2 border-gray-400 rounded-lg h-40 hover:border-purple-600 hover:text-purple-600 text-gray-400 font-semibold text-xl"
+            className="flex items-center justify-center border-dashed border-2 border-gray-400 rounded-lg h-40 hover:border-purple-600 hover:text-purple-600 text-gray-400 font-semibold text-3xl"
             aria-label="Agregar imagen a la galería"
           >
             +
           </button>
-        ) : (
-          // Si se alcanzó el máximo, mostramos un CTA para indicar cuántas quedan o permitir abrir modal de solo ver
-          <div className="flex items-center justify-center rounded-lg h-40 border border-gray-200 text-sm text-gray-500">
-            Máximo alcanzado ({MAX_GALLERY_IMAGES})
-          </div>
         )}
       </div>
 
@@ -477,12 +448,16 @@ export default function EditProfilePage() {
               exit={{ scale: 0.8 }}
               onClick={(e) => e.stopPropagation()}
             >
-              <h3 className="text-lg font-semibold mb-3 text-center">Subir imagen</h3>
+              <h3 className="text-lg font-semibold mb-3 text-center">
+                Subir imagen
+              </h3>
               <input
                 type="file"
                 accept="image/*"
                 className="w-full border rounded-md px-3 py-2 mb-4"
-                onChange={(e) => e.target.files?.[0] && setUploadFile(e.target.files[0])}
+                onChange={(e) =>
+                  e.target.files?.[0] && setUploadFile(e.target.files[0])
+                }
               />
               <div className="flex gap-3">
                 <button
@@ -533,14 +508,13 @@ export default function EditProfilePage() {
           <div>
             {user.dniFile ? (
               <a
-  href={user.dniFile}
-  target="_blank"
-  rel="noopener noreferrer"
-  className="px-4 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm sm:text-sm md:text-base inline-block text-center"
->
-  Ver identificación
-</a>
-
+                href={user.dniFile}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="px-4 py-2 sm:px-4 sm:py-2 md:px-6 md:py-3 bg-purple-600 text-white rounded-md hover:bg-purple-700 text-sm sm:text-sm md:text-base inline-block text-center"
+              >
+                Ver identificación
+              </a>
             ) : (
               <button
                 onClick={() => openEditor("dniFile", null)}
