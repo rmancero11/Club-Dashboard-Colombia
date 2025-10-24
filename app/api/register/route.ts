@@ -146,7 +146,7 @@ export async function POST(req: Request) {
       .sign(enc.encode(JWT_SECRET));
 
     const redirectUrl =
-      `https://app.clubdeviajerossolteros.com/api/auth/accept-register` +
+      `https://dashboard.clubdeviajerossolteros.com/api/auth/accept-register` +
       `?r=${encodeURIComponent(token)}&next=/dashboard-user`;
 
     return NextResponse.json(
