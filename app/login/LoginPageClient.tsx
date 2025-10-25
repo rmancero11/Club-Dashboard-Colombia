@@ -72,7 +72,7 @@ export default function LoginPageClient({}: {}) {
               <div className="flex flex-col gap-2 items-center">
                 <h4 className="flex items-center text-primary text-3xl md:text-5xl">
                   <Image
-                    src="/images/logo-1000-viajeros-w.png"
+                    src="/images/LogoAmigos.png"
                     className="h-25 w-auto"
                     alt="logo"
                     width={250}
@@ -142,9 +142,13 @@ export default function LoginPageClient({}: {}) {
             </div>
           )}
 
+          <p className="mt-4 text-xs text-gray-400 text-center">
+            Powered by{" "}
+            <span className="font-semibold text-fuchsia-700">ClubViajeros</span>
+          </p>
           <div className="mt-2 flex items-center justify-center">
             <Image
-              src="/images/LogoAmigos.png"
+              src="/images/logo-1000-viajeros-w.png"
               alt="1000 Viajeros"
               width={200}
               height={200}
