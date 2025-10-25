@@ -1,4 +1,4 @@
-import type { Metadata } from "next";
+import type { Metadata, Viewport } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import RegisterSW from "@/app/components/RegisterSW";
@@ -16,7 +16,6 @@ export const metadata: Metadata = {
   title: { default: "ClubSolteros", template: "%s | ClubSolteros" },
   description: "App Agencias de Viajes",
   manifest: "/manifest.json",
-  themeColor: "#7a1f7a",
   icons: {
     icon: [
       { url: "/icons/icon-192.png", sizes: "192x192" },
@@ -31,16 +30,22 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+
+// Next 14: themeColor va en viewport, no en metadata
+export const viewport: Viewport = {
+  themeColor: "#7a1f7a",
+};
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
   return (
-    <html
-      lang="es"
-      className={`${inter.variable} ${montserrat.variable}`}
-      suppressHydrationWarning
-    >
+    <html lang="es" className={`${inter.variable} ${montserrat.variable}`}>
       <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased">
         <RegisterSW />
-        <Splash />
+        {/* <Splash /> */}
         {children}
         <noscript>
           <div className="p-4 text-center text-sm">
