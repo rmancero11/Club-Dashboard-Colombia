@@ -31,7 +31,15 @@ export default function UserPreferences({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => setGustos(gustosIniciales), [gustosIniciales]);
+  // Si incluye "Mixtos", asignar automáticamente los tres gustos
+  useEffect(() => {
+    if (gustosIniciales.some((g) => g.toLowerCase() === "mixto")) {
+      setGustos(opcionesGustos);
+    } else {
+      setGustos(gustosIniciales);
+    }
+  }, [gustosIniciales]);
+
   useEffect(() => setDestinos(destinosIniciales), [destinosIniciales]);
 
   useEffect(() => {
@@ -212,32 +220,17 @@ export default function UserPreferences({
           </div>
         ) : gustos.length > 0 ? (
           <ul className="flex flex-wrap gap-3">
-            {gustos.map((g, i) => {
-              const icons: string[] = [];
-              if (g.toLowerCase() === "playa")
-                icons.push("/favicon/playa-club-solteros.svg");
-              if (g.toLowerCase() === "aventura")
-                icons.push("/favicon/aventura-club-solteros.svg");
-              if (g.toLowerCase() === "cultura")
-                icons.push("/favicon/cultura-club-solteros.svg");
+            {opcionesGustos.map((g) => {
+              if (!gustos.includes(g)) return null; // Mostrar solo gustos seleccionados
+              let icon = "";
+              if (g.toLowerCase() === "playa") icon = "/favicon/playa-club-solteros.svg";
+              if (g.toLowerCase() === "aventura") icon = "/favicon/aventura-club-solteros.svg";
+              if (g.toLowerCase() === "cultura") icon = "/favicon/cultura-club-solteros.svg";
 
               return (
-                <li
-                  key={i}
-                  className="flex flex-col items-center gap-1 font-montserrat"
-                >
-                  {icons.map((icon, idx) => (
-                    <Image
-                      key={idx}
-                      src={icon}
-                      alt={g}
-                      width={50}
-                      height={50}
-                    />
-                  ))}
-                  <span className="text-sm text-gray-700 font-montserrat text-center">
-                    {g}
-                  </span>
+                <li key={g} className="flex flex-col items-center gap-1 font-montserrat">
+                  <Image src={icon} alt={g} width={50} height={50} />
+                  <span className="text-xs text-gray-700">{g}</span>
                 </li>
               );
             })}
