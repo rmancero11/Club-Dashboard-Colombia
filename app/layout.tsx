@@ -49,7 +49,6 @@ export default function RootLayout({
         {children}
         <noscript>
           <div className="p-4 text-center text-sm">
-            Esta aplicación funciona mejor con JavaScript habilitado.
           </div>
         </noscript>
       </body>
