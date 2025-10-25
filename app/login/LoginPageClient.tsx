@@ -11,9 +11,7 @@ import ForgotPasswordPanel from "@/app/components/auth/ForgotPasswordPanel";
 
 type Inputs = { email: string; password: string };
 
-export default function LoginPageClient({
-}: {
-}) {
+export default function LoginPageClient({}: {}) {
   const { toast } = useToast();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -144,8 +142,14 @@ export default function LoginPageClient({
             </div>
           )}
 
-          <div className="mt-4 flex items-center justify-center gap-2 text-primary">
-            <p className="text-xs">Powered by</p>
+          <div className="mt-2 flex items-center justify-center">
+            <Image
+              src="/images/LogoAmigos.png"
+              alt="1000 Viajeros"
+              width={200}
+              height={200}
+              priority
+            />
           </div>
         </div>
 
