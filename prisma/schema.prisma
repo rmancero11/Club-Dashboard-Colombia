@@ -74,6 +74,13 @@ enum ActivityAction {
   NOTE
 }
 
+// === Suscripciones (se mantiene el enum) ===
+enum SubscriptionPlan {
+  STANDARD
+  PREMIUM
+  VIP
+}
+
 // ================== Usuarios ==================
 model User {
   id             String     @id @default(uuid())
@@ -108,7 +115,7 @@ model User {
   birthday       DateTime?
   gender         String?
   lookingFor     String?
-  galleryImages String[] @default([])
+  galleryImages  String[]   @default([])
 
   // Relaciones cuando es SELLER (agente)
   sellerClients       Client[]             @relation("SellerClients")
@@ -146,7 +153,6 @@ model Destination {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  // Antes: @@unique([businessId, name, country, city])
   @@unique([name, country, city])
   @@index([isActive, popularityScore])
   @@index([country, city])
@@ -174,6 +180,9 @@ model Client {
   notes      String?
   isArchived Boolean   @default(false)
 
+  // === Nuevo: plan de suscripción solo para clientes ===
+  subscriptionPlan SubscriptionPlan @default(STANDARD)
+
   reservations Reservation[]
   activities  ActivityLog[] @relation("ClientActivities")
 
@@ -183,6 +192,7 @@ model Client {
   @@index([sellerId, name])
   @@index([email])
   @@index([documentId])
+  @@index([sellerId, subscriptionPlan]) // segmentación por agente y plan
 }
 
 model Reservation {

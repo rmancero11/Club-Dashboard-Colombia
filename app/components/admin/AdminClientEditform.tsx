@@ -4,6 +4,16 @@ import { useState } from "react";
 
 type Seller = { id: string; name: string | null; email: string };
 
+// Enum/union del plan de suscripción
+type SubscriptionPlan = "STANDARD" | "PREMIUM" | "VIP";
+
+// Mapa legible para UI (opcional: si quieres etiquetas distintas)
+const SUBSCRIPTION_LABEL: Record<SubscriptionPlan, string> = {
+  STANDARD: "Standard",
+  PREMIUM: "Premium",
+  VIP: "VIP",
+};
+
 // Campos de documentos permitidos (en User)
 const DOC_KEYS = [
   "purchaseOrder",
@@ -17,7 +27,9 @@ const DOC_KEYS = [
 function emitDocUpdated(key: typeof DOC_KEYS[number], url: string) {
   if (!url) return;
   if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent("client-doc-updated", { detail: { key, url } }));
+  window.dispatchEvent(
+    new CustomEvent("client-doc-updated", { detail: { key, url } })
+  );
 }
 
 export default function AdminClientEditForm({
@@ -25,15 +37,19 @@ export default function AdminClientEditForm({
   currentSellerId,
   currentArchived,
   currentNotes,
+  currentSubscriptionPlan, // <<< NUEVO PROP
   sellers,
 }: {
   clientId: string;
   currentSellerId: string;
   currentArchived: boolean;
   currentNotes: string;
+  currentSubscriptionPlan: SubscriptionPlan; // <<< NUEVO PROP
   sellers: Seller[];
 }) {
   const [sellerId, setSellerId] = useState(currentSellerId);
+  const [subscriptionPlan, setSubscriptionPlan] =
+    useState<SubscriptionPlan>(currentSubscriptionPlan); // <<< NUEVO ESTADO
   const [archived, setArchived] = useState(currentArchived);
   const [notes, setNotes] = useState(currentNotes);
 
@@ -41,7 +57,8 @@ export default function AdminClientEditForm({
   const [purchaseOrder, setPurchaseOrder] = useState<File | null>(null);
   const [flightTickets, setFlightTickets] = useState<File | null>(null);
   const [serviceVoucher, setServiceVoucher] = useState<File | null>(null);
-  const [medicalAssistanceCard, setMedicalAssistanceCard] = useState<File | null>(null);
+  const [medicalAssistanceCard, setMedicalAssistanceCard] =
+    useState<File | null>(null);
   const [travelTips, setTravelTips] = useState<File | null>(null);
 
   const [loading, setLoading] = useState(false);
@@ -59,16 +76,18 @@ export default function AdminClientEditForm({
       formData.append("sellerId", sellerId || ""); // requerido por el schema
       formData.append("isArchived", String(archived));
       formData.append("notes", notes ?? "");
+      formData.append("subscriptionPlan", subscriptionPlan); // <<< ENVÍO DEL PLAN
 
       if (purchaseOrder) formData.append("purchaseOrder", purchaseOrder);
       if (flightTickets) formData.append("flightTickets", flightTickets);
       if (serviceVoucher) formData.append("serviceVoucher", serviceVoucher);
-      if (medicalAssistanceCard) formData.append("medicalAssistanceCard", medicalAssistanceCard);
+      if (medicalAssistanceCard)
+        formData.append("medicalAssistanceCard", medicalAssistanceCard);
       if (travelTips) formData.append("travelTips", travelTips);
 
-      // Nuevo schema: la API /api/admin/clients/[id] debe actualizar
-      // - Client: sellerId, isArchived, notes
-      // - User (relacionado al Client): documentos (keys arriba)
+      // La API debe actualizar:
+      // - Client: sellerId, isArchived, notes, subscriptionPlan
+      // - User: documentos
       const res = await fetch(`/api/admin/clients/${clientId}`, {
         method: "PATCH",
         body: formData,
@@ -101,7 +120,11 @@ export default function AdminClientEditForm({
   }
 
   return (
-    <form onSubmit={onSubmit} className="grid gap-3 max-w-md" encType="multipart/form-data">
+    <form
+      onSubmit={onSubmit}
+      className="grid gap-3 max-w-md"
+      encType="multipart/form-data"
+    >
       {err && (
         <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
           {err}
@@ -129,6 +152,23 @@ export default function AdminClientEditForm({
           ))}
         </select>
       </label>
+
+      {/* <<< NUEVO: Plan de Suscripción >>> */}
+      <label className="grid gap-1 text-sm">
+        <span className="font-medium">Plan de suscripción</span>
+        <select
+          value={subscriptionPlan}
+          onChange={(e) => setSubscriptionPlan(e.target.value as SubscriptionPlan)}
+          className="rounded-md border px-3 py-2"
+        >
+          {(Object.keys(SUBSCRIPTION_LABEL) as SubscriptionPlan[]).map((p) => (
+            <option key={p} value={p}>
+              {SUBSCRIPTION_LABEL[p]}
+            </option>
+          ))}
+        </select>
+      </label>
+      {/* ^^^ FIN SUSCRIPCIÓN ^^^ */}
 
       {/* Archivar */}
       <label className="flex items-center gap-2 text-sm">
@@ -199,7 +239,8 @@ export default function AdminClientEditForm({
           onChange={(e) => {
             const f = e.target.files?.[0] ?? null;
             setMedicalAssistanceCard(f);
-            if (f) emitDocUpdated("medicalAssistanceCard", URL.createObjectURL(f));
+            if (f)
+              emitDocUpdated("medicalAssistanceCard", URL.createObjectURL(f));
           }}
         />
       </label>
@@ -225,7 +266,10 @@ export default function AdminClientEditForm({
         >
           {loading ? "Guardando..." : "Guardar cambios"}
         </button>
-        <a href="/dashboard-admin/clientes" className="rounded-md border px-4 py-2 text-sm">
+        <a
+          href="/dashboard-admin/clientes"
+          className="rounded-md border px-4 py-2 text-sm"
+        >
           Cancelar
         </a>
       </div>

@@ -5,6 +5,9 @@ import { uploadToCloudinary } from "@/app/lib/cloudinary";
 
 export const runtime = "nodejs";
 
+// Valores permitidos del enum Prisma (SubscriptionPlan)
+const SUBS_VALUES = new Set(["STANDARD", "PREMIUM", "VIP"] as const);
+
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
@@ -17,7 +20,7 @@ export async function PATCH(
   let formData: FormData;
   try {
     formData = await req.formData();
-  } catch (err) {
+  } catch {
     return NextResponse.json(
       { error: "Content-Type incorrecto. Debe ser multipart/form-data." },
       { status: 400 }
@@ -28,6 +31,12 @@ export async function PATCH(
   const isArchived = formData.get("isArchived") === "true";
   const notes = (formData.get("notes") as string | null) || null;
   const verifiedField = formData.get("verified");
+
+  // NUEVO: leer y validar subscriptionPlan
+  const subscriptionPlanRaw = (formData.get("subscriptionPlan") as string | null)?.toUpperCase() ?? "";
+  const subscriptionPlan = SUBS_VALUES.has(subscriptionPlanRaw as any)
+    ? (subscriptionPlanRaw as "STANDARD" | "PREMIUM" | "VIP")
+    : undefined;
 
   const existingClient = await prisma.client.findUnique({
     where: { id: params.id },
@@ -47,12 +56,15 @@ export async function PATCH(
     }
   }
 
+  // Data para Client
   const clientData: any = {
     isArchived,
     notes,
   };
   if (sellerId) clientData.sellerId = sellerId;
+  if (subscriptionPlan) clientData.subscriptionPlan = subscriptionPlan; // << guardar plan
 
+  // ====== Archivos en User ======
   const fileFields = [
     "purchaseOrder",
     "flightTickets",
@@ -70,9 +82,9 @@ export async function PATCH(
     const file = formData.get(key) as File | null;
     if (!file || typeof file !== "object" || (file as any).size <= 0) return;
     const result: any = await uploadToCloudinary(file, {
-      access: "public",            
-      folder: "docs",               
-      filename: (file as File).name, 
+      access: "public",
+      folder: "docs",
+      filename: (file as File).name,
     });
     userData[key] = result.secure_url;
   }
@@ -91,7 +103,15 @@ export async function PATCH(
       prisma.client.update({
         where: { id: params.id },
         data: clientData,
-        select: { id: true, name: true, isArchived: true, notes: true, sellerId: true },
+        select: {
+          id: true,
+          name: true,
+          isArchived: true,
+          notes: true,
+          sellerId: true,
+          // devolver el plan para confirmar en UI
+          subscriptionPlan: true,
+        },
       }),
       Object.keys(userData).length
         ? prisma.user.update({

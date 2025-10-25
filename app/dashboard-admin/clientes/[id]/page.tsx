@@ -26,8 +26,8 @@ function money(n: number, currency = "USD") {
 /** Tasa USD↔COP desde env (fallback 4000) */
 const USD_COP_RATE = Number(
   process.env.NEXT_PUBLIC_USD_COP_RATE ||
-  process.env.USD_COP_RATE ||
-  4000
+    process.env.USD_COP_RATE ||
+    4000
 );
 
 /** Normaliza a USD sin tocar el valor original en base de datos */
@@ -106,6 +106,25 @@ function filenameForKey(key: string) {
       return "tips_viaje.pdf";
     default:
       return "documento.pdf";
+  }
+}
+
+/** Badges para la suscripción */
+const SUBSCRIPTION_LABEL: Record<string, string> = {
+  STANDARD: "Standard",
+  PREMIUM: "Premium",
+  VIP: "VIP",
+};
+function planBadgeClass(plan?: string) {
+  switch (plan) {
+    case "VIP":
+      return "border-purple-200 bg-purple-50 text-purple-700";
+    case "PREMIUM":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "STANDARD":
+      return "border-slate-200 bg-slate-50 text-slate-700";
+    default:
+      return "border-gray-200 bg-gray-50 text-gray-600";
   }
 }
 
@@ -307,6 +326,8 @@ export default async function AdminClientDetailPage({
       notes: true,
       isArchived: true,
       createdAt: true,
+      /** <<<<<<<<<<<<<<<<<<<<<< AQUI: traemos el plan */
+      subscriptionPlan: true,
       seller: { select: { id: true, name: true, email: true } },
       _count: { select: { reservations: true } },
       user: {
@@ -393,6 +414,22 @@ export default async function AdminClientDetailPage({
               <span className="text-gray-500">Estado: </span>
               {client.isArchived ? "Archivado" : "Activo"}
             </div>
+
+            {/* >>> SUSCRIPCIÓN VISUAL >>> */}
+            <div className="flex items-center gap-2">
+              <span className="text-gray-500">Suscripción: </span>
+              <span
+                className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${planBadgeClass(
+                  client.subscriptionPlan as unknown as string
+                )}`}
+              >
+                {SUBSCRIPTION_LABEL[
+                  client.subscriptionPlan as unknown as string
+                ] ?? "—"}
+              </span>
+            </div>
+            {/* <<< SUSCRIPCIÓN VISUAL <<< */}
+
             <div className="flex items-center gap-1">
               <span className="text-gray-500">Verificado: </span>
               {client.user?.verified ? (
@@ -454,6 +491,7 @@ export default async function AdminClientDetailPage({
             currentSellerId={client.seller?.id || ""}
             currentArchived={client.isArchived}
             currentNotes={client.notes || ""}
+            currentSubscriptionPlan={client.subscriptionPlan as "STANDARD" | "PREMIUM" | "VIP"}
             sellers={sellers}
           />
         </div>
@@ -480,7 +518,10 @@ export default async function AdminClientDetailPage({
                     </div>
                   </div>
                   <div className="text-sm">
-                    {money(toUSD(Number(r.totalAmount || 0), r.currency), "USD")}
+                    {money(
+                      toUSD(Number(r.totalAmount || 0), r.currency),
+                      "USD"
+                    )}
                   </div>
                 </div>
               </li>

@@ -103,6 +103,24 @@ function resStatusBadgeClass(status?: string) {
   }
 }
 
+const SUBSCRIPTION_LABEL: Record<string, string> = {
+  STANDARD: "Standard",
+  PREMIUM: "Premium",
+  VIP: "VIP",
+};
+function planBadgeClass(plan?: string) {
+  switch (plan) {
+    case "VIP":
+      return "border-purple-200 bg-purple-50 text-purple-700";
+    case "PREMIUM":
+      return "border-amber-200 bg-amber-50 text-amber-700";
+    case "STANDARD":
+      return "border-slate-200 bg-slate-50 text-slate-700";
+    default:
+      return "border-gray-200 bg-gray-50 text-gray-600";
+  }
+}
+
 /* ================================
    Documentos (idéntico al seller)
 ================================== */
@@ -436,6 +454,7 @@ export default async function AdminClientsPage({
             travelTips: true,
           },
         },
+        subscriptionPlan: true,
       },
     }),
   ]);
@@ -549,6 +568,7 @@ export default async function AdminClientsPage({
                 <th className="px-2 py-2">Email</th>
                 <th className="px-2 py-2">Teléfono / WhatsApp</th>
                 <th className="px-2 py-2">Ubicación</th>
+                <th className="px-2 py-2">Suscripción</th>
                 <th className="px-2 py-2">Vendedor</th>
                 <th className="px-2 py-2">Reservas</th>
                 <th className="px-2 py-2">Estado (última reserva)</th>
@@ -560,7 +580,7 @@ export default async function AdminClientsPage({
               {items.length === 0 && (
                 <tr>
                   <td
-                    colSpan={9}
+                    colSpan={10}
                     className="px-2 py-10 text-center text-gray-400"
                   >
                     Sin resultados
@@ -638,6 +658,19 @@ export default async function AdminClientsPage({
                     {/* Ubicación */}
                     <td className="px-2 py-2">
                       {[c.city, c.country].filter(Boolean).join(", ") || "—"}
+                    </td>
+
+                    {/* Suscripción */}
+                    <td className="px-2 py-2">
+                      <span
+                        className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${planBadgeClass(
+                          (c as any).subscriptionPlan as string
+                        )}`}
+                      >
+                        {SUBSCRIPTION_LABEL[
+                          (c as any).subscriptionPlan as string
+                        ] ?? "—"}
+                      </span>
                     </td>
 
                     {/* Vendedor */}
