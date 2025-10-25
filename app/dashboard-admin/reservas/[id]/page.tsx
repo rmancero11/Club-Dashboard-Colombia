@@ -44,6 +44,21 @@ function digitsOnly(s?: string | null) {
   return (s || "").replace(/\D/g, "");
 }
 
+// --- Conversión a USD ---
+const USD_COP_RATE = Number(
+  process.env.NEXT_PUBLIC_USD_COP_RATE ||
+  process.env.USD_COP_RATE ||
+  4000
+);
+/** Convierte un monto a USD si viene en COP (u otros alias); si ya está en USD, lo deja igual */
+function toUSD(amount: number, currency?: string) {
+  const c = (currency || "USD").toUpperCase().replace(/\s+/g, "");
+  if (c === "COP" || c === "COP$" || c === "COL" || c === "COL$") {
+    return amount / USD_COP_RATE;
+  }
+  return amount;
+}
+
 // ---- Parser de timeline (notes como JSON) ----
 function parseTimeline(
   raw?: string | null
@@ -88,12 +103,16 @@ export default async function AdminReservationDetailPage({
       notes: true,
       createdAt: true,
       updatedAt: true,
-      client: { select: { id: true, name: true, email: true, phone: true } },
+      client: { select: { id: true, name: true, email: true, phone: true} },
       seller: { select: { id: true, name: true } },
       destination: { select: { id: true, name: true, country: true } },
     },
   });
   if (!r) notFound();
+
+  // Conversión para totales
+  const totalOriginal = Number(r.totalAmount || 0);
+  const totalUSD = toUSD(totalOriginal, r.currency);
 
   // Listas para selects (sin businessId en filtros)
   const [sellers, clients, destinations] = await Promise.all([
@@ -170,11 +189,14 @@ export default async function AdminReservationDetailPage({
           </div>
         </div>
 
+        {/* Totales en USD + original */}
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Totales</h2>
           <div className="text-2xl font-semibold">
-            {money(Number(r.totalAmount), r.currency)}{" "}
-            <span className="text-sm text-gray-500">({r.currency})</span>
+            {money(totalUSD, "USD")} <span className="text-sm text-gray-500">(USD)</span>
+          </div>
+          <div className="mt-1 text-xs text-gray-500">
+            Equivalente a: {money(totalOriginal, r.currency)} ({r.currency})
           </div>
           <ul className="mt-3 space-y-1 text-sm text-gray-600">
             <li>
@@ -274,6 +296,22 @@ export default async function AdminReservationDetailPage({
       {/* Formulario de edición */}
       <section className="rounded-xl border bg-white p-4">
         <h2 className="mb-3 text-lg font-semibold">Editar reserva</h2>
+
+        {/* Referencia en USD al lado del monto actual */}
+        <div className="mb-3 rounded-md border bg-gray-50 p-3 text-sm">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-gray-600">Referencia (al valor actual):</span>
+            <span className="font-medium">
+              {money(totalOriginal, r.currency)} ({r.currency})
+            </span>
+            <span className="text-gray-500">≈</span>
+            <span className="font-semibold">{money(totalUSD, "USD")} (USD)</span>
+            <span className="text-xs text-gray-500">
+              Tasa usada: 1 USD ≈ {USD_COP_RATE.toLocaleString("es-CO")} COP
+            </span>
+          </div>
+        </div>
+
         <EditReservationForm
           reservation={{
             id: r.id,

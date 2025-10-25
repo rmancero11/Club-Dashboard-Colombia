@@ -67,7 +67,7 @@ async function load() {
   // ====== Usuarios base ======
   const admin = await upsertUser({
     email: "admin@clubviajeros.dev",
-    password: "admin123", // cámbialo en prod
+    password: "admin123", 
     role: "ADMIN",
     name: "Admin",
     status: "ACTIVE",

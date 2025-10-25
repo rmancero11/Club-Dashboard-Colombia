@@ -6,12 +6,30 @@ import EditDestinationForm from "@/app/components/admin/destinations/EditDestina
 import ToggleActive from "@/app/components/admin/destinations/ToggleActive";
 import DeleteDestinationButton from "@/app/components/admin/destinations/DeleteDestinationButton";
 
+/** Formateo de dinero (siempre muestra la moneda indicada) */
 function money(n: number, currency = "USD") {
   try {
     return new Intl.NumberFormat("es-CO", { style: "currency", currency }).format(n);
   } catch {
-    return `${currency} ${n.toFixed(2)}`;
+    const safe = Number.isFinite(n) ? (n as number).toFixed(2) : String(n);
+    return `${currency} ${safe}`;
   }
+}
+
+/** Tasa para convertir COP → USD (puedes setearla por env) */
+const USD_COP_RATE = Number(
+  process.env.NEXT_PUBLIC_USD_COP_RATE ||
+  process.env.USD_COP_RATE ||
+  4000
+);
+
+/** Normaliza un monto a USD según su moneda original */
+function toUSD(amount: number, currency?: string) {
+  const c = (currency || "USD").toUpperCase().replace(/\s+/g, "");
+  if (c === "COP" || c === "COP$" || c === "COL" || c === "COL$") {
+    return amount / USD_COP_RATE;
+  }
+  return amount; // USD u otras ya consideradas en USD
 }
 
 export default async function AdminDestinationDetailPage({ params }: { params: { id: string } }) {
@@ -31,8 +49,8 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
       imageUrl: true,
       isActive: true,
       popularityScore: true,
-      price: true,          // Decimal | null
-      discountPrice: true,  // Decimal | null
+      price: true,          // Decimal | null (asumimos USD en UI)
+      discountPrice: true,  // Decimal | null (asumimos USD en UI)
       createdAt: true,
       updatedAt: true,
       _count: { select: { reservations: true } },
@@ -53,7 +71,7 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
       id: true,
       code: true,
       totalAmount: true, // Decimal
-      currency: true,
+      currency: true,    // "COP" | "USD" | ...
       status: true,
       client: { select: { name: true } },
       startDate: true,
@@ -105,15 +123,15 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
             Actualizado: {new Date(d.updatedAt).toLocaleString("es-CO")}
           </div>
 
-          {/* Precios actuales */}
+          {/* Precios actuales (asumidos en USD) */}
           <div className="mt-3 text-sm">
             <p>
               <strong>Precio:</strong>{" "}
-              {price !== null ? money(price) : <span className="text-gray-400">No definido</span>}
+              {price !== null ? money(price, "USD") : <span className="text-gray-400">No definido</span>}
             </p>
             <p>
               <strong>Precio con descuento:</strong>{" "}
-              {discountPrice !== null ? money(discountPrice) : <span className="text-gray-400">No definido</span>}
+              {discountPrice !== null ? money(discountPrice, "USD") : <span className="text-gray-400">No definido</span>}
             </p>
             <p className="text-xs text-gray-500 mt-1">
               Reservas vinculadas: {d._count.reservations}
@@ -141,7 +159,10 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
                       </div>
                     </div>
                     <div className="text-sm">
-                      {money(Number(r.totalAmount), r.currency)}
+                      {money(
+                        toUSD(Number(r.totalAmount || 0), r.currency),
+                        "USD"
+                      )}
                     </div>
                   </div>
                 </li>

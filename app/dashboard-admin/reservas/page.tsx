@@ -23,6 +23,22 @@ function money(n: number, currency = "USD") {
   }
 }
 
+/** Tasa COP→USD configurable (fallback: 4000) */
+const USD_COP_RATE = Number(
+  process.env.NEXT_PUBLIC_USD_COP_RATE ||
+  process.env.USD_COP_RATE ||
+  4000
+);
+
+/** Normaliza a USD sin modificar el valor original */
+function toUSD(amount: number, currency?: string) {
+  const c = (currency || "USD").toUpperCase().replace(/\s+/g, "");
+  if (c === "COP" || c === "COP$" || c === "COL" || c === "COL$") {
+    return amount / USD_COP_RATE;
+  }
+  return amount; // Si ya está en USD (u otra que manejas como USD)
+}
+
 // Mapa de etiquetas en español (UI) para ReservationStatus
 const RES_LABELS: Record<string, string> = {
   LEAD: "Prospecto",
@@ -119,7 +135,7 @@ export default async function AdminReservationsPage({
   ]);
 
   // datos
-  const [total, items, statusAgg, sumAgg] = await Promise.all([
+  const [total, items, statusAgg, sumAggByCurrency] = await Promise.all([
     prisma.reservation.count({ where }),
     prisma.reservation.findMany({
       where,
@@ -139,8 +155,10 @@ export default async function AdminReservationsPage({
       by: ["status"],
       _count: { _all: true },
     }),
-    prisma.reservation.aggregate({
+    // Agrupamos por moneda para sumar en DB y después convertir a USD
+    prisma.reservation.groupBy({
       where: whereBase,
+      by: ["currency"],
       _sum: { totalAmount: true },
     }),
   ]);
@@ -161,7 +179,13 @@ export default async function AdminReservationsPage({
   }
 
   const statusMap = Object.fromEntries(statusAgg.map((s) => [s.status, s._count._all])) as Record<string, number>;
-  const totalSum = Number(sumAgg._sum.totalAmount || 0);
+
+  // Convertimos el monto global a USD sumando por moneda
+  const totalSumUSD = sumAggByCurrency.reduce((acc, row) => {
+    const sum = Number(row._sum.totalAmount || 0);
+    return acc + toUSD(sum, row.currency as string | undefined);
+    // Nota: row.currency puede ser null si tus datos lo permiten; ajusta el tipo si es necesario
+  }, 0);
 
   return (
     <div className="space-y-4">
@@ -169,7 +193,7 @@ export default async function AdminReservationsPage({
         <div>
           <h1 className="text-2xl font-semibold">Reservas</h1>
           <p className="text-sm text-gray-500">
-            Mostrando {items.length} de {total.toLocaleString("es-CO")} · Monto global {money(totalSum)}
+            Mostrando {items.length} de {total.toLocaleString("es-CO")} · Monto global {money(totalSumUSD, "USD")}
           </p>
         </div>
         <div className="flex gap-2">
@@ -270,7 +294,9 @@ export default async function AdminReservationsPage({
                         {RES_LABELS[r.status] ?? r.status}
                       </span>
                     </td>
-                    <td className="px-2 py-2">{money(Number(r.totalAmount), r.currency)}</td>
+                    <td className="px-2 py-2">
+                      {money(toUSD(Number(r.totalAmount || 0), r.currency), "USD")}
+                    </td>
                     <td className="px-2 py-2 text-right">
                       <a href={`/dashboard-admin/reservas/${r.id}`} className="text-primary underline">Ver</a>
                     </td>

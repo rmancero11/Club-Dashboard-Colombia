@@ -23,6 +23,22 @@ function money(n: number, currency = "USD") {
   }
 }
 
+/** Tasa USD↔COP desde env (fallback 4000) */
+const USD_COP_RATE = Number(
+  process.env.NEXT_PUBLIC_USD_COP_RATE ||
+  process.env.USD_COP_RATE ||
+  4000
+);
+
+/** Normaliza a USD sin tocar el valor original en base de datos */
+function toUSD(amount: number, currency?: string) {
+  const c = (currency || "USD").toUpperCase().replace(/\s+/g, "");
+  if (c === "COP" || c === "COP$" || c === "COL" || c === "COL$") {
+    return amount / USD_COP_RATE;
+  }
+  return amount; // USD u otras ya en USD
+}
+
 /** Etiquetas legibles para archivos (WHITELIST, igual que seller) */
 const FILE_LABELS: Record<string, string> = {
   dniFile: "Documento de identidad",
@@ -61,7 +77,6 @@ function isCloudinary(url: string) {
   try {
     const { hostname } = new URL(url);
     if (hostname === "res.cloudinary.com") return true;
-    // Opcionales para dominio custom o private CDN:
     const sd = process.env.NEXT_PUBLIC_CLOUDINARY_SECURE_DISTRIBUTION;
     if (sd && hostname === sd) return true;
     const cn = process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME;
@@ -114,7 +129,7 @@ function FilePreview({
           src={url}
           alt="Documento"
           loading="lazy"
-        className="max-h-72 w-auto rounded"
+          className="max-h-72 w-auto rounded"
           style={{ objectFit: "contain" }}
         />
       </div>
@@ -219,8 +234,6 @@ function DocumentList({
       {entries.map(({ key, label, url }) => {
         const filename = filenameForKey(key);
         const ext = getExt(url);
-
-        // Proxy solo para PDFs
         const openUrl =
           isPdf(ext)
             ? `/api/file-proxy?url=${encodeURIComponent(
@@ -467,7 +480,7 @@ export default async function AdminClientDetailPage({
                     </div>
                   </div>
                   <div className="text-sm">
-                    {money(Number(r.totalAmount), r.currency)}
+                    {money(toUSD(Number(r.totalAmount || 0), r.currency), "USD")}
                   </div>
                 </div>
               </li>

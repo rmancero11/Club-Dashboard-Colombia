@@ -6,6 +6,28 @@ import { getCurrencyOptions, type CurrencyOption } from "@/app/lib/currencyOptio
 
 type Opt = { id: string; name: string | null; email?: string | null; country?: string | null };
 
+// ==== Helpers de conversión y formato ====
+const USD_COP_RATE = Number(
+  (typeof process !== "undefined" && (process.env.NEXT_PUBLIC_USD_COP_RATE || process.env.USD_COP_RATE)) || 4000
+);
+
+function toUSD(amount: number, currency?: string) {
+  const c = (currency || "USD").toUpperCase().replace(/\s+/g, "");
+  if (c === "COP" || c === "COP$" || c === "COL" || c === "COL$") {
+    return amount / USD_COP_RATE;
+  }
+  return amount;
+}
+
+function money(n: number, currency = "USD") {
+  try {
+    return new Intl.NumberFormat("es-CO", { style: "currency", currency }).format(n);
+  } catch {
+    const val = Number.isFinite(n) ? (n as number).toFixed(2) : String(n);
+    return `${currency} ${val}`;
+  }
+}
+
 // Helpers para timeline
 function parseTimelineSafe(raw?: string) {
   if (!raw) return [];
@@ -61,6 +83,19 @@ export default function EditReservationForm({
   );
   const selectedCurrency =
     currencyOptionsAll.find((o) => o.value === currency) || null;
+
+  // Cálculo en vivo de referencia en USD
+  const amountNum = useMemo(() => {
+    const n = parseFloat(totalAmount.replace(",", "."));
+    return Number.isFinite(n) ? n : 0;
+  }, [totalAmount]);
+
+  const usdRef = useMemo(() => toUSD(amountNum, currency), [amountNum, currency]);
+
+  const showRateHint = useMemo(() => {
+    const c = (currency || "").toUpperCase();
+    return c.startsWith("COP");
+  }, [currency]);
 
   // Timeline en memoria
   const [timeline, setTimeline] = useState<
@@ -140,7 +175,7 @@ export default function EditReservationForm({
         const data = await res.json().catch(() => ({}));
         alert(data?.error || "No se pudo actualizar");
         return;
-        }
+      }
       location.reload();
     } finally {
       setSaving(false);
@@ -267,11 +302,17 @@ export default function EditReservationForm({
               menu: (base) => ({ ...base, zIndex: 30 }),
             }}
           />
+
         </label>
       </div>
 
       <label className="grid gap-1 text-sm">
-        <span className="font-medium">Total ({currency})</span>
+        <div className="flex items-end justify-between">
+          <span className="font-medium">Total ({currency})</span>
+          <span className="text-xs text-gray-500">
+            ≈ {money(usdRef, "USD")} (USD)
+          </span>
+        </div>
         <input
           type="number"
           step="0.01"
