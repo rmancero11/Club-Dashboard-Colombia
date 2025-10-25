@@ -1,6 +1,7 @@
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect } from "next/navigation";
+import Link from "next/link";
 
 function toInt(v: string | string[] | undefined, def: number) {
   const n = Array.isArray(v) ? parseInt(v[0] || "", 10) : parseInt(v || "", 10);
@@ -117,7 +118,9 @@ const FILE_LABELS: Record<string, string> = {
   medicalAssistanceCard: "Asistencia médica",
   travelTips: "Tips de viaje",
 };
-const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS) as (keyof typeof FILE_LABELS)[];
+const ALLOWED_DOC_FIELDS = Object.keys(
+  FILE_LABELS
+) as (keyof typeof FILE_LABELS)[];
 
 function getExt(url: string) {
   try {
@@ -245,7 +248,9 @@ function FilePreview({ url, fileKey }: { url: string; fileKey?: string }) {
   // Fallback
   return (
     <div className="rounded-md border p-3 text-xs text-gray-600">
-      <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
+      <div className="mb-2">
+        No se puede previsualizar este tipo de archivo.
+      </div>
       <div className="flex gap-2">
         <a
           href={url}
@@ -459,6 +464,12 @@ export default async function AdminClientsPage({
             Mostrando {items.length} de {total.toLocaleString("es-CO")}.
           </p>
         </div>
+        <Link
+          href="/dashboard-admin/clientes/nuevo"
+          className="inline-flex items-center justify-center rounded-md bg-fuchsia-700 text-white px-4 py-2 text-sm font-medium shadow-sm hover:bg-fuchsia-800 transition-colors"
+        >
+          + Nuevo cliente
+        </Link>
       </header>
 
       <div className="rounded-xl border bg-white p-4">
@@ -511,7 +522,10 @@ export default async function AdminClientsPage({
           </select>
           <input type="hidden" name="page" value="1" />
           <div className="flex items-center gap-2">
-            <button className="rounded-md border px-3 py-2 text-sm" type="submit">
+            <button
+              className="rounded-md border px-3 py-2 text-sm"
+              type="submit"
+            >
               Aplicar
             </button>
             {/* Botón borrar filtros */}
@@ -565,7 +579,9 @@ export default async function AdminClientsPage({
                   : "—";
                 const badgeCls = resStatusBadgeClass(lastStatus);
 
-                const docCount = Object.values((c as any).user || {}).filter(Boolean).length;
+                const docCount = Object.values((c as any).user || {}).filter(
+                  Boolean
+                ).length;
 
                 return (
                   <tr key={c.id} className="border-t">
@@ -628,7 +644,9 @@ export default async function AdminClientsPage({
                     <td className="px-2 py-2">{c.seller?.name || "—"}</td>
 
                     {/* Conteo de reservas */}
-                    <td className="px-2 py-2">{(c as any)._count.reservations}</td>
+                    <td className="px-2 py-2">
+                      {(c as any)._count.reservations}
+                    </td>
 
                     {/* Estado última reserva */}
                     <td className="px-2 py-2">
