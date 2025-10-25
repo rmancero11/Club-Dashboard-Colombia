@@ -1,10 +1,11 @@
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { NextResponse } from "next/server";
-import fs from "fs";
-import path from "path";
+import { uploadToCloudinary } from "@/app/lib/cloudinary";
+import { v2 as cloudinary } from "cloudinary";
 
-export const runtime = "nodejs"; 
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 function toBool(v: unknown) {
   if (typeof v === "boolean") return v;
@@ -14,10 +15,30 @@ function toBool(v: unknown) {
   }
   return false;
 }
+function toDecimalOrUndef(v: unknown) {
+  if (v === null || v === undefined || v === "") return undefined;
+  const n = typeof v === "string" ? parseFloat(v.replace(",", ".")) : Number(v);
+  return Number.isFinite(n) ? n : undefined;
+}
 function toDecimalOrNull(v: unknown) {
   if (v === null || v === undefined || v === "") return null;
   const n = typeof v === "string" ? parseFloat(v.replace(",", ".")) : Number(v);
   return Number.isFinite(n) ? n : null;
+}
+
+function tryExtractPublicIdFromUrl(url?: string | null): string | null {
+  if (!url) return null;
+  try {
+    const u = new URL(url);
+    const parts = u.pathname.split("/");
+    const idx = parts.findIndex((p) => p === "upload");
+    if (idx === -1) return null;
+    const after = parts.slice(idx + 2).join("/"); // salta v<version>
+    const noExt = after.replace(/\.[a-z0-9]+$/i, "");
+    return noExt || null;
+  } catch {
+    return null;
+  }
 }
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
@@ -28,24 +49,19 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   const id = params.id;
   const contentType = req.headers.get("content-type") || "";
-
   const data: any = {};
   let usedMultipart = false;
 
   try {
     if (contentType.includes("multipart/form-data")) {
       usedMultipart = true;
-      const formData = await req.formData();
+      const form = await req.formData();
 
-      const name = formData.get("name");
-      const country = formData.get("country");
-      const city = formData.get("city");
-      const category = formData.get("category");
-      const description = formData.get("description");
-      const price = formData.get("price");
-      const discountPrice = formData.get("discountPrice");
-      const isActive = formData.get("isActive");
-      const image = formData.get("image") as File | null;
+      const name = form.get("name");
+      const country = form.get("country");
+      const city = form.get("city");
+      const category = form.get("category");
+      const description = form.get("description");
 
       if (typeof name === "string") data.name = name.trim();
       if (typeof country === "string") data.country = country.trim();
@@ -53,36 +69,45 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       if (category === null || typeof category === "string") data.category = category ? category.trim() : null;
       if (description === null || typeof description === "string") data.description = description ? description.trim() : null;
 
-      const p = toDecimalOrNull(price);
-      if (p !== null) data.price = p;
+      data.price = toDecimalOrUndef(form.get("price"));                 // undefined = no cambiar
+      data.discountPrice = toDecimalOrNull(form.get("discountPrice"));  // null = limpiar, undefined = no cambiar
 
-      const dp = toDecimalOrNull(discountPrice);
-      data.discountPrice = dp; 
+      const isActive = form.get("isActive");
+      if (isActive !== null) data.isActive = toBool(isActive);
 
-      data.isActive = toBool(isActive);
+      // ✅ Acepta "image" o "file"
+      const image =
+        (form.get("image") as File | null) ??
+        (form.get("file") as File | null) ??
+        null;
 
-      if (image && typeof image === "object" && image.size > 0) {
-        const uploadsDir = path.join(process.cwd(), "public", "uploads");
-        try {
-          if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir, { recursive: true });
-        } catch (e) {
-          return NextResponse.json(
-            { error: "Almacenamiento local no disponible. Configura S3/Cloudinary." },
-            { status: 400 }
-          );
-        }
+      if (image && image.size > 0) {
+        const mime = (image as any).type || "";
+        const originalName = (image as any).name || "image";
+        const isVideo = mime.startsWith("video/");
+        const isPdf = mime === "application/pdf" || /\.pdf$/i.test(originalName);
 
-        const original = image.name || "image";
-        const ext = original.includes(".") ? original.split(".").pop() : "jpg";
-        const fileName = `${id}-${Date.now()}.${ext}`;
-        const filePath = path.join(uploadsDir, fileName);
+        const publicId = `clubviajeros/destinations/${id}-${Date.now()}`;
 
-        const buffer = Buffer.from(await image.arrayBuffer());
-        fs.writeFileSync(filePath, buffer);
+        const uploaded = await uploadToCloudinary(image, {
+          resource_type: isVideo ? "video" : isPdf ? "image" : "image",
+          access: "public",
+          filename: originalName,
+          cloudinary: {
+            type: "upload",
+            public_id: publicId,
+            overwrite: false,
+            ...(isPdf ? { format: "pdf" } : {}),
+            context: { destinationId: id, role: auth.role, userId: auth.userId },
+            tags: ["clubviajeros", "destinations", `destination:${id}`],
+          },
+        });
 
-        data.imageUrl = `/uploads/${fileName}`;
+        data.imageUrl = uploaded.secure_url;
+        // Si guardas public_id, puedes añadir: data.imagePublicId = uploaded.public_id;
       }
     } else {
+      // JSON
       const body = await req.json().catch(() => ({}));
 
       if (typeof body.name === "string") data.name = body.name.trim();
@@ -91,20 +116,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
       if (body.category === null || typeof body.category === "string") data.category = body.category ? String(body.category).trim() : null;
       if (body.description === null || typeof body.description === "string") data.description = body.description ? String(body.description).trim() : null;
 
-      const p = toDecimalOrNull(body.price);
-      if (p !== null) data.price = p;
-
-      const dp = toDecimalOrNull(body.discountPrice);
-      data.discountPrice = dp;
-
+      if (body.price !== undefined) data.price = toDecimalOrUndef(body.price);
+      if (body.discountPrice !== undefined) data.discountPrice = toDecimalOrNull(body.discountPrice);
       if (body.isActive !== undefined) data.isActive = toBool(body.isActive);
-
       if (typeof body.imageUrl === "string" && body.imageUrl.trim()) {
         data.imageUrl = body.imageUrl.trim();
       }
     }
 
-    if (Object.keys(data).length === 0) {
+    // No intentes actualizar si no hay cambios
+    const hasChanges = Object.keys(data).length > 0;
+    if (!hasChanges) {
       return NextResponse.json(
         { error: "No se enviaron cambios para actualizar." },
         { status: 400 }
@@ -119,21 +141,15 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     return NextResponse.json({ ok: true, id: updated.id });
   } catch (e: any) {
-    console.error("Error actualizando destino:", e);
-
+    console.error("[destinations:PATCH] error:", e);
     if (e?.code === "P2002") {
       return NextResponse.json(
         { error: "Conflicto de único (nombre/país/ciudad)" },
         { status: 409 }
       );
     }
-
     return NextResponse.json(
-      {
-        error: "No se pudo actualizar",
-        details: e?.message || String(e),
-        usedMultipart,
-      },
+      { error: "No se pudo actualizar", details: e?.message || String(e), usedMultipart },
       { status: 400 }
     );
   }
@@ -148,27 +164,32 @@ export async function DELETE(req: Request, { params }: { params: { id: string } 
   try {
     const dest = await prisma.destination.findUnique({
       where: { id: params.id },
-      select: { id: true, imageUrl: true },
+      select: { id: true, imageUrl: true /*, imagePublicId: true*/ },
     });
-
     if (!dest) {
       return NextResponse.json({ error: "Destino no encontrado" }, { status: 404 });
     }
 
     await prisma.destination.delete({ where: { id: dest.id } });
 
-    if (dest.imageUrl?.startsWith("/uploads/")) {
-      const filePath = path.join(process.cwd(), "public", dest.imageUrl);
+    const publicId =
+      // dest.imagePublicId ||
+      tryExtractPublicIdFromUrl(dest.imageUrl);
+
+    if (publicId) {
       try {
-        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+        await cloudinary.uploader.destroy(publicId, { invalidate: true });
       } catch (e) {
-        console.warn("No se pudo eliminar la imagen del disco:", e);
+        console.warn("No se pudo eliminar en Cloudinary:", e);
       }
     }
 
     return NextResponse.json({ ok: true });
   } catch (e: any) {
-    console.error("Error eliminando destino:", e);
-    return NextResponse.json({ error: "No se pudo eliminar", details: e?.message || String(e) }, { status: 400 });
+    console.error("[destinations:DELETE] error:", e);
+    return NextResponse.json(
+      { error: "No se pudo eliminar", details: e?.message || String(e) },
+      { status: 400 }
+    );
   }
 }
