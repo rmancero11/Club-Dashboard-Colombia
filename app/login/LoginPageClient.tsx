@@ -69,18 +69,17 @@ export default function LoginPageClient({}: {}) {
               onSubmit={handleSubmit(onSubmit)}
               className="my-auto relative flex flex-col gap-4 w-full max-w-[400px] px-8"
             >
-              <div className="flex flex-col gap-2 items-center">
-                <h4 className="flex items-center text-primary text-3xl md:text-5xl">
+              <div className="flex flex-col items-center">
+                <h4 className="flex items-center text-primary text-3xl md:text-5xl leading-none">
                   <Image
                     src="/images/LogoAmigos.png"
-                    className="h-25 w-auto"
                     alt="logo"
-                    width={250}
-                    height={250}
+                    width={300}
+                    height={300}
                     priority
                   />
                 </h4>
-                <p className="text-gray-600 text-center font-medium max-w-[200px] md:max-w-full">
+                <p className="text-gray-600 text-center font-medium max-w-[200px] md:max-w-full -mt-20 leading-tight">
                   Únete a experiencias únicas
                 </p>
               </div>
