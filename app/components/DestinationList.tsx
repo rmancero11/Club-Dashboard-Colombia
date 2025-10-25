@@ -188,7 +188,7 @@ export default function DestinationsList({
                           alt={viajero.name || "Viajero"}
                           width={40}
                           height={40}
-                          className="rounded-full border-2 border-white shadow-sm transition-transform duration-200 group-hover:scale-110"
+                          className="w-10 h-10 object-cover rounded-full border-2 border-white shadow-sm flex-shrink-0 transition-transform duration-200 group-hover:scale-110"
                         />
                         <div className="absolute bottom-12 left-1/2 -translate-x-1/2 whitespace-nowrap bg-gray-900 text-white text-xs font-medium py-1 px-2 rounded-md opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none">
                           {viajero.name || "Viajero"}

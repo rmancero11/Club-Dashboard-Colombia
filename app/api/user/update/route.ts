@@ -34,8 +34,7 @@ export async function POST(req: Request) {
     const birthdayRaw = formData.get("birthday") as string | null;
     const gender = (formData.get("gender") as string)?.trim() || null;
     const lookingFor = (formData.get("lookingFor") as string)?.trim() || null;
-    const singleStatus =
-      (formData.get("singleStatus") as string)?.trim() || null;
+    const singleStatus = (formData.get("singleStatus") as string)?.trim() || null;
     const affirmation = (formData.get("affirmation") as string)?.trim() || null;
     const security = (formData.get("security") as string)?.trim() || null;
 
@@ -50,48 +49,54 @@ export async function POST(req: Request) {
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // 4️⃣ Función para guardar archivo
+    // 4️⃣ Guardar archivos si existen
     const saveFile = async (file: File | null, field: string) => {
       if (!file) return null;
-      const arrayBuffer = await file.arrayBuffer();
-      const buffer = Buffer.from(arrayBuffer);
-      const safeName = file.name
-        .replace(/\s+/g, "_")
-        .replace(/[^a-zA-Z0-9_.-]/g, "");
-      const filename = `${userId}-${field}-${Date.now()}-${safeName}`;
-      const filePath = path.join(uploadsDir, filename);
+
+      const bytes = await file.arrayBuffer();
+      const buffer = Buffer.from(bytes);
+      const ext = path.extname(file.name) || ".jpg";
+      const fileName = `${field}-${userId}-${Date.now()}${ext}`;
+      const filePath = path.join(uploadsDir, fileName);
+
       await fs.writeFile(filePath, buffer);
-      return `/uploads/${filename}`;
+      return `/uploads/${fileName}`; // ruta accesible públicamente
     };
 
-    // 5️⃣ Guardar archivos
-    const dniUrl = await saveFile(dniFile, "dniFile");
-    const passportUrl = await saveFile(passportFile, "passportFile");
-    const visaUrl = await saveFile(visaFile, "visaFile");
+    const [dniFileUrl, passportFileUrl, visaFileUrl] = await Promise.all([
+      saveFile(dniFile, "dni"),
+      saveFile(passportFile, "passport"),
+      saveFile(visaFile, "visa"),
+    ]);
+
+    // 5️⃣ Construir objeto de actualización dinámico
+    const dataToUpdate: any = {};
+    if (name) dataToUpdate.name = name;
+    if (phone) dataToUpdate.phone = phone;
+    if (country) dataToUpdate.country = country;
+    if (gender) dataToUpdate.gender = gender;
+    if (lookingFor) dataToUpdate.lookingFor = lookingFor;
+    if (singleStatus) dataToUpdate.singleStatus = singleStatus;
+    if (affirmation) dataToUpdate.affirmation = affirmation;
+    if (security) dataToUpdate.security = security;
+    if (birthday) dataToUpdate.birthday = birthday;
+
+    if (dniFileUrl) dataToUpdate.dniFile = dniFileUrl;
+if (passportFileUrl) dataToUpdate.passport = passportFileUrl;
+if (visaFileUrl) dataToUpdate.visa = visaFileUrl;
+
+
     // 6️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
       where: { id: userId },
-      data: {
-        ...(name && { name }),
-        ...(phone && { phone }),
-        ...(country && { country }),
-        ...(birthday && { birthday }),
-        ...(gender && { gender }),
-        ...(lookingFor && { lookingFor }),
-        ...(singleStatus && { singleStatus }),
-        ...(affirmation && { affirmation }),
-        ...(security && { security }),
-        ...(dniUrl && { dniFile: dniUrl }),
-        ...(passportUrl && { passport: passportUrl }),
-        ...(visaUrl && { visa: visaUrl }),
-      },
+      data: dataToUpdate,
     });
 
     return NextResponse.json({ user: updatedUser });
   } catch (error) {
-    console.error("Error al actualizar usuario:", error);
+    console.error("Error actualizando usuario:", error);
     return NextResponse.json(
-      { error: "Error al actualizar usuario" },
+      { error: "Error al actualizar el usuario" },
       { status: 500 }
     );
   }

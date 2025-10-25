@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import { AnimatePresence, motion } from "framer-motion";
 import Image from "next/image";
 
@@ -10,6 +11,7 @@ type PremiumModalProps = {
 };
 
 export default function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
+  const router = useRouter();
   return (
     <AnimatePresence>
       {isOpen && (
@@ -80,9 +82,12 @@ export default function PremiumModal({ isOpen, onClose }: PremiumModalProps) {
               </ul>
 
               {/* Botón */}
-              <button className="mt-4 w-full bg-purple-600 text-white font-semibold py-2 rounded-lg">
-                Descubrir destinos
-              </button>
+              <button
+  className="mt-4 w-full bg-purple-600 text-white font-semibold py-2 rounded-lg"
+  onClick={() => router.push("/dashboard-user?tab=descubrir")}
+>
+  Descubrir destinos
+</button>
             </div>
 
             {/* Botón cerrar */}
