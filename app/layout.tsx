@@ -1,15 +1,15 @@
+// app/layout.tsx
 import type { Metadata, Viewport } from "next";
 import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
-import RegisterSW from "@/app/components/RegisterSW";
-import Splash from "@/app/components/Splash";
+import RegisterSW from "./components/RegisterSW";
+import Splash from "./components/Splash"; // Splash activado
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const montserrat = Montserrat({
   subsets: ["latin"],
   weight: ["400", "500", "600", "700"],
   variable: "--font-montserrat",
-  display: "swap",
 });
 
 export const metadata: Metadata = {
@@ -30,8 +30,7 @@ export const metadata: Metadata = {
   },
 };
 
-
-// Next 14: themeColor va en viewport, no en metadata
+// Next 14: themeColor en viewport
 export const viewport: Viewport = {
   themeColor: "#7a1f7a",
 };
@@ -45,12 +44,8 @@ export default function RootLayout({
     <html lang="es" className={`${inter.variable} ${montserrat.variable}`}>
       <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased">
         <RegisterSW />
-        {/* <Splash /> */}
+        <Splash /> {/* splash con animación */}
         {children}
-        <noscript>
-          <div className="p-4 text-center text-sm">
-          </div>
-        </noscript>
       </body>
     </html>
   );
