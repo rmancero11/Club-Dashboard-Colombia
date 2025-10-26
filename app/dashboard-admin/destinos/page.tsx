@@ -43,7 +43,7 @@ export default async function AdminDestinationsPage({
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
   const active = (Array.isArray(searchParams.active) ? searchParams.active[0] : searchParams.active) ?? "";
   const country = (Array.isArray(searchParams.country) ? searchParams.country[0] : searchParams.country) ?? "";
-  // Ahora filtramos por slug de categoría (M:N)
+  // Filtramos por slug de categoría (M:N)
   const category = (Array.isArray(searchParams.category) ? searchParams.category[0] : searchParams.category) ?? "";
   const membership =
     (Array.isArray(searchParams.membership) ? searchParams.membership[0] : searchParams.membership) ?? "";
@@ -125,6 +125,17 @@ export default async function AdminDestinationsPage({
       })}`
     );
   }
+
+  // Definición de columnas sin espacios en <colgroup>
+  const COLS = [
+    "w-[34%]",                   // Destino
+    "w-[20%]",                   // Ubicación
+    "hidden sm:table-column w-[18%]", // Categorías
+    "w-[18%]",                   // Precio
+    "hidden md:table-column w-[10%]", // Reservas
+    "hidden lg:table-column w-[12%]", // Popularidad
+    "w-[10%]",                   // Acciones
+  ];
 
   return (
     <div className="space-y-4">
@@ -217,13 +228,9 @@ export default async function AdminDestinationsPage({
         <div className="overflow-auto">
           <table className="table-fixed min-w-[880px] text-sm">
             <colgroup>
-              <col className="w-[34%]" /> {/* Destino */}
-              <col className="w-[20%]" /> {/* Ubicación */}
-              <col className="hidden sm:table-column w-[18%]" /> {/* Categorías */}
-              <col className="w-[18%]" /> {/* Precio */}
-              <col className="hidden md:table-column w-[10%]" /> {/* Reservas */}
-              <col className="hidden lg:table-column w-[12%]" /> {/* Popularidad */}
-              <col className="w-[10%]" /> {/* Acciones */}
+              {COLS.map((cls, i) => (
+                <col key={i} className={cls} />
+              ))}
             </colgroup>
 
             <thead>

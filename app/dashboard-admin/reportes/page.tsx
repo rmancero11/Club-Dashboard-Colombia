@@ -36,7 +36,7 @@ function money(n: number, currency = "USD") {
   }
 }
 
-// UI en español para ReservationStatus
+// Etiquetas en español para estados de reserva
 const RES_LABELS: Record<string, string> = {
   LEAD: "Prospecto",
   QUOTED: "Cotizado",
@@ -69,7 +69,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
   const sellerId = str(searchParams.sellerId);
   const { start, end } = parseRange(from, to);
 
-  // ============== Filtros base (ajustados al schema: SIN businessId) ==============
+  // ============== Filtros base ==============
   const baseReservationWhere: any = { startDate: { gte: start, lte: end } };
   if (sellerId) baseReservationWhere.sellerId = sellerId;
 
@@ -80,14 +80,14 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     baseTaskDoneWhere.sellerId = sellerId;
   }
 
-  // Opciones de filtro (lista de vendedores)
+  // Lista de vendedores activos
   const sellers = await prisma.user.findMany({
     where: { role: "SELLER", status: "ACTIVE" },
     select: { id: true, name: true, email: true },
     orderBy: { name: "asc" },
   });
 
-  // ================= Contenido según tipo =================
+  // ================= Contenido dinámico =================
   let content: React.ReactNode = null;
 
   // ======= Reporte: RESERVAS =======
@@ -121,7 +121,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
 
     const sellerMap = new Map(sellers.map((s) => [s.id, (s.name || s.email) ?? "—"]));
 
-    // Conversión aproximada de embudo
+    // Conversión general
     const asMap = new Map(byStatus.map((r) => [r.status, r]));
     const leads =
       (asMap.get("LEAD")?._count._all ?? 0) +
@@ -152,7 +152,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           })}
         </div>
 
-        {/* Totales y métricas clave */}
+        {/* Totales */}
         <div className="rounded-xl border bg-white p-4 mb-4">
           <div className="text-sm text-gray-500">
             Rango: {start.toLocaleDateString("es-CO")} → {end.toLocaleDateString("es-CO")}
@@ -175,7 +175,9 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
               </div>
             </div>
             <div className="rounded-lg border p-3">
-              <div className="text-xs text-gray-500">Conversión (Conf.+Compl. / Lead+Cot+Hold)</div>
+              <div className="text-xs text-gray-500">
+                Conversión (Conf.+Compl. / Lead+Cot+Hold)
+              </div>
               <div className="text-lg font-semibold">{conversion}%</div>
             </div>
           </div>
@@ -278,7 +280,14 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     const destIds = group.map((g) => g.destinationId).filter(Boolean) as string[];
     const destinations = await prisma.destination.findMany({
       where: { id: { in: destIds } },
-      select: { id: true, name: true, country: true, category: true },
+      select: {
+        id: true,
+        name: true,
+        country: true,
+        city: true,
+        membership: true,
+        categories: { select: { name: true } },
+      },
     });
     const destMap = new Map(destinations.map((d) => [d.id, d]));
 
@@ -300,8 +309,10 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
               <thead>
                 <tr className="text-left text-gray-500">
                   <th className="px-2 py-2">Destino</th>
-                  <th className="px-2 py-2">Ubicación</th>
-                  <th className="px-2 py-2">Categoría</th>
+                  <th className="px-2 py-2">País</th>
+                  <th className="px-2 py-2">Ciudad</th>
+                  <th className="px-2 py-2">Categorías</th>
+                  <th className="px-2 py-2">Membresía</th>
                   <th className="px-2 py-2">Reservas</th>
                   <th className="px-2 py-2">Ticket promedio</th>
                   <th className="px-2 py-2">Monto total</th>
@@ -310,7 +321,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
               <tbody>
                 {group.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-2 py-8 text-center text-gray-400">
+                    <td colSpan={8} className="px-2 py-8 text-center text-gray-400">
                       Sin datos
                     </td>
                   </tr>
@@ -319,11 +330,14 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
                   .sort((a, b) => Number(b._sum.totalAmount || 0) - Number(a._sum.totalAmount || 0))
                   .map((g) => {
                     const d = destMap.get(g.destinationId as string);
+                    const cats = d?.categories.map((c) => c.name).join(" | ") || "—";
                     return (
                       <tr key={g.destinationId || "none"} className="border-t">
                         <td className="px-2 py-2">{d?.name || "—"}</td>
                         <td className="px-2 py-2">{d?.country || "—"}</td>
-                        <td className="px-2 py-2">{d?.category || "—"}</td>
+                        <td className="px-2 py-2">{d?.city || "—"}</td>
+                        <td className="px-2 py-2">{cats}</td>
+                        <td className="px-2 py-2">{d?.membership || "—"}</td>
                         <td className="px-2 py-2">{g._count._all}</td>
                         <td className="px-2 py-2">{money(Number(g._avg.totalAmount || 0))}</td>
                         <td className="px-2 py-2">{money(Number(g._sum.totalAmount || 0))}</td>
@@ -338,7 +352,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     );
   }
 
-  // ======= Reporte: PRODUCTIVIDAD (Tareas) =======
+  // ======= Reporte: PRODUCTIVIDAD =======
   if (type === "productividad") {
     const [created, done] = await Promise.all([
       prisma.task.groupBy({
@@ -465,7 +479,6 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
             ))}
           </select>
 
-          {/* Botones en la misma fila que los filtros */}
           <div className="flex items-center gap-2">
             <input type="hidden" name="page" value="1" />
             <button className="rounded-md border px-3 py-2 text-sm" type="submit">
@@ -481,7 +494,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           </div>
         </form>
 
-        {/* Botones de exportación debajo */}
+        {/* Botones de exportación */}
         <div className="mb-4 flex flex-wrap items-center gap-2">
           <a href={exportSummaryHref} className="rounded-md border px-3 py-2 text-sm">
             Exportar CSV (Resumen)
@@ -491,7 +504,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
           </a>
         </div>
 
-        {/* Contenido del reporte */}
+        {/* Contenido */}
         <div className="space-y-4">{content}</div>
       </div>
     </div>

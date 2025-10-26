@@ -292,7 +292,14 @@ export default async function SellerReportsPage({
       .filter(Boolean) as string[];
     const destinations = await prisma.destination.findMany({
       where: { id: { in: destIds } },
-      select: { id: true, name: true, country: true, category: true },
+      select: {
+        id: true,
+        name: true,
+        country: true,
+        city: true,
+        membership: true,
+        categories: { select: { name: true } },
+      },
     });
     const destMap = new Map(destinations.map((d) => [d.id, d]));
 
@@ -319,57 +326,69 @@ export default async function SellerReportsPage({
                 <tr className="text-left text-gray-500">
                   <th className="px-2 py-2">Destino</th>
                   <th className="px-2 py-2">Ubicación</th>
-                  <th className="px-2 py-2">Categoría</th>
+                  <th className="px-2 py-2">Categorías</th>
+                  <th className="px-2 py-2">Membresía</th>
                   <th className="px-2 py-2">Reservas</th>
                   <th className="px-2 py-2">Ticket promedio</th>
                   <th className="px-2 py-2">Monto total</th>
                 </tr>
               </thead>
               <tbody>
-                {group.length === 0 && (
+                {group.length === 0 ? (
                   <tr>
                     <td
-                      colSpan={6}
+                      colSpan={7}
                       className="px-2 py-8 text-center text-gray-400"
                     >
                       Sin datos
                     </td>
                   </tr>
+                ) : (
+                  group
+                    .sort(
+                      (a, b) =>
+                        Number(b._sum.totalAmount || 0) -
+                        Number(a._sum.totalAmount || 0)
+                    )
+                    .map((g) => {
+                      const d = destMap.get(g.destinationId as string);
+                      return (
+                        <tr
+                          key={g.destinationId || "none"}
+                          className="border-t"
+                        >
+                          <td className="px-2 py-2">
+                            {d ? (
+                              <a
+                                className="underline"
+                                href={`/dashboard-seller/destinos/${d.id}`}
+                              >
+                                {d.name}
+                              </a>
+                            ) : (
+                              "—"
+                            )}
+                          </td>
+                          <td className="px-2 py-2">
+                            {[d?.city, d?.country].filter(Boolean).join(", ") ||
+                              d?.country ||
+                              "—"}
+                          </td>
+                          <td className="px-2 py-2">
+                            {d?.categories.map((c) => c.name).join(", ") || "—"}
+                          </td>
+                          <td className="px-2 py-2">{d?.membership || "—"}</td>
+                          <td className="px-2 py-2">{g._count._all}</td>
+                          <td className="px-2 py-2">
+                            {money(Number(g._avg.totalAmount || 0))}
+                          </td>
+                          <td className="px-2 py-2">
+                            {money(Number(g._sum.totalAmount || 0))}
+                          </td>
+                        </tr>
+                      );
+                    })
                 )}
-                {group
-                  .sort(
-                    (a, b) =>
-                      Number(b._sum.totalAmount || 0) -
-                      Number(a._sum.totalAmount || 0)
-                  )
-                  .map((g) => {
-                    const d = destMap.get(g.destinationId as string);
-                    return (
-                      <tr key={g.destinationId || "none"} className="border-t">
-                        <td className="px-2 py-2">
-                          {d?.name ? (
-                            <a
-                              className="underline"
-                              href={`/dashboard-seller/destinos/${d.id}`}
-                            >
-                              {d.name}
-                            </a>
-                          ) : (
-                            "—"
-                          )}
-                        </td>
-                        <td className="px-2 py-2">{d?.country || "—"}</td>
-                        <td className="px-2 py-2">{d?.category || "—"}</td>
-                        <td className="px-2 py-2">{g._count._all}</td>
-                        <td className="px-2 py-2">
-                          {money(Number(g._avg.totalAmount || 0))}
-                        </td>
-                        <td className="px-2 py-2">
-                          {money(Number(g._sum.totalAmount || 0))}
-                        </td>
-                      </tr>
-                    );
-                  })}
               </tbody>
             </table>
           </div>
