@@ -19,6 +19,15 @@ const ORDER_OPTS = {
   createdAt_desc: [{ createdAt: "desc" }] as const,
   name_asc: [{ name: "asc" }] as const,
   popularity_desc: [{ popularityScore: "desc" as const }, { createdAt: "desc" as const }],
+} as const;
+
+// Prisma Decimal -> number seguro
+const asNumber = (value: any): number | null => {
+  if (value == null) return null;
+  if (typeof value === "number") return value;
+  if (typeof value?.toNumber === "function") return value.toNumber();
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
 };
 
 export default async function AdminDestinationsPage({
@@ -30,38 +39,46 @@ export default async function AdminDestinationsPage({
   if (!auth) redirect("/login");
   if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  // Filtros
+  // ====== Filtros ======
   const q = (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
   const active = (Array.isArray(searchParams.active) ? searchParams.active[0] : searchParams.active) ?? "";
   const country = (Array.isArray(searchParams.country) ? searchParams.country[0] : searchParams.country) ?? "";
+  // Ahora filtramos por slug de categoría (M:N)
   const category = (Array.isArray(searchParams.category) ? searchParams.category[0] : searchParams.category) ?? "";
+  const membership =
+    (Array.isArray(searchParams.membership) ? searchParams.membership[0] : searchParams.membership) ?? "";
   const order = (Array.isArray(searchParams.order) ? searchParams.order[0] : searchParams.order) ?? "createdAt_desc";
   const page = toInt(searchParams.page, 1);
   const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
-  // Buscador por nombre + filtros (sin businessId: el schema no lo tiene)
+  // where
   const where: any = {};
   if (q) where.name = { contains: q, mode: "insensitive" };
   if (active === "yes") where.isActive = true;
   if (active === "no") where.isActive = false;
   if (country) where.country = country;
-  if (category) where.category = category;
+  if (membership) where.membership = membership; // STANDARD | PREMIUM | VIP
+  if (category) {
+    // filtramos por relación M:N
+    where.categories = { some: { slug: category } };
+  }
 
+  // ====== Opciones de filtros (países, categorías) ======
   const [countries, categories] = await Promise.all([
     prisma.destination.findMany({
       select: { country: true },
       distinct: ["country"],
       orderBy: { country: "asc" },
     }),
-    prisma.destination.findMany({
-      select: { category: true },
-      distinct: ["category"],
-      orderBy: { category: "asc" },
+    prisma.category.findMany({
+      select: { name: true, slug: true },
+      orderBy: { name: "asc" },
     }),
   ]);
   const countryOpts = (countries.map((c) => c.country).filter(Boolean) as string[]).sort();
-  const categoryOpts = (categories.map((c) => c.category).filter(Boolean) as string[]).sort();
+  const categoryOpts = categories; // [{name, slug}]
 
+  // ====== Consulta principal ======
   const [total, items] = await Promise.all([
     prisma.destination.count({ where }),
     prisma.destination.findMany({
@@ -74,13 +91,20 @@ export default async function AdminDestinationsPage({
         name: true,
         country: true,
         city: true,
-        category: true,
-        price: true,
-        discountPrice: true,
         isActive: true,
         popularityScore: true,
         createdAt: true,
         imageUrl: true,
+        membership: true,
+        // Precios nuevos
+        priceUSDWithAirfare: true,
+        priceUSDWithoutAirfare: true,
+        priceCOPWithAirfare: true,
+        priceCOPWithoutAirfare: true,
+        baseFromUSD: true,
+        baseFromCOP: true,
+        // Categorías M:N
+        categories: { select: { name: true, slug: true } },
         _count: { select: { reservations: true } },
       },
     }),
@@ -94,20 +118,13 @@ export default async function AdminDestinationsPage({
         active,
         country,
         category,
+        membership,
         order,
         page: String(totalPages),
         pageSize: String(pageSize),
       })}`
     );
   }
-
-  // Helper seguro para Decimal de Prisma
-  const asNumber = (value: any): number | null => {
-    if (value == null) return null;
-    if (typeof value === "number") return value;
-    if (typeof value?.toNumber === "function") return value.toNumber();
-    return Number(value);
-  };
 
   return (
     <div className="space-y-4">
@@ -126,7 +143,7 @@ export default async function AdminDestinationsPage({
 
       {/* Filtros */}
       <div className="rounded-xl border bg-white p-6">
-        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-7" method="GET">
+        <form className="mb-3 grid grid-cols-1 gap-2 sm:grid-cols-8" method="GET">
           <input
             name="q"
             defaultValue={q}
@@ -141,14 +158,25 @@ export default async function AdminDestinationsPage({
               </option>
             ))}
           </select>
+
+          {/* Categoría (por slug) */}
           <select name="category" defaultValue={category} className="w-full min-w-0 rounded-md border px-3 py-2 text-sm bg-white">
             <option value="">Categoría (todas)</option>
             {categoryOpts.map((c) => (
-              <option key={c} value={c}>
-                {c}
+              <option key={c.slug} value={c.slug}>
+                {c.name}
               </option>
             ))}
           </select>
+
+          {/* Membership */}
+          <select name="membership" defaultValue={membership} className="w-full min-w-0 rounded-md border px-3 py-2 text-sm bg-white">
+            <option value="">Membresía (todas)</option>
+            <option value="STANDARD">STANDARD</option>
+            <option value="PREMIUM">PREMIUM</option>
+            <option value="VIP">VIP</option>
+          </select>
+
           <select name="active" defaultValue={active} className="w-full min-w-0 rounded-md border px-3 py-2 text-sm bg-white">
             <option value="">Estado (todos)</option>
             <option value="yes">Activos</option>
@@ -174,7 +202,11 @@ export default async function AdminDestinationsPage({
             </button>
             <a
               className="rounded-md border px-2 py-2 text-sm"
-              href={`/dashboard-admin/destinos${qstr({ order: "createdAt_desc", page: "1", pageSize: String(pageSize) })}`}
+              href={`/dashboard-admin/destinos${qstr({
+                order: "createdAt_desc",
+                page: "1",
+                pageSize: String(pageSize),
+              })}`}
             >
               Borrar filtros
             </a>
@@ -183,22 +215,22 @@ export default async function AdminDestinationsPage({
 
         {/* Tabla */}
         <div className="overflow-auto">
-          <table className="table-fixed min-w-[720px] sm:min-w-[900px] text-sm">
+          <table className="table-fixed min-w-[880px] text-sm">
             <colgroup>
-              <col className="w-[40%] sm:w-[35%]" /> {/* Destino */}
-              <col className="w-[28%] sm:w-[22%]" /> {/* Ubicación */}
-              <col className="hidden sm:table-column w-[12%]" /> {/* Categoría */}
-              <col className="w-[16%]" /> {/* Precio */}
+              <col className="w-[34%]" /> {/* Destino */}
+              <col className="w-[20%]" /> {/* Ubicación */}
+              <col className="hidden sm:table-column w-[18%]" /> {/* Categorías */}
+              <col className="w-[18%]" /> {/* Precio */}
               <col className="hidden md:table-column w-[10%]" /> {/* Reservas */}
               <col className="hidden lg:table-column w-[12%]" /> {/* Popularidad */}
-              <col className="w-[12%]" /> {/* Acciones */}
+              <col className="w-[10%]" /> {/* Acciones */}
             </colgroup>
 
             <thead>
               <tr className="text-left text-gray-500">
                 <th className="px-2 py-2">Destino</th>
                 <th className="px-2 py-2">Ubicación</th>
-                <th className="hidden sm:table-cell px-2 py-2">Categoría</th>
+                <th className="hidden sm:table-cell px-2 py-2">Categorías</th>
                 <th className="px-2 py-2">Precio</th>
                 <th className="hidden md:table-cell px-2 py-2">Reservas</th>
                 <th className="hidden lg:table-cell px-2 py-2">Popularidad</th>
@@ -216,8 +248,13 @@ export default async function AdminDestinationsPage({
               )}
 
               {items.map((d) => {
-                const price = asNumber(d.price);
-                const discountPrice = asNumber(d.discountPrice);
+                const usdWith = asNumber(d.priceUSDWithAirfare);
+                const usdWithout = asNumber(d.priceUSDWithoutAirfare);
+                const copWith = asNumber(d.priceCOPWithAirfare);
+                const copWithout = asNumber(d.priceCOPWithoutAirfare);
+                const fromUSD = asNumber(d.baseFromUSD);
+                const fromCOP = asNumber(d.baseFromCOP);
+
                 return (
                   <tr key={d.id} className="border-t align-top">
                     {/* DESTINO */}
@@ -235,6 +272,9 @@ export default async function AdminDestinationsPage({
                         <div className="min-w-0 break-words">
                           <div className="font-medium">{d.name}</div>
                           <div className="text-xs text-gray-600">
+                            Membresía: <span className="font-semibold">{d.membership}</span>
+                          </div>
+                          <div className="text-xs text-gray-600">
                             Creado: {new Date(d.createdAt).toLocaleDateString("es-CO")}
                           </div>
                         </div>
@@ -242,41 +282,67 @@ export default async function AdminDestinationsPage({
                     </td>
 
                     {/* UBICACIÓN */}
-                    <td className="px-2 py-2 break-words">{[d.city, d.country].filter(Boolean).join(", ") || d.country}</td>
+                    <td className="px-2 py-2 break-words">
+                      {[d.city, d.country].filter(Boolean).join(", ") || d.country}
+                    </td>
 
-                    {/* CATEGORÍA */}
-                    <td className="hidden sm:table-cell px-2 py-2 break-words">{d.category || "—"}</td>
+                    {/* CATEGORÍAS */}
+                    <td className="hidden sm:table-cell px-2 py-2 break-words">
+                      {d.categories.length > 0 ? d.categories.map((c) => c.name).join(", ") : "—"}
+                    </td>
 
                     {/* PRECIO */}
                     <td className="px-2 py-2 whitespace-nowrap">
-                      {price != null && (
-                        discountPrice != null ? (
-                          <div className="flex flex-col">
-                            <span className="bg-gray-100 px-2 py-0.5 text-xs text-gray-500 line-through rounded-md">
-                              ${price.toLocaleString()}
-                            </span>
-                            <span className="mt-1 rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white">
-                              ${discountPrice.toLocaleString()}
-                            </span>
+                      <div className="flex flex-col gap-1">
+                        <div className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                          USD:&nbsp;
+                          <strong>
+                            {usdWithout != null ? usdWithout.toLocaleString() : "—"} sin aéreo
+                          </strong>
+                          {" · "}
+                          <strong>
+                            {usdWith != null ? usdWith.toLocaleString() : "—"} con aéreo
+                          </strong>
+                        </div>
+                        <div className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-700">
+                          COP:&nbsp;
+                          <strong>
+                            {copWithout != null ? copWithout.toLocaleString("es-CO") : "—"} sin aéreo
+                          </strong>
+                          {" · "}
+                          <strong>
+                            {copWith != null ? copWith.toLocaleString("es-CO") : "—"} con aéreo
+                          </strong>
+                        </div>
+
+                        {(fromUSD != null || fromCOP != null) && (
+                          <div className="text-xs text-gray-500">
+                            {fromUSD != null && <>Desde USD <strong>{fromUSD.toLocaleString()}</strong></>}
+                            {fromUSD != null && fromCOP != null && " · "}
+                            {fromCOP != null && <>Desde COP <strong>{fromCOP.toLocaleString("es-CO")}</strong></>}
                           </div>
-                        ) : (
-                          <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white">
-                            ${price.toLocaleString()}
-                          </span>
-                        )
-                      )}
+                        )}
+                      </div>
                     </td>
 
                     {/* RESERVAS */}
-                    <td className="hidden md:table-cell px-2 py-2 whitespace-nowrap">{d._count.reservations}</td>
+                    <td className="hidden md:table-cell px-2 py-2 whitespace-nowrap">
+                      {d._count.reservations}
+                    </td>
 
                     {/* POPULARIDAD */}
-                    <td className="hidden lg:table-cell px-2 py-2 whitespace-nowrap">{d.popularityScore}</td>
+                    <td className="hidden lg:table-cell px-2 py-2 whitespace-nowrap">
+                      {d.popularityScore}
+                    </td>
 
                     {/* ACCIONES */}
                     <td className="px-2 py-2">
                       <div className="flex justify-end gap-2">
-                        <a href={`/dashboard-admin/destinos/${d.id}`} className="text-primary underline" title="Editar destino">
+                        <a
+                          href={`/dashboard-admin/destinos/${d.id}`}
+                          className="text-primary underline"
+                          title="Editar destino"
+                        >
                           Editar
                         </a>
                         <ToggleActive id={d.id} isActive={d.isActive} />
@@ -292,7 +358,9 @@ export default async function AdminDestinationsPage({
         {/* Paginación */}
         <div className="mt-4 flex flex-col items-center justify-between gap-2 sm:flex-row">
           <div className="text-xs text-gray-500">
-            Página {page} de {totalPages} — Mostrando {items.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}` : "0"} de {total.toLocaleString("es-CO")}
+            Página {page} de {totalPages} — Mostrando{" "}
+            {items.length > 0 ? `${(page - 1) * pageSize + 1}–${(page - 1) * pageSize + items.length}` : "0"} de{" "}
+            {total.toLocaleString("es-CO")}
           </div>
           <div className="flex items-center gap-2">
             <a
@@ -300,7 +368,16 @@ export default async function AdminDestinationsPage({
               className={`rounded-md border px-3 py-2 text-sm ${page <= 1 ? "pointer-events-none opacity-50" : ""}`}
               href={
                 page > 1
-                  ? `/dashboard-admin/destinos${qstr({ q, active, country, category, order, page: String(page - 1), pageSize: String(pageSize) })}`
+                  ? `/dashboard-admin/destinos${qstr({
+                      q,
+                      active,
+                      country,
+                      category,
+                      membership,
+                      order,
+                      page: String(page - 1),
+                      pageSize: String(pageSize),
+                    })}`
                   : "#"
               }
             >
@@ -311,7 +388,16 @@ export default async function AdminDestinationsPage({
               className={`rounded-md border px-3 py-2 text-sm ${page >= totalPages ? "pointer-events-none opacity-50" : ""}`}
               href={
                 page < totalPages
-                  ? `/dashboard-admin/destinos${qstr({ q, active, country, category, order, page: String(page + 1), pageSize: String(pageSize) })}`
+                  ? `/dashboard-admin/destinos${qstr({
+                      q,
+                      active,
+                      country,
+                      category,
+                      membership,
+                      order,
+                      page: String(page + 1),
+                      pageSize: String(pageSize),
+                    })}`
                   : "#"
               }
             >

@@ -6,7 +6,7 @@ import EditDestinationForm from "@/app/components/admin/destinations/EditDestina
 import ToggleActive from "@/app/components/admin/destinations/ToggleActive";
 import DeleteDestinationButton from "@/app/components/admin/destinations/DeleteDestinationButton";
 
-/** Formateo de dinero (siempre muestra la moneda indicada) */
+/** Formateo de dinero (resiliente) */
 function money(n: number, currency = "USD") {
   try {
     return new Intl.NumberFormat("es-CO", { style: "currency", currency }).format(n);
@@ -23,7 +23,7 @@ const USD_COP_RATE = Number(
   4000
 );
 
-/** Normaliza un monto a USD según su moneda original */
+/** Normaliza un monto a USD según su moneda original (para las reservas listadas) */
 function toUSD(amount: number, currency?: string) {
   const c = (currency || "USD").toUpperCase().replace(/\s+/g, "");
   if (c === "COP" || c === "COP$" || c === "COL" || c === "COL$") {
@@ -31,6 +31,15 @@ function toUSD(amount: number, currency?: string) {
   }
   return amount; // USD u otras ya consideradas en USD
 }
+
+/** Prisma Decimal -> number | null seguro */
+const asNumber = (value: any): number | null => {
+  if (value == null) return null;
+  if (typeof value === "number") return value;
+  if (typeof value?.toNumber === "function") return value.toNumber();
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+};
 
 export default async function AdminDestinationDetailPage({ params }: { params: { id: string } }) {
   const auth = await getAuth();
@@ -44,13 +53,37 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
       name: true,
       country: true,
       city: true,
-      category: true,
       description: true,
       imageUrl: true,
       isActive: true,
       popularityScore: true,
-      price: true,          // Decimal | null (asumimos USD en UI)
-      discountPrice: true,  // Decimal | null (asumimos USD en UI)
+      membership: true, // STANDARD | PREMIUM | VIP
+
+      // Precios nuevos
+      priceUSDWithAirfare: true,
+      priceUSDWithoutAirfare: true,
+      priceCOPWithAirfare: true,
+      priceCOPWithoutAirfare: true,
+      baseFromUSD: true,
+      baseFromCOP: true,
+
+      // Categorías (M:N)
+      categories: { select: { name: true, slug: true } },
+
+      // Fechas de viaje (1:N)
+      tripDates: {
+        select: {
+          id: true,
+          startDate: true,
+          endDate: true,
+          isActive: true,
+          notes: true,
+          createdAt: true,
+          updatedAt: true,
+        },
+        orderBy: [{ startDate: "asc" }],
+      },
+
       createdAt: true,
       updatedAt: true,
       _count: { select: { reservations: true } },
@@ -59,9 +92,13 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
 
   if (!d) notFound();
 
-  // Convertimos Decimals a number, preservando null
-  const price = d.price !== null ? Number(d.price) : null;
-  const discountPrice = d.discountPrice !== null ? Number(d.discountPrice) : null;
+  // Convertimos Decimals a number
+  const usdWith = asNumber(d.priceUSDWithAirfare);
+  const usdWithout = asNumber(d.priceUSDWithoutAirfare);
+  const copWith = asNumber(d.priceCOPWithAirfare);
+  const copWithout = asNumber(d.priceCOPWithoutAirfare);
+  const fromUSD = asNumber(d.baseFromUSD);
+  const fromCOP = asNumber(d.baseFromCOP);
 
   const recentReservations = await prisma.reservation.findMany({
     where: { destinationId: d.id },
@@ -85,8 +122,13 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
         <div>
           <h1 className="text-2xl font-semibold">{d.name}</h1>
           <p className="text-sm text-gray-500">
-            {[d.city, d.country].filter(Boolean).join(", ") || d.country} · {d.category || "Sin categoría"}
+            {[d.city, d.country].filter(Boolean).join(", ") || d.country} · Membresía: <strong>{d.membership}</strong>
           </p>
+          {d.categories.length > 0 && (
+            <p className="text-xs text-gray-500 mt-1">
+              Categorías: {d.categories.map((c) => c.name).join(", ")}
+            </p>
+          )}
         </div>
         <a href="/dashboard-admin/destinos" className="rounded-md border px-3 py-2 text-sm">
           ← Volver
@@ -97,19 +139,31 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
         {/* Info y edición */}
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Editar destino</h2>
+
+          {/* IMPORTANTE: Actualiza EditDestinationForm para aceptar los nuevos campos */}
           <EditDestinationForm
             dest={{
               id: d.id,
               name: d.name,
               country: d.country,
-              city: d.city,
-              category: d.category,
-              description: d.description,
-              imageUrl: d.imageUrl,
-              // price: string | number
-              price: price !== null ? price : "",
-              // discountPrice: string | number | null
-              discountPrice: discountPrice !== null ? discountPrice : null,
+              city: d.city ?? "",
+              description: d.description ?? "",
+              imageUrl: d.imageUrl ?? "",
+
+              // Nuevo: membership y categorías (para chips/tags)
+              membership: d.membership,
+              categories: d.categories, // [{ name, slug }]
+
+              // Nuevos precios
+              priceUSDWithAirfare: usdWith ?? "",
+              priceUSDWithoutAirfare: usdWithout ?? "",
+              priceCOPWithAirfare: copWith ?? "",
+              priceCOPWithoutAirfare: copWithout ?? "",
+              baseFromUSD: fromUSD ?? "",
+              baseFromCOP: fromCOP ?? "",
+
+              // Fechas de viaje
+              tripDates: d.tripDates, // [{ id, startDate, endDate, isActive, notes }]
             }}
           />
 
@@ -123,19 +177,53 @@ export default async function AdminDestinationDetailPage({ params }: { params: {
             Actualizado: {new Date(d.updatedAt).toLocaleString("es-CO")}
           </div>
 
-          {/* Precios actuales (asumidos en USD) */}
-          <div className="mt-3 text-sm">
-            <p>
-              <strong>Precio:</strong>{" "}
-              {price !== null ? money(price, "USD") : <span className="text-gray-400">No definido</span>}
-            </p>
-            <p>
-              <strong>Precio con descuento:</strong>{" "}
-              {discountPrice !== null ? money(discountPrice, "USD") : <span className="text-gray-400">No definido</span>}
-            </p>
-            <p className="text-xs text-gray-500 mt-1">
-              Reservas vinculadas: {d._count.reservations}
-            </p>
+          {/* Resumen de precios */}
+          <div className="mt-4 grid gap-2 text-sm">
+            <div className="rounded-md border p-3">
+              <div className="font-medium mb-1">Precios (USD)</div>
+              <div className="text-gray-700">
+                Sin aéreo: <strong>{usdWithout != null ? money(usdWithout, "USD") : "—"}</strong> · Con aéreo:{" "}
+                <strong>{usdWith != null ? money(usdWith, "USD") : "—"}</strong>
+              </div>
+              {fromUSD != null && (
+                <div className="text-xs text-gray-500">Desde: <strong>{money(fromUSD, "USD")}</strong></div>
+              )}
+            </div>
+
+            <div className="rounded-md border p-3">
+              <div className="font-medium mb-1">Precios (COP)</div>
+              <div className="text-gray-700">
+                Sin aéreo: <strong>{copWithout != null ? money(copWithout, "COP") : "—"}</strong> · Con aéreo:{" "}
+                <strong>{copWith != null ? money(copWith, "COP") : "—"}</strong>
+              </div>
+              {fromCOP != null && (
+                <div className="text-xs text-gray-500">Desde: <strong>{money(fromCOP, "COP")}</strong></div>
+              )}
+            </div>
+          </div>
+
+          {/* Fechas de viaje (solo lectura rápida) */}
+          <div className="mt-4">
+            <h3 className="text-sm font-semibold mb-2">Fechas de viaje</h3>
+            {d.tripDates.length === 0 ? (
+              <div className="text-xs text-gray-400">Sin fechas definidas</div>
+            ) : (
+              <ul className="grid gap-2">
+                {d.tripDates.map(td => (
+                  <li key={td.id} className="rounded-md border p-2 text-xs">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="font-medium">
+                        {new Date(td.startDate).toLocaleDateString("es-CO")} → {new Date(td.endDate).toLocaleDateString("es-CO")}
+                      </span>
+                      <span className={`rounded px-2 py-0.5 ${td.isActive ? "bg-emerald-50 text-emerald-700 border border-emerald-200" : "bg-gray-50 text-gray-600 border border-gray-200"}`}>
+                        {td.isActive ? "Activa" : "Inactiva"}
+                      </span>
+                      {td.notes && <span className="text-gray-500">· {td.notes}</span>}
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
           </div>
         </div>
 

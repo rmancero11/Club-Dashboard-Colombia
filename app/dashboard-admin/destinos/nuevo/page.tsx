@@ -1,27 +1,70 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
+type TripDate = { startDate: string; endDate: string; isActive?: boolean; notes?: string };
+
+const MEMBERSHIPS = ["STANDARD", "PREMIUM", "VIP"] as const;
+type Membership = typeof MEMBERSHIPS[number];
+
+const AIR_OPTIONS = [
+  { value: "WITH_AIRFARE", label: "Con boleto aéreo" },
+  { value: "WITHOUT_AIRFARE", label: "Sin boleto aéreo" },
+] as const;
+
 export default function NewDestinationPage() {
+  const router = useRouter();
+
+  // Básicos
   const [name, setName] = useState("");
   const [country, setCountry] = useState("");
   const [city, setCity] = useState("");
-  const [category, setCategory] = useState("");
   const [description, setDescription] = useState("");
-  const [price, setPrice] = useState<number | "">("");
-  const [discountPrice, setDiscountPrice] = useState<number | "">("");
 
+  // Membresía del destino
+  const [membership, setMembership] = useState<Membership>("STANDARD");
+
+  // Categorías (tags separados por coma)
+  const [categoriesInput, setCategoriesInput] = useState(""); // "playa, aventura"
+  const categories = useMemo(
+    () =>
+      categoriesInput
+        .split(",")
+        .map((s) => s.trim())
+        .filter(Boolean),
+    [categoriesInput]
+  );
+
+  // Precios destino (4 campos obligatorios)
+  const [priceUSDWithAirfare, setPriceUSDWithAirfare] = useState<number | "">("");
+  const [priceUSDWithoutAirfare, setPriceUSDWithoutAirfare] = useState<number | "">("");
+  const [priceCOPWithAirfare, setPriceCOPWithAirfare] = useState<number | "">("");
+  const [priceCOPWithoutAirfare, setPriceCOPWithoutAirfare] = useState<number | "">("");
+  // Opcionales “desde”
+  const [baseFromUSD, setBaseFromUSD] = useState<number | "">("");
+  const [baseFromCOP, setBaseFromCOP] = useState<number | "">("");
+
+  // Selección de UI (solo vista previa)
+  const [airPreview, setAirPreview] = useState<"WITH_AIRFARE" | "WITHOUT_AIRFARE">(
+    "WITHOUT_AIRFARE"
+  );
+
+  // Fechas (múltiples)
+  const [tripDates, setTripDates] = useState<TripDate[]>([
+    { startDate: "", endDate: "", isActive: true },
+  ]);
+
+  // Imagen
   const [image, setImage] = useState<File | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
 
+  // UI state
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
 
-  const router = useRouter();
-
-  // Generar/limpiar URL de previsualización
+  // Preview de imagen
   useEffect(() => {
     if (!image) {
       setPreview(null);
@@ -32,6 +75,27 @@ export default function NewDestinationPage() {
     return () => URL.revokeObjectURL(objectUrl);
   }, [image]);
 
+  // Precio mostrado según selección de vista previa
+  const previewUSD = useMemo(() => {
+    if (airPreview === "WITH_AIRFARE") return priceUSDWithAirfare || 0;
+    return priceUSDWithoutAirfare || 0;
+  }, [airPreview, priceUSDWithAirfare, priceUSDWithoutAirfare]);
+
+  const previewCOP = useMemo(() => {
+    if (airPreview === "WITH_AIRFARE") return priceCOPWithAirfare || 0;
+    return priceCOPWithoutAirfare || 0;
+  }, [airPreview, priceCOPWithAirfare, priceCOPWithoutAirfare]);
+
+  function setTripDate(idx: number, patch: Partial<TripDate>) {
+    setTripDates((prev) => prev.map((td, i) => (i === idx ? { ...td, ...patch } : td)));
+  }
+  function addTripDate() {
+    setTripDates((prev) => [...prev, { startDate: "", endDate: "", isActive: true }]);
+  }
+  function removeTripDate(idx: number) {
+    setTripDates((prev) => prev.filter((_, i) => i !== idx));
+  }
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
@@ -39,14 +103,49 @@ export default function NewDestinationPage() {
     setMsg(null);
 
     try {
+      // Validaciones mínimas de frontend
+      if (
+        priceUSDWithAirfare === "" ||
+        priceUSDWithoutAirfare === "" ||
+        priceCOPWithAirfare === "" ||
+        priceCOPWithoutAirfare === ""
+      ) {
+        setErr("Completa los 4 precios (USD/COP con y sin aéreo).");
+        setLoading(false);
+        return;
+      }
+      for (const td of tripDates) {
+        if (!td.startDate || !td.endDate) {
+          setErr("Completa todas las fechas de viaje (inicio y fin) o elimina las incompletas.");
+          setLoading(false);
+          return;
+        }
+      }
+
       const formData = new FormData();
       formData.append("name", name.trim());
       formData.append("country", country.trim());
       if (city) formData.append("city", city.trim());
-      if (category) formData.append("category", category.trim());
       if (description) formData.append("description", description.trim());
-      if (price !== "") formData.append("price", String(price));
-      if (discountPrice !== "") formData.append("discountPrice", String(discountPrice));
+
+      // Membresía
+      formData.append("membership", membership);
+
+      // Categorías (enviamos JSON para backend)
+      formData.append("categories", JSON.stringify(categories));
+
+      // Precios
+      formData.append("priceUSDWithAirfare", String(priceUSDWithAirfare));
+      formData.append("priceUSDWithoutAirfare", String(priceUSDWithoutAirfare));
+      formData.append("priceCOPWithAirfare", String(priceCOPWithAirfare));
+      formData.append("priceCOPWithoutAirfare", String(priceCOPWithoutAirfare));
+      if (baseFromUSD !== "") formData.append("baseFromUSD", String(baseFromUSD));
+      if (baseFromCOP !== "") formData.append("baseFromCOP", String(baseFromCOP));
+
+      // Fechas (array JSON)
+      formData.append("tripDates", JSON.stringify(tripDates));
+
+      // Imagen
       if (image) formData.append("image", image);
 
       const res = await fetch("/api/admin/destinations", {
@@ -58,12 +157,17 @@ export default function NewDestinationPage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setErr(data?.error || "No se pudo crear");
+        setErr(data?.error || "No se pudo crear el destino");
       } else {
         setMsg("Destino creado.");
-        router.replace(`/dashboard-admin/destinos/${data.destination.id}`);
+        // Redirige a detalle
+        if (data?.destination?.id) {
+          router.replace(`/dashboard-admin/destinos/${data.destination.id}`);
+        } else {
+          router.replace(`/dashboard-admin/destinos`);
+        }
       }
-    } catch {
+    } catch (e) {
       setErr("Error de red");
     } finally {
       setLoading(false);
@@ -86,10 +190,7 @@ export default function NewDestinationPage() {
         </a>
       </header>
 
-      <form
-        onSubmit={onSubmit}
-        className="rounded-xl border bg-white p-4 sm:p-6 shadow-sm grid gap-4"
-      >
+      <form onSubmit={onSubmit} className="rounded-xl border bg-white p-4 sm:p-6 shadow-sm grid gap-4">
         {err && (
           <div className="rounded border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
             {err}
@@ -136,55 +237,239 @@ export default function NewDestinationPage() {
           </label>
         </div>
 
-        {/* Categoría y Descripción */}
+        {/* Membresía */}
+        <label className={labelClass}>
+          <span className="font-medium">Membresía requerida</span>
+          <select
+            value={membership}
+            onChange={(e) => setMembership(e.target.value as Membership)}
+            className={inputClass}
+          >
+            {MEMBERSHIPS.map((m) => (
+              <option key={m} value={m}>
+                {m}
+              </option>
+            ))}
+          </select>
+          <span className="text-xs text-gray-500">
+            Define qué plan puede ver/comprar este destino (por defecto STANDARD).
+          </span>
+        </label>
+
+        {/* Categorías (tags) */}
+        <label className={labelClass}>
+          <span className="font-medium">Categorías</span>
+          <input
+            value={categoriesInput}
+            onChange={(e) => setCategoriesInput(e.target.value)}
+            className={inputClass}
+            placeholder="Playa, Aventura, Cultura"
+          />
+          <span className="text-xs text-gray-500">Separa con coma. Ej.: Playa, Aventura</span>
+        </label>
+
+        {/* Descripción */}
+        <label className={labelClass}>
+          <span className="font-medium">Descripción</span>
+          <textarea
+            rows={3}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            className={inputClass}
+            placeholder="Un paraíso tropical..."
+          />
+        </label>
+
+        {/* Precios USD */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className={labelClass}>
-            <span className="font-medium">Categoría</span>
+            <span className="font-medium">USD (con aéreo) *</span>
             <input
-              value={category}
-              onChange={(e) => setCategory(e.target.value)}
+              type="number"
+              required
+              value={priceUSDWithAirfare}
+              onChange={(e) =>
+                setPriceUSDWithAirfare(e.target.value === "" ? "" : Number(e.target.value))
+              }
               className={inputClass}
-              placeholder="Playa, Aventura..."
+              placeholder="1499"
+              min="0"
+              step="0.01"
             />
           </label>
           <label className={labelClass}>
-            <span className="font-medium">Descripción</span>
+            <span className="font-medium">USD (sin aéreo) *</span>
             <input
-              value={description}
-              onChange={(e) => setDescription(e.target.value)}
+              type="number"
+              required
+              value={priceUSDWithoutAirfare}
+              onChange={(e) =>
+                setPriceUSDWithoutAirfare(e.target.value === "" ? "" : Number(e.target.value))
+              }
               className={inputClass}
-              placeholder="Un paraíso tropical..."
+              placeholder="999"
+              min="0"
+              step="0.01"
             />
           </label>
         </div>
 
-        {/* Precios */}
+        {/* Precios COP */}
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <label className={labelClass}>
-            <span className="font-medium">Precio *</span>
+            <span className="font-medium">COP (con aéreo) *</span>
             <input
               type="number"
               required
-              value={price}
-              onChange={(e) => setPrice(e.target.value === "" ? "" : Number(e.target.value))}
+              value={priceCOPWithAirfare}
+              onChange={(e) =>
+                setPriceCOPWithAirfare(e.target.value === "" ? "" : Number(e.target.value))
+              }
               className={inputClass}
-              placeholder="1000"
+              placeholder="5800000"
+              min="0"
+              step="1"
+            />
+          </label>
+          <label className={labelClass}>
+            <span className="font-medium">COP (sin aéreo) *</span>
+            <input
+              type="number"
+              required
+              value={priceCOPWithoutAirfare}
+              onChange={(e) =>
+                setPriceCOPWithoutAirfare(e.target.value === "" ? "" : Number(e.target.value))
+              }
+              className={inputClass}
+              placeholder="3900000"
+              min="0"
+              step="1"
+            />
+          </label>
+        </div>
+
+        {/* Precios desde (opcionales) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
+            <span className="font-medium">Desde USD (opcional)</span>
+            <input
+              type="number"
+              value={baseFromUSD}
+              onChange={(e) => setBaseFromUSD(e.target.value === "" ? "" : Number(e.target.value))}
+              className={inputClass}
+              placeholder="999"
               min="0"
               step="0.01"
             />
           </label>
           <label className={labelClass}>
-            <span className="font-medium">Precio con descuento</span>
+            <span className="font-medium">Desde COP (opcional)</span>
             <input
               type="number"
-              value={discountPrice}
-              onChange={(e) => setDiscountPrice(e.target.value === "" ? "" : Number(e.target.value))}
+              value={baseFromCOP}
+              onChange={(e) => setBaseFromCOP(e.target.value === "" ? "" : Number(e.target.value))}
               className={inputClass}
-              placeholder="900"
+              placeholder="3900000"
               min="0"
-              step="0.01"
+              step="1"
             />
           </label>
+        </div>
+
+        {/* Vista previa (selección UI) */}
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className={labelClass}>
+            <span className="font-medium">Vista previa</span>
+            <select
+              value={airPreview}
+              onChange={(e) => setAirPreview(e.target.value as any)}
+              className={inputClass}
+            >
+              {AIR_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            <span className="text-xs text-gray-500">
+              Solo para previsualizar. La selección real se guarda en la reserva.
+            </span>
+          </label>
+          <div className="rounded-md border p-3 text-sm">
+            <div className="font-medium mb-1">Precio mostrado</div>
+            <div>USD: <strong>{previewUSD || 0}</strong></div>
+            <div>COP: <strong>{previewCOP || 0}</strong></div>
+          </div>
+        </div>
+
+        {/* Fechas (múltiples) */}
+        <div className="grid gap-2">
+          <div className="flex items-center justify-between">
+            <span className="font-medium text-sm">Fechas de viaje</span>
+            <button
+              type="button"
+              onClick={addTripDate}
+              className="rounded-md border px-3 py-1.5 text-sm hover:bg-gray-50"
+            >
+              + Añadir salida
+            </button>
+          </div>
+
+          <div className="grid gap-3">
+            {tripDates.map((td, idx) => (
+              <div key={idx} className="grid grid-cols-1 sm:grid-cols-5 gap-3 rounded-md border p-3">
+                <label className={labelClass}>
+                  <span className="text-xs">Inicio *</span>
+                  <input
+                    type="date"
+                    value={td.startDate}
+                    onChange={(e) => setTripDate(idx, { startDate: e.target.value })}
+                    className={inputClass}
+                    required
+                  />
+                </label>
+                <label className={labelClass}>
+                  <span className="text-xs">Fin *</span>
+                  <input
+                    type="date"
+                    value={td.endDate}
+                    onChange={(e) => setTripDate(idx, { endDate: e.target.value })}
+                    className={inputClass}
+                    required
+                  />
+                </label>
+                <label className={labelClass}>
+                  <span className="text-xs">Activa</span>
+                  <select
+                    value={td.isActive ? "1" : "0"}
+                    onChange={(e) => setTripDate(idx, { isActive: e.target.value === "1" })}
+                    className={inputClass}
+                  >
+                    <option value="1">Sí</option>
+                    <option value="0">No</option>
+                  </select>
+                </label>
+                <label className={`sm:col-span-2 ${labelClass}`}>
+                  <span className="text-xs">Notas</span>
+                  <input
+                    value={td.notes || ""}
+                    onChange={(e) => setTripDate(idx, { notes: e.target.value })}
+                    className={inputClass}
+                    placeholder="Semana Santa, cupos, etc."
+                  />
+                </label>
+                <div className="sm:col-span-5">
+                  <button
+                    type="button"
+                    onClick={() => removeTripDate(idx)}
+                    className="text-xs text-gray-700 underline"
+                  >
+                    Eliminar esta salida
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
 
         {/* Imagen */}
