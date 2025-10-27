@@ -50,6 +50,14 @@ type Dest = {
   tripDates: TripDateFromServer[];
 };
 
+/* ================== Catálogo de categorías (puedes moverlo a BD) ================== */
+const CATEGORIES: { slug: string; name: string }[] = [
+  { slug: "playa", name: "Playa" },
+  { slug: "aventura", name: "Aventura" },
+  { slug: "cultura", name: "Cultura" },
+  { slug: "mixto", name: "Mixto" },
+];
+
 /* ================== Helpers ================== */
 
 const toDateInput = (v: string | Date | undefined) => {
@@ -63,6 +71,15 @@ const trimOrEmpty = (v: string) => v.trim();
 const toNumStr = (v: UINumber) => (v === "" ? "" : String(v));
 const sameNumStr = (a: UINumber, b: UINumber) => toNumStr(a) === toNumStr(b);
 
+const asNumber = (v: UINumber) => (v === "" ? 0 : Number(v));
+const calcFinal = (base: UINumber, discountPct: UINumber) => {
+  const b = asNumber(base);
+  const d = asNumber(discountPct);
+  if (!isFinite(b) || !isFinite(d)) return "";
+  const f = b * (1 - d / 100);
+  return Number.isFinite(f) ? Number(f.toFixed(2)) : "";
+};
+
 /* ================== Componente ================== */
 
 export default function EditDestinationForm({ dest }: { dest: Dest }) {
@@ -73,26 +90,46 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
   const [description, setDescription] = useState(dest.description ?? "");
   const [membership, setMembership] = useState<Membership>(dest.membership);
 
-  // ====== Categorías (tags por coma)
-  const initialCategoriesStr = useMemo(
-    () => (dest.categories || []).map((c) => c.name).join(", "),
+  // ====== Categorías (multi select por slug)
+  const initialSelectedCats = useMemo(
+    () => (dest.categories || []).map((c) => c.slug),
     [dest.categories]
   );
-  const [categoriesInput, setCategoriesInput] = useState(initialCategoriesStr);
-  const categories = useMemo(
-    () =>
-      categoriesInput
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    [categoriesInput]
+  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialSelectedCats);
+
+  // Para comparar cambios de categorías
+  const categoriesEqual = useMemo(() => {
+    const a = [...initialSelectedCats].sort();
+    const b = [...selectedCategories].sort();
+    return JSON.stringify(a) === JSON.stringify(b);
+  }, [initialSelectedCats, selectedCategories]);
+
+  // ====== Precios – modo (con/sin) por moneda
+  type AirMode = "with" | "without";
+  const [usdMode, setUsdMode] = useState<AirMode>("with");
+  const [copMode, setCopMode] = useState<AirMode>("with");
+
+  // Bases y descuentos por variante
+  const [usdBaseWith, setUsdBaseWith] = useState<UINumber>(dest.priceUSDWithAirfare ?? "");
+  const [usdDiscWith, setUsdDiscWith] = useState<UINumber>("");
+  const [usdBaseWithout, setUsdBaseWithout] = useState<UINumber>(dest.priceUSDWithoutAirfare ?? "");
+  const [usdDiscWithout, setUsdDiscWithout] = useState<UINumber>("");
+
+  const [copBaseWith, setCopBaseWith] = useState<UINumber>(dest.priceCOPWithAirfare ?? "");
+  const [copDiscWith, setCopDiscWith] = useState<UINumber>("");
+  const [copBaseWithout, setCopBaseWithout] = useState<UINumber>(dest.priceCOPWithoutAirfare ?? "");
+  const [copDiscWithout, setCopDiscWithout] = useState<UINumber>("");
+
+  // Finales calculados
+  const usdFinalWith = useMemo(() => calcFinal(usdBaseWith, usdDiscWith), [usdBaseWith, usdDiscWith]);
+  const usdFinalWithout = useMemo(() => calcFinal(usdBaseWithout, usdDiscWithout), [usdBaseWithout, usdDiscWithout]);
+  const copFinalWith = useMemo(() => calcFinal(copBaseWith, copDiscWith), [copBaseWith, copDiscWith]);
+  const copFinalWithout = useMemo(
+    () => calcFinal(copBaseWithout, copDiscWithout),
+    [copBaseWithout, copDiscWithout]
   );
 
-  // ====== Precios
-  const [priceUSDWithAirfare, setPriceUSDWithAirfare] = useState<UINumber>(dest.priceUSDWithAirfare ?? "");
-  const [priceUSDWithoutAirfare, setPriceUSDWithoutAirfare] = useState<UINumber>(dest.priceUSDWithoutAirfare ?? "");
-  const [priceCOPWithAirfare, setPriceCOPWithAirfare] = useState<UINumber>(dest.priceCOPWithAirfare ?? "");
-  const [priceCOPWithoutAirfare, setPriceCOPWithoutAirfare] = useState<UINumber>(dest.priceCOPWithoutAirfare ?? "");
+  // “Desde”
   const [baseFromUSD, setBaseFromUSD] = useState<UINumber>(dest.baseFromUSD ?? "");
   const [baseFromCOP, setBaseFromCOP] = useState<UINumber>(dest.baseFromCOP ?? "");
 
@@ -116,13 +153,6 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
   function removeTripDate(idx: number) {
     setTripDates((prev) => prev.filter((_, i) => i !== idx));
   }
-
-  // ====== Comparadores de cambios
-  const categoriesEqual = useMemo(() => {
-    const a = (dest.categories || []).map((c) => c.name.trim().toLowerCase()).sort();
-    const b = categories.map((c) => c.trim().toLowerCase()).sort();
-    return JSON.stringify(a) === JSON.stringify(b);
-  }, [dest.categories, categories]);
 
   const tripDatesEqual = useMemo(() => {
     const normA = (dest.tripDates || []).map((td) => ({
@@ -186,18 +216,23 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
       // Membresía
       if (dest.membership !== membership) setChange("membership", membership);
 
-      // Categorías
-      if (!categoriesEqual) setChange("categories", JSON.stringify(categories));
+      // Categorías (enviamos array de slugs)
+      if (!categoriesEqual) setChange("categories", JSON.stringify(selectedCategories));
 
-      // Precios
-      if (!sameNumStr(dest.priceUSDWithAirfare, priceUSDWithAirfare))
-        setChange("priceUSDWithAirfare", toNumStr(priceUSDWithAirfare));
-      if (!sameNumStr(dest.priceUSDWithoutAirfare, priceUSDWithoutAirfare))
-        setChange("priceUSDWithoutAirfare", toNumStr(priceUSDWithoutAirfare));
-      if (!sameNumStr(dest.priceCOPWithAirfare, priceCOPWithAirfare))
-        setChange("priceCOPWithAirfare", toNumStr(priceCOPWithAirfare));
-      if (!sameNumStr(dest.priceCOPWithoutAirfare, priceCOPWithoutAirfare))
-        setChange("priceCOPWithoutAirfare", toNumStr(priceCOPWithoutAirfare));
+      // Precios: guardamos FINALES por cada variante
+      const finalUSDWith = usdFinalWith;
+      const finalUSDWithout = usdFinalWithout;
+      const finalCOPWith = copFinalWith;
+      const finalCOPWithout = copFinalWithout;
+
+      if (!sameNumStr(dest.priceUSDWithAirfare, finalUSDWith))
+        setChange("priceUSDWithAirfare", toNumStr(finalUSDWith));
+      if (!sameNumStr(dest.priceUSDWithoutAirfare, finalUSDWithout))
+        setChange("priceUSDWithoutAirfare", toNumStr(finalUSDWithout));
+      if (!sameNumStr(dest.priceCOPWithAirfare, finalCOPWith))
+        setChange("priceCOPWithAirfare", toNumStr(finalCOPWith));
+      if (!sameNumStr(dest.priceCOPWithoutAirfare, finalCOPWithout))
+        setChange("priceCOPWithoutAirfare", toNumStr(finalCOPWithout));
 
       if (!sameNumStr(dest.baseFromUSD ?? "", baseFromUSD)) setChange("baseFromUSD", toNumStr(baseFromUSD));
       if (!sameNumStr(dest.baseFromCOP ?? "", baseFromCOP)) setChange("baseFromCOP", toNumStr(baseFromCOP));
@@ -224,7 +259,7 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
 
       const res = await fetch(`/api/admin/destinations/${dest.id}`, {
         method: "PATCH",
-        body: fd, // no seteas Content-Type aquí
+        body: fd,
         credentials: "include",
       });
 
@@ -234,7 +269,6 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
         return;
       }
 
-      // Refresca para ver cambios
       location.reload();
     } catch {
       setErrorMsg("Error de red");
@@ -249,6 +283,26 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
     "rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10";
   const labelBase = "grid gap-1 text-sm";
 
+  // Helpers UI para bloques de precio
+  const Radio = ({
+    name,
+    value,
+    checked,
+    onChange,
+    label,
+  }: {
+    name: string;
+    value: string;
+    checked: boolean;
+    onChange: () => void;
+    label: string;
+  }) => (
+    <label className="inline-flex items-center gap-2 text-sm">
+      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
+      {label}
+    </label>
+  );
+
   return (
     <form onSubmit={onSubmit} className="grid gap-3 max-w-xl">
       {errorMsg && (
@@ -258,11 +312,11 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
       )}
 
       {/* Imagen actual */}
-      {currentImage && (
+      {dest.imageUrl && (
         <div className="mb-2">
           <p className="mb-2 text-sm font-medium text-gray-700">Imagen actual</p>
           <img
-            src={currentImage}
+            src={dest.imageUrl}
             alt={`Imagen actual de ${name}`}
             className="w-full rounded-md object-cover max-h-48 border"
           />
@@ -337,68 +391,203 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
         <span className="text-xs text-gray-500">Define qué plan puede ver/comprar este destino.</span>
       </label>
 
-      {/* Categorías */}
+      {/* Categorías (multi-select) */}
       <label className={labelBase}>
         <span className="font-medium">Categorías</span>
-        <input
-          value={categoriesInput}
-          onChange={(e) => setCategoriesInput(e.target.value)}
-          className={inputBase}
-          placeholder="Playa, Aventura, Cultura"
-        />
-        <span className="text-xs text-gray-500">Separa con coma. Ej.: Playa, Aventura</span>
+        <select
+          multiple
+          value={selectedCategories}
+          onChange={(e) => {
+            const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
+            setSelectedCategories(opts);
+          }}
+          className={`${inputBase} h-28`}
+        >
+          {CATEGORIES.map((c) => (
+            <option key={c.slug} value={c.slug}>
+              {c.name}
+            </option>
+          ))}
+        </select>
+        <span className="text-xs text-gray-500">
+          Mantén presionado Ctrl (Windows) o Cmd (Mac) para seleccionar varias.
+        </span>
       </label>
 
-      {/* Precios USD */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className={labelBase}>
-          <span className="font-medium">USD (con aéreo) *</span>
-          <input
-            type="number"
-            step="0.01"
-            value={priceUSDWithAirfare}
-            onChange={(e) => setPriceUSDWithAirfare(e.target.value === "" ? "" : Number(e.target.value))}
-            className={inputBase}
-            placeholder="1499"
+      {/* ===================== BLOQUE PRECIOS USD ===================== */}
+      <div className="border rounded-lg p-4 space-y-3">
+        <h3 className="font-semibold text-gray-800">Precios en U$D</h3>
+
+        <div className="flex items-center gap-6">
+          <Radio
+            name="usdMode"
+            value="with"
+            checked={usdMode === "with"}
+            onChange={() => setUsdMode("with")}
+            label="Con aéreo"
           />
-        </label>
-        <label className={labelBase}>
-          <span className="font-medium">USD (sin aéreo) *</span>
-          <input
-            type="number"
-            step="0.01"
-            value={priceUSDWithoutAirfare}
-            onChange={(e) => setPriceUSDWithoutAirfare(e.target.value === "" ? "" : Number(e.target.value))}
-            className={inputBase}
-            placeholder="999"
+          <Radio
+            name="usdMode"
+            value="without"
+            checked={usdMode === "without"}
+            onChange={() => setUsdMode("without")}
+            label="Sin aéreo"
           />
-        </label>
+        </div>
+
+        {usdMode === "with" ? (
+          <>
+            <label className={labelBase}>
+              <span className="font-medium">Precio base</span>
+              <input
+                type="number"
+                step="0.01"
+                value={usdBaseWith}
+                onChange={(e) => setUsdBaseWith(e.target.value === "" ? "" : Number(e.target.value))}
+                className={inputBase}
+                placeholder="1499"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className={labelBase}>
+                <span className="font-medium">Descuento (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={usdDiscWith}
+                  onChange={(e) => setUsdDiscWith(e.target.value === "" ? "" : Number(e.target.value))}
+                  className={inputBase}
+                  placeholder="0"
+                />
+              </label>
+              <label className={labelBase}>
+                <span className="font-medium">Precio final en U$D</span>
+                <input type="number" disabled value={usdFinalWith} className={inputBase} />
+              </label>
+            </div>
+          </>
+        ) : (
+          <>
+            <label className={labelBase}>
+              <span className="font-medium">Precio base</span>
+              <input
+                type="number"
+                step="0.01"
+                value={usdBaseWithout}
+                onChange={(e) => setUsdBaseWithout(e.target.value === "" ? "" : Number(e.target.value))}
+                className={inputBase}
+                placeholder="999"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className={labelBase}>
+                <span className="font-medium">Descuento (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={usdDiscWithout}
+                  onChange={(e) => setUsdDiscWithout(e.target.value === "" ? "" : Number(e.target.value))}
+                  className={inputBase}
+                  placeholder="0"
+                />
+              </label>
+              <label className={labelBase}>
+                <span className="font-medium">Precio final en U$D</span>
+                <input type="number" disabled value={usdFinalWithout} className={inputBase} />
+              </label>
+            </div>
+          </>
+        )}
       </div>
 
-      {/* Precios COP */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className={labelBase}>
-          <span className="font-medium">COP (con aéreo) *</span>
-          <input
-            type="number"
-            step="1"
-            value={priceCOPWithAirfare}
-            onChange={(e) => setPriceCOPWithAirfare(e.target.value === "" ? "" : Number(e.target.value))}
-            className={inputBase}
-            placeholder="5800000"
+      {/* ===================== BLOQUE PRECIOS COP ===================== */}
+      <div className="border rounded-lg p-4 space-y-3">
+        <h3 className="font-semibold text-gray-800">Precios en COP</h3>
+
+        <div className="flex items-center gap-6">
+          <Radio
+            name="copMode"
+            value="with"
+            checked={copMode === "with"}
+            onChange={() => setCopMode("with")}
+            label="Con aéreo"
           />
-        </label>
-        <label className={labelBase}>
-          <span className="font-medium">COP (sin aéreo) *</span>
-          <input
-            type="number"
-            step="1"
-            value={priceCOPWithoutAirfare}
-            onChange={(e) => setPriceCOPWithoutAirfare(e.target.value === "" ? "" : Number(e.target.value))}
-            className={inputBase}
-            placeholder="3900000"
+          <Radio
+            name="copMode"
+            value="without"
+            checked={copMode === "without"}
+            onChange={() => setCopMode("without")}
+            label="Sin aéreo"
           />
-        </label>
+        </div>
+
+        {copMode === "with" ? (
+          <>
+            <label className={labelBase}>
+              <span className="font-medium">Precio base</span>
+              <input
+                type="number"
+                step="1"
+                value={copBaseWith}
+                onChange={(e) => setCopBaseWith(e.target.value === "" ? "" : Number(e.target.value))}
+                className={inputBase}
+                placeholder="5800000"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className={labelBase}>
+                <span className="font-medium">Descuento (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={copDiscWith}
+                  onChange={(e) => setCopDiscWith(e.target.value === "" ? "" : Number(e.target.value))}
+                  className={inputBase}
+                  placeholder="0"
+                />
+              </label>
+              <label className={labelBase}>
+                <span className="font-medium">Precio final en COP</span>
+                <input type="number" disabled value={copFinalWith} className={inputBase} />
+              </label>
+            </div>
+          </>
+        ) : (
+          <>
+            <label className={labelBase}>
+              <span className="font-medium">Precio base</span>
+              <input
+                type="number"
+                step="1"
+                value={copBaseWithout}
+                onChange={(e) => setCopBaseWithout(e.target.value === "" ? "" : Number(e.target.value))}
+                className={inputBase}
+                placeholder="3900000"
+              />
+            </label>
+
+            <div className="grid grid-cols-2 gap-3">
+              <label className={labelBase}>
+                <span className="font-medium">Descuento (%)</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={copDiscWithout}
+                  onChange={(e) => setCopDiscWithout(e.target.value === "" ? "" : Number(e.target.value))}
+                  className={inputBase}
+                  placeholder="0"
+                />
+              </label>
+              <label className={labelBase}>
+                <span className="font-medium">Precio final en COP</span>
+                <input type="number" disabled value={copFinalWithout} className={inputBase} />
+              </label>
+            </div>
+          </>
+        )}
       </div>
 
       {/* “Desde” (opcionales) */}

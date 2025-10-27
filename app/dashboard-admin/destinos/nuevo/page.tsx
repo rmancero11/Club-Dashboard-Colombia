@@ -8,10 +8,23 @@ type TripDate = { startDate: string; endDate: string; isActive?: boolean; notes?
 const MEMBERSHIPS = ["STANDARD", "PREMIUM", "VIP"] as const;
 type Membership = typeof MEMBERSHIPS[number];
 
-const AIR_OPTIONS = [
-  { value: "WITH_AIRFARE", label: "Con boleto aéreo" },
-  { value: "WITHOUT_AIRFARE", label: "Sin boleto aéreo" },
-] as const;
+type AirMode = "with" | "without";
+
+/** Catálogo local de categorías (puedes traerlo del backend si quieres) */
+const CATEGORIES: { slug: string; name: string }[] = [
+  { slug: "playa", name: "Playa" },
+  { slug: "aventura", name: "Aventura" },
+  { slug: "cultura", name: "Cultura" },
+  { slug: "mixto", name: "Mixto" },
+];
+
+const asNumber = (v: number | "" ) => (v === "" ? 0 : Number(v));
+const calcFinal = (base: number | "", pct: number | "") => {
+  const b = asNumber(base);
+  const d = asNumber(pct);
+  const f = b * (1 - d / 100);
+  return Number.isFinite(f) ? Number(f.toFixed(2)) : 0;
+};
 
 export default function NewDestinationPage() {
   const router = useRouter();
@@ -22,35 +35,49 @@ export default function NewDestinationPage() {
   const [city, setCity] = useState("");
   const [description, setDescription] = useState("");
 
-  // Membresía del destino
+  // Membresía
   const [membership, setMembership] = useState<Membership>("STANDARD");
 
-  // Categorías (tags separados por coma)
-  const [categoriesInput, setCategoriesInput] = useState(""); // "playa, aventura"
-  const categories = useMemo(
-    () =>
-      categoriesInput
-        .split(",")
-        .map((s) => s.trim())
-        .filter(Boolean),
-    [categoriesInput]
+  // Categorías multi-select (por slug)
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
+
+  // ===== USD =====
+  const [usdMode, setUsdMode] = useState<AirMode>("with");
+  const [usdBaseWith, setUsdBaseWith] = useState<number | "">("");
+  const [usdDiscWith, setUsdDiscWith] = useState<number | "">("");
+  const [usdBaseWithout, setUsdBaseWithout] = useState<number | "">("");
+  const [usdDiscWithout, setUsdDiscWithout] = useState<number | "">("");
+
+  const usdFinalWith = useMemo(
+    () => calcFinal(usdBaseWith, usdDiscWith),
+    [usdBaseWith, usdDiscWith]
+  );
+  const usdFinalWithout = useMemo(
+    () => calcFinal(usdBaseWithout, usdDiscWithout),
+    [usdBaseWithout, usdDiscWithout]
   );
 
-  // Precios destino (4 campos obligatorios)
-  const [priceUSDWithAirfare, setPriceUSDWithAirfare] = useState<number | "">("");
-  const [priceUSDWithoutAirfare, setPriceUSDWithoutAirfare] = useState<number | "">("");
-  const [priceCOPWithAirfare, setPriceCOPWithAirfare] = useState<number | "">("");
-  const [priceCOPWithoutAirfare, setPriceCOPWithoutAirfare] = useState<number | "">("");
-  // Opcionales “desde”
+  // ===== COP =====
+  const [copMode, setCopMode] = useState<AirMode>("with");
+  const [copBaseWith, setCopBaseWith] = useState<number | "">("");
+  const [copDiscWith, setCopDiscWith] = useState<number | "">("");
+  const [copBaseWithout, setCopBaseWithout] = useState<number | "">("");
+  const [copDiscWithout, setCopDiscWithout] = useState<number | "">("");
+
+  const copFinalWith = useMemo(
+    () => calcFinal(copBaseWith, copDiscWith),
+    [copBaseWith, copDiscWith]
+  );
+  const copFinalWithout = useMemo(
+    () => calcFinal(copBaseWithout, copDiscWithout),
+    [copBaseWithout, copDiscWithout]
+  );
+
+  // “Desde”
   const [baseFromUSD, setBaseFromUSD] = useState<number | "">("");
   const [baseFromCOP, setBaseFromCOP] = useState<number | "">("");
 
-  // Selección de UI (solo vista previa)
-  const [airPreview, setAirPreview] = useState<"WITH_AIRFARE" | "WITHOUT_AIRFARE">(
-    "WITHOUT_AIRFARE"
-  );
-
-  // Fechas (múltiples)
+  // Fechas
   const [tripDates, setTripDates] = useState<TripDate[]>([
     { startDate: "", endDate: "", isActive: true },
   ]);
@@ -70,21 +97,10 @@ export default function NewDestinationPage() {
       setPreview(null);
       return;
     }
-    const objectUrl = URL.createObjectURL(image);
-    setPreview(objectUrl);
-    return () => URL.revokeObjectURL(objectUrl);
+    const url = URL.createObjectURL(image);
+    setPreview(url);
+    return () => URL.revokeObjectURL(url);
   }, [image]);
-
-  // Precio mostrado según selección de vista previa
-  const previewUSD = useMemo(() => {
-    if (airPreview === "WITH_AIRFARE") return priceUSDWithAirfare || 0;
-    return priceUSDWithoutAirfare || 0;
-  }, [airPreview, priceUSDWithAirfare, priceUSDWithoutAirfare]);
-
-  const previewCOP = useMemo(() => {
-    if (airPreview === "WITH_AIRFARE") return priceCOPWithAirfare || 0;
-    return priceCOPWithoutAirfare || 0;
-  }, [airPreview, priceCOPWithAirfare, priceCOPWithoutAirfare]);
 
   function setTripDate(idx: number, patch: Partial<TripDate>) {
     setTripDates((prev) => prev.map((td, i) => (i === idx ? { ...td, ...patch } : td)));
@@ -103,14 +119,12 @@ export default function NewDestinationPage() {
     setMsg(null);
 
     try {
-      // Validaciones mínimas de frontend
+      // Validaciones mínimas
       if (
-        priceUSDWithAirfare === "" ||
-        priceUSDWithoutAirfare === "" ||
-        priceCOPWithAirfare === "" ||
-        priceCOPWithoutAirfare === ""
+        !usdFinalWith || !usdFinalWithout ||
+        !copFinalWith || !copFinalWithout
       ) {
-        setErr("Completa los 4 precios (USD/COP con y sin aéreo).");
+        setErr("Completa los precios base/desc. para calcular los 4 precios finales (USD/COP con y sin aéreo).");
         setLoading(false);
         return;
       }
@@ -131,18 +145,20 @@ export default function NewDestinationPage() {
       // Membresía
       formData.append("membership", membership);
 
-      // Categorías (enviamos JSON para backend)
-      formData.append("categories", JSON.stringify(categories));
+      // Categorías (enviamos slugs)
+      formData.append("categories", JSON.stringify(selectedCategories));
 
-      // Precios
-      formData.append("priceUSDWithAirfare", String(priceUSDWithAirfare));
-      formData.append("priceUSDWithoutAirfare", String(priceUSDWithoutAirfare));
-      formData.append("priceCOPWithAirfare", String(priceCOPWithAirfare));
-      formData.append("priceCOPWithoutAirfare", String(priceCOPWithoutAirfare));
+      // Precios (fINALES)
+      formData.append("priceUSDWithAirfare", String(usdFinalWith));
+      formData.append("priceUSDWithoutAirfare", String(usdFinalWithout));
+      formData.append("priceCOPWithAirfare", String(copFinalWith));
+      formData.append("priceCOPWithoutAirfare", String(copFinalWithout));
+
+      // “Desde”
       if (baseFromUSD !== "") formData.append("baseFromUSD", String(baseFromUSD));
       if (baseFromCOP !== "") formData.append("baseFromCOP", String(baseFromCOP));
 
-      // Fechas (array JSON)
+      // Fechas
       formData.append("tripDates", JSON.stringify(tripDates));
 
       // Imagen
@@ -160,14 +176,13 @@ export default function NewDestinationPage() {
         setErr(data?.error || "No se pudo crear el destino");
       } else {
         setMsg("Destino creado.");
-        // Redirige a detalle
         if (data?.destination?.id) {
           router.replace(`/dashboard-admin/destinos/${data.destination.id}`);
         } else {
           router.replace(`/dashboard-admin/destinos`);
         }
       }
-    } catch (e) {
+    } catch {
       setErr("Error de red");
     } finally {
       setLoading(false);
@@ -177,6 +192,15 @@ export default function NewDestinationPage() {
   const inputClass =
     "w-full min-w-0 rounded-md border px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-black/10";
   const labelClass = "flex flex-col gap-1 text-sm";
+
+  const Radio = ({
+    name, value, checked, onChange, label,
+  }: { name: string; value: string; checked: boolean; onChange: () => void; label: string }) => (
+    <label className="inline-flex items-center gap-2 text-sm">
+      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
+      {label}
+    </label>
+  );
 
   return (
     <div className="container mx-auto max-w-3xl px-4 sm:px-6 lg:px-8 py-6">
@@ -246,9 +270,7 @@ export default function NewDestinationPage() {
             className={inputClass}
           >
             {MEMBERSHIPS.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
+              <option key={m} value={m}>{m}</option>
             ))}
           </select>
           <span className="text-xs text-gray-500">
@@ -256,16 +278,25 @@ export default function NewDestinationPage() {
           </span>
         </label>
 
-        {/* Categorías (tags) */}
+        {/* Categorías (multi-select) */}
         <label className={labelClass}>
           <span className="font-medium">Categorías</span>
-          <input
-            value={categoriesInput}
-            onChange={(e) => setCategoriesInput(e.target.value)}
-            className={inputClass}
-            placeholder="Playa, Aventura, Cultura"
-          />
-          <span className="text-xs text-gray-500">Separa con coma. Ej.: Playa, Aventura</span>
+          <select
+            multiple
+            value={selectedCategories}
+            onChange={(e) => {
+              const vals = Array.from(e.target.selectedOptions).map(o => o.value);
+              setSelectedCategories(vals);
+            }}
+            className={`${inputClass} h-28`}
+          >
+            {CATEGORIES.map(c => (
+              <option key={c.slug} value={c.slug}>{c.name}</option>
+            ))}
+          </select>
+          <span className="text-xs text-gray-500">
+            Mantén presionado Ctrl (Windows) o Cmd (Mac) para seleccionar varias.
+          </span>
         </label>
 
         {/* Descripción */}
@@ -280,72 +311,150 @@ export default function NewDestinationPage() {
           />
         </label>
 
-        {/* Precios USD */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className={labelClass}>
-            <span className="font-medium">USD (con aéreo) *</span>
-            <input
-              type="number"
-              required
-              value={priceUSDWithAirfare}
-              onChange={(e) =>
-                setPriceUSDWithAirfare(e.target.value === "" ? "" : Number(e.target.value))
-              }
-              className={inputClass}
-              placeholder="1499"
-              min="0"
-              step="0.01"
-            />
-          </label>
-          <label className={labelClass}>
-            <span className="font-medium">USD (sin aéreo) *</span>
-            <input
-              type="number"
-              required
-              value={priceUSDWithoutAirfare}
-              onChange={(e) =>
-                setPriceUSDWithoutAirfare(e.target.value === "" ? "" : Number(e.target.value))
-              }
-              className={inputClass}
-              placeholder="999"
-              min="0"
-              step="0.01"
-            />
-          </label>
+        {/* ===================== PRECIOS USD ===================== */}
+        <div className="border rounded-lg p-4 space-y-3">
+          <h3 className="font-semibold text-gray-800">Precios en U$D</h3>
+          <div className="flex items-center gap-6">
+            <Radio name="usdMode" value="with" checked={usdMode==="with"} onChange={()=>setUsdMode("with")} label="Con aéreo" />
+            <Radio name="usdMode" value="without" checked={usdMode==="without"} onChange={()=>setUsdMode("without")} label="Sin aéreo" />
+          </div>
+
+          {usdMode === "with" ? (
+            <>
+              <label className={labelClass}>
+                <span className="font-medium">Precio base</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={usdBaseWith}
+                  onChange={(e)=>setUsdBaseWith(e.target.value===""?"":Number(e.target.value))}
+                  className={inputClass}
+                  placeholder="1499"
+                />
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className={labelClass}>
+                  <span className="font-medium">Descuento (%)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={usdDiscWith}
+                    onChange={(e)=>setUsdDiscWith(e.target.value===""?"":Number(e.target.value))}
+                    className={inputClass}
+                    placeholder="0"
+                  />
+                </label>
+                <label className={labelClass}>
+                  <span className="font-medium">Precio final en U$D</span>
+                  <input type="number" disabled value={usdFinalWith} className={inputClass} />
+                </label>
+              </div>
+            </>
+          ) : (
+            <>
+              <label className={labelClass}>
+                <span className="font-medium">Precio base</span>
+                <input
+                  type="number"
+                  step="0.01"
+                  value={usdBaseWithout}
+                  onChange={(e)=>setUsdBaseWithout(e.target.value===""?"":Number(e.target.value))}
+                  className={inputClass}
+                  placeholder="999"
+                />
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className={labelClass}>
+                  <span className="font-medium">Descuento (%)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={usdDiscWithout}
+                    onChange={(e)=>setUsdDiscWithout(e.target.value===""?"":Number(e.target.value))}
+                    className={inputClass}
+                    placeholder="0"
+                  />
+                </label>
+                <label className={labelClass}>
+                  <span className="font-medium">Precio final en U$D</span>
+                  <input type="number" disabled value={usdFinalWithout} className={inputClass} />
+                </label>
+              </div>
+            </>
+          )}
         </div>
 
-        {/* Precios COP */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className={labelClass}>
-            <span className="font-medium">COP (con aéreo) *</span>
-            <input
-              type="number"
-              required
-              value={priceCOPWithAirfare}
-              onChange={(e) =>
-                setPriceCOPWithAirfare(e.target.value === "" ? "" : Number(e.target.value))
-              }
-              className={inputClass}
-              placeholder="5800000"
-              min="0"
-              step="1"
-            />
-          </label>
-          <label className={labelClass}>
-            <span className="font-medium">COP (sin aéreo) *</span>
-            <input
-              type="number"
-              required
-              value={priceCOPWithoutAirfare}
-              onChange={(e) =>
-                setPriceCOPWithoutAirfare(e.target.value === "" ? "" : Number(e.target.value))
-              }
-              className={inputClass}
-              placeholder="3900000"
-              min="0"
-              step="1"
-            />
-          </label>
+        {/* ===================== PRECIOS COP ===================== */}
+        <div className="border rounded-lg p-4 space-y-3">
+          <h3 className="font-semibold text-gray-800">Precios en COP</h3>
+          <div className="flex items-center gap-6">
+            <Radio name="copMode" value="with" checked={copMode==="with"} onChange={()=>setCopMode("with")} label="Con aéreo" />
+            <Radio name="copMode" value="without" checked={copMode==="without"} onChange={()=>setCopMode("without")} label="Sin aéreo" />
+          </div>
+
+          {copMode === "with" ? (
+            <>
+              <label className={labelClass}>
+                <span className="font-medium">Precio base</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={copBaseWith}
+                  onChange={(e)=>setCopBaseWith(e.target.value===""?"":Number(e.target.value))}
+                  className={inputClass}
+                  placeholder="5800000"
+                />
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className={labelClass}>
+                  <span className="font-medium">Descuento (%)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={copDiscWith}
+                    onChange={(e)=>setCopDiscWith(e.target.value===""?"":Number(e.target.value))}
+                    className={inputClass}
+                    placeholder="0"
+                  />
+                </label>
+                <label className={labelClass}>
+                  <span className="font-medium">Precio final en COP</span>
+                  <input type="number" disabled value={copFinalWith} className={inputClass} />
+                </label>
+              </div>
+            </>
+          ) : (
+            <>
+              <label className={labelClass}>
+                <span className="font-medium">Precio base</span>
+                <input
+                  type="number"
+                  step="1"
+                  value={copBaseWithout}
+                  onChange={(e)=>setCopBaseWithout(e.target.value===""?"":Number(e.target.value))}
+                  className={inputClass}
+                  placeholder="3900000"
+                />
+              </label>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <label className={labelClass}>
+                  <span className="font-medium">Descuento (%)</span>
+                  <input
+                    type="number"
+                    step="0.01"
+                    value={copDiscWithout}
+                    onChange={(e)=>setCopDiscWithout(e.target.value===""?"":Number(e.target.value))}
+                    className={inputClass}
+                    placeholder="0"
+                  />
+                </label>
+                <label className={labelClass}>
+                  <span className="font-medium">Precio final en COP</span>
+                  <input type="number" disabled value={copFinalWithout} className={inputClass} />
+                </label>
+              </div>
+            </>
+          )}
         </div>
 
         {/* Precios desde (opcionales) */}
@@ -374,32 +483,6 @@ export default function NewDestinationPage() {
               step="1"
             />
           </label>
-        </div>
-
-        {/* Vista previa (selección UI) */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className={labelClass}>
-            <span className="font-medium">Vista previa</span>
-            <select
-              value={airPreview}
-              onChange={(e) => setAirPreview(e.target.value as any)}
-              className={inputClass}
-            >
-              {AIR_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>
-                  {opt.label}
-                </option>
-              ))}
-            </select>
-            <span className="text-xs text-gray-500">
-              Solo para previsualizar. La selección real se guarda en la reserva.
-            </span>
-          </label>
-          <div className="rounded-md border p-3 text-sm">
-            <div className="font-medium mb-1">Precio mostrado</div>
-            <div>USD: <strong>{previewUSD || 0}</strong></div>
-            <div>COP: <strong>{previewCOP || 0}</strong></div>
-          </div>
         </div>
 
         {/* Fechas (múltiples) */}

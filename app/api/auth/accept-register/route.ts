@@ -4,22 +4,42 @@ import prisma from "@/app/lib/prisma";
 
 const JWT_SECRET = process.env.JWT_SECRET!;
 const enc = new TextEncoder();
+const BASE_URL =
+  process.env.NEXT_PUBLIC_BASE_URL?.replace(/\/$/, "") ||
+  "https://dashboard.clubdeviajerossolteros.com";
+
+const COOKIE_DOMAIN = process.env.NODE_ENV === "production"
+  ? "dashboard.clubdeviajerossolteros.com"
+  : undefined;
+
+function sanitizeNext(nextParam: string | null): string {
+  if (!nextParam) return "/dashboard-user";
+  try {
+    new URL(nextParam);
+    return "/dashboard-user";
+  } catch {
+    return nextParam.startsWith("/") ? nextParam : "/dashboard-user";
+  }
+}
 
 export async function GET(req: Request) {
   try {
     const url = new URL(req.url);
     const r = url.searchParams.get("r");
-    const next = url.searchParams.get("next") || "/dashboard-user";
+    const next = sanitizeNext(url.searchParams.get("next"));
 
-    if (!r) {
-      const u = new URL("/login", url.origin);
+    if (!r || !JWT_SECRET) {
+      const u = new URL("/login", BASE_URL);
       u.searchParams.set("next", next);
       return NextResponse.redirect(u);
     }
 
-    const { payload } = await jwtVerify(r, enc.encode(JWT_SECRET));
+    const { payload } = await jwtVerify(r, enc.encode(JWT_SECRET), {
+      algorithms: ["HS256"],
+    });
+
     if (payload.purpose !== "onboard" || !payload.sub) {
-      const u = new URL("/login", url.origin);
+      const u = new URL("/login", BASE_URL);
       u.searchParams.set("next", next);
       return NextResponse.redirect(u);
     }
@@ -31,33 +51,37 @@ export async function GET(req: Request) {
     });
 
     if (!user || user.status !== "ACTIVE") {
-      const u = new URL("/login", url.origin);
+      const u = new URL("/login", BASE_URL);
       u.searchParams.set("next", next);
       return NextResponse.redirect(u);
     }
 
-    const token = await new SignJWT({
+    const sessionJwt = await new SignJWT({
       sub: user.id,
       email: user.email,
-      role: user.role, // enum Role
+      role: user.role,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
       .setExpirationTime("7d")
       .sign(enc.encode(JWT_SECRET));
 
-    const res = NextResponse.redirect(new URL(next, url.origin));
-    res.cookies.set("token", token, {
+    const redirectTo = new URL(next, BASE_URL);
+    const res = NextResponse.redirect(redirectTo);
+
+    res.cookies.set("token", sessionJwt, {
       httpOnly: true,
       secure: true,
       sameSite: "lax",
       path: "/",
       maxAge: 60 * 60 * 24 * 7,
-      ...(process.env.VERCEL ? { domain: "app.clubdeviajerossolteros.com" } : {}),
+      ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
     });
+
     return res;
-  } catch {
-    const u = new URL("/login", new URL(req.url).origin);
+  } catch (err) {
+    console.error("[accept-register] error:", err);
+    const u = new URL("/login", BASE_URL);
     u.searchParams.set("next", "/dashboard-user");
     return NextResponse.redirect(u);
   }
