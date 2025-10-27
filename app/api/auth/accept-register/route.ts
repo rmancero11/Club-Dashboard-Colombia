@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { jwtVerify, SignJWT } from "jose";
 import prisma from "@/app/lib/prisma";
 
+export const dynamic = "force-dynamic"; 
+export const revalidate = 0;            
+export const runtime = "nodejs";        
+
 const JWT_SECRET = process.env.JWT_SECRET!;
 const enc = new TextEncoder();
 const BASE_URL = "https://dashboard.clubdeviajerossolteros.com";
@@ -9,7 +13,10 @@ const COOKIE_DOMAIN = "dashboard.clubdeviajerossolteros.com";
 
 function sanitizeNext(nextParam: string | null) {
   if (!nextParam) return "/dashboard-user";
-  try { new URL(nextParam); return "/dashboard-user"; } catch {}
+  try {
+    new URL(nextParam); 
+    return "/dashboard-user";
+  } catch {}
   return nextParam.startsWith("/") ? nextParam : "/dashboard-user";
 }
 
@@ -36,6 +43,7 @@ export async function GET(req: Request) {
       where: { id: String(payload.sub) },
       select: { id: true, email: true, role: true, status: true },
     });
+
     if (!user || user.status !== "ACTIVE") {
       const u = new URL("/login", BASE_URL);
       u.searchParams.set("next", next);
@@ -43,7 +51,9 @@ export async function GET(req: Request) {
     }
 
     const sessionJwt = await new SignJWT({
-      sub: user.id, email: user.email, role: user.role,
+      sub: user.id,
+      email: user.email,
+      role: user.role,
     })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()

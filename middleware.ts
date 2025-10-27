@@ -58,13 +58,20 @@ export async function middleware(req: NextRequest) {
 
     if (pathname.startsWith("/api/")) return NextResponse.next();
 
-    if (pathname === "/") {
-      const hasToken = Boolean(req.cookies.get("token")?.value);
-      const to = hasToken ? "/dashboard-user" : "/login";
-      const res = NextResponse.redirect(absoluteUrl(req, to));
-      res.headers.set("x-mw", "root-redirect");
+if (pathname === "/") {
+  const token = req.cookies.get("token")?.value;
+  if (token) {
+    const payload = await verifyToken(token); 
+    if (payload) {
+      const res = NextResponse.redirect(absoluteUrl(req, "/dashboard-user"));
+      res.headers.set("x-mw", "root-redirect-ok");
       return res;
     }
+  }
+  const res = NextResponse.redirect(absoluteUrl(req, "/login"));
+  res.headers.set("x-mw", "root-redirect-login");
+  return res;
+}
 
     const isAdmin  = pathname.startsWith("/dashboard-admin");
     const isSeller = pathname.startsWith("/dashboard-seller");

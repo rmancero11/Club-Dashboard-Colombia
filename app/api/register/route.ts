@@ -1,5 +1,5 @@
-// app/api/register/route.ts
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
@@ -9,7 +9,7 @@ import { pickSellerWeighted } from "@/app/lib/assignSeller";
 
 const enc = new TextEncoder();
 
-// DOMINIOS
+// Orígenes permitidos (WP)
 const WP_ALLOWED = new Set([
   "https://clubdeviajerossolteros.com",
   "https://www.clubdeviajerossolteros.com",
@@ -65,8 +65,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const existing = await prisma.user.findUnique({ where: { email: String(email).toLowerCase().trim() } });
-    if (existing) {
+    const emailNorm = String(email).toLowerCase().trim();
+    const exists = await prisma.user.findUnique({ where: { email: emailNorm } });
+    if (exists) {
       return NextResponse.json(
         { success: false, message: "El correo ya está registrado" },
         { status: 409, headers }
@@ -75,11 +76,10 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    // === Transacción: crea User + Client + asignación de seller ===
     const { newUser, clientId } = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
-          email: String(email).toLowerCase().trim(),
+          email: emailNorm,
           name,
           phone: whatsapp,
           country,
@@ -99,14 +99,12 @@ export async function POST(req: Request) {
         select: { id: true, email: true, name: true },
       });
 
-      // elige seller (puede ser null si no hay elegibles)
-      const sellerIdToUse = await pickSellerWeighted(tx);
-
+      const sellerId = await pickSellerWeighted(tx); 
       const createdClient = await tx.client.create({
         data: {
-          sellerId: sellerIdToUse ?? null, // sellerId es opcional en el schema
           userId: createdUser.id,
-          name: name || String(email).toLowerCase().trim(),
+          sellerId: sellerId ?? null,  
+          name: name || emailNorm,
           email: createdUser.email,
           phone: whatsapp ?? null,
           country: country ?? null,
@@ -121,10 +119,10 @@ export async function POST(req: Request) {
       await tx.activityLog.create({
         data: {
           action: "LEAD_ASSIGNED",
-          message: `Client creado y asignado automáticamente`,
-          clientId: createdClient.id,
+          message: "Client creado y asignado automáticamente",
           userId: createdUser.id,
-          metadata: { sellerId: sellerIdToUse, flujo: flujo ?? null, destino: destino ?? null, auto: true },
+          clientId: createdClient.id,
+          metadata: { sellerId: sellerId ?? null, flujo: flujo ?? null, destino: destino ?? null, auto: true },
         },
       });
 
@@ -154,11 +152,13 @@ export async function POST(req: Request) {
       { success: true, usuario: newUser, clientId, redirectUrl },
       { status: 201, headers }
     );
-  } catch (error) {
-    console.error("Error al registrar:", error);
+  } catch (err) {
+    console.error("Error en /api/register:", err);
     return NextResponse.json(
       { success: false, error: "Error al registrar" },
       { status: 500, headers }
     );
   }
 }
+
+export {};
