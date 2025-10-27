@@ -1,32 +1,29 @@
+// app/api/register/route.ts
 export const runtime = "nodejs";
 
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
+import { pickSellerWeighted } from "@/app/lib/assignSeller";
 
 const enc = new TextEncoder();
 
-/**
- * DOMINIOS:
- * - WordPress (sitio público): https://clubdeviajerossolteros.com
- * - App Next.js (dashboard):  https://dashboard.clubdeviajerossolteros.com
- */
-
-const ALLOWED_ORIGINS = new Set([
+// DOMINIOS
+const WP_ALLOWED = new Set([
   "https://clubdeviajerossolteros.com",
   "https://www.clubdeviajerossolteros.com",
 ]);
+
+const BASE_DASHBOARD = "https://dashboard.clubdeviajerossolteros.com";
 
 function normalizeOrigin(o: string | null) {
   return o ? o.replace(/\/$/, "") : null;
 }
 
 function corsHeaders(origin: string | null) {
-  const normalized = normalizeOrigin(origin);
-  const allow = normalized && ALLOWED_ORIGINS.has(normalized)
-    ? normalized
-    : "https://clubdeviajerossolteros.com"; 
+  const o = normalizeOrigin(origin);
+  const allow = o && WP_ALLOWED.has(o) ? o : "https://clubdeviajerossolteros.com";
   return {
     "Access-Control-Allow-Origin": allow,
     "Access-Control-Allow-Methods": "POST, OPTIONS",
@@ -47,10 +44,10 @@ export async function POST(req: Request) {
   const headers = corsHeaders(origin);
 
   try {
-    const normalizedOrigin = normalizeOrigin(origin);
-    if (!normalizedOrigin || !ALLOWED_ORIGINS.has(normalizedOrigin)) {
+    const normalized = normalizeOrigin(origin);
+    if (!normalized || !WP_ALLOWED.has(normalized)) {
       return NextResponse.json(
-        { success: false, message: "Origin no permitido", originRecibido: normalizedOrigin ?? null },
+        { success: false, message: "Origin no permitido", originRecibido: normalized ?? null },
         { status: 403, headers }
       );
     }
@@ -68,8 +65,8 @@ export async function POST(req: Request) {
       );
     }
 
-    const existingUser = await prisma.user.findUnique({ where: { email } });
-    if (existingUser) {
+    const existing = await prisma.user.findUnique({ where: { email: String(email).toLowerCase().trim() } });
+    if (existing) {
       return NextResponse.json(
         { success: false, message: "El correo ya está registrado" },
         { status: 409, headers }
@@ -77,54 +74,40 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = await prisma.user.create({
-      data: {
-        email, name,
-        phone: whatsapp, country, destino,
-        password: hashedPassword,
-        role: "USER", status: "ACTIVE",
-        comment: comentario ?? null,
-        singleStatus: soltero ?? null,
-        affirmation: afirmacion ?? null,
-        preference: gustos ?? null,
-        acceptedTerms: acepta_terminos === "on" || acepta_terminos === true,
-        flow: flujo ?? null,
-        timezone: "America/Bogota",
-        verified: false,
-      },
-      select: {
-        id: true, email: true, name: true, phone: true, country: true,
-        role: true, status: true, avatar: true, createdAt: true,
-      },
-    });
 
-    const SELLER_DEFAULT_ID = process.env.SELLER_DEFAULT_ID || null;
-    let sellerIdToUse: string | null = SELLER_DEFAULT_ID;
-
-    if (sellerIdToUse) {
-      const ok = await prisma.user.findFirst({
-        where: { id: sellerIdToUse, role: "SELLER", status: "ACTIVE" },
-        select: { id: true },
-      });
-      if (!ok) sellerIdToUse = null;
-    }
-
-    if (!sellerIdToUse) {
-      const fallback = await prisma.user.findFirst({
-        where: { role: "SELLER", status: "ACTIVE" },
-        orderBy: { createdAt: "asc" },
-        select: { id: true },
-      });
-      sellerIdToUse = fallback?.id ?? null;
-    }
-
-    if (sellerIdToUse) {
-      await prisma.client.create({
+    // === Transacción: crea User + Client + asignación de seller ===
+    const { newUser, clientId } = await prisma.$transaction(async (tx) => {
+      const createdUser = await tx.user.create({
         data: {
-          sellerId: sellerIdToUse,
-          userId: newUser.id,
-          name: name || email,
-          email,
+          email: String(email).toLowerCase().trim(),
+          name,
+          phone: whatsapp,
+          country,
+          destino,
+          password: hashedPassword,
+          role: "USER",
+          status: "ACTIVE",
+          comment: comentario ?? null,
+          singleStatus: soltero ?? null,
+          affirmation: afirmacion ?? null,
+          preference: gustos ?? null,
+          acceptedTerms: acepta_terminos === "on" || acepta_terminos === true || acepta_terminos === "true",
+          flow: flujo ?? null,
+          timezone: "America/Bogota",
+          verified: false,
+        },
+        select: { id: true, email: true, name: true },
+      });
+
+      // elige seller (puede ser null si no hay elegibles)
+      const sellerIdToUse = await pickSellerWeighted(tx);
+
+      const createdClient = await tx.client.create({
+        data: {
+          sellerId: sellerIdToUse ?? null, // sellerId es opcional en el schema
+          userId: createdUser.id,
+          name: name || String(email).toLowerCase().trim(),
+          email: createdUser.email,
           phone: whatsapp ?? null,
           country: country ?? null,
           city: null,
@@ -132,8 +115,21 @@ export async function POST(req: Request) {
           tags: [],
           isArchived: false,
         },
+        select: { id: true },
       });
-    }
+
+      await tx.activityLog.create({
+        data: {
+          action: "LEAD_ASSIGNED",
+          message: `Client creado y asignado automáticamente`,
+          clientId: createdClient.id,
+          userId: createdUser.id,
+          metadata: { sellerId: sellerIdToUse, flujo: flujo ?? null, destino: destino ?? null, auto: true },
+        },
+      });
+
+      return { newUser: createdUser, clientId: createdClient.id };
+    });
 
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
@@ -144,21 +140,20 @@ export async function POST(req: Request) {
       );
     }
 
-    const token = await new SignJWT({ sub: newUser.id, purpose: "onboard" })
+    const onboardToken = await new SignJWT({ sub: newUser.id, purpose: "onboard" })
       .setProtectedHeader({ alg: "HS256", typ: "JWT" })
       .setIssuedAt()
       .setExpirationTime("2m")
       .sign(enc.encode(JWT_SECRET));
 
     const redirectUrl =
-      `https://dashboard.clubdeviajerossolteros.com/api/auth/accept-register` +
-      `?r=${encodeURIComponent(token)}&next=/dashboard-user`;
+      `${BASE_DASHBOARD}/api/auth/accept-register` +
+      `?r=${encodeURIComponent(onboardToken)}&next=/dashboard-user`;
 
     return NextResponse.json(
-      { success: true, usuario: newUser, redirectUrl },
+      { success: true, usuario: newUser, clientId, redirectUrl },
       { status: 201, headers }
     );
-
   } catch (error) {
     console.error("Error al registrar:", error);
     return NextResponse.json(

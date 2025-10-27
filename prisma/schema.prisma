@@ -72,7 +72,7 @@ enum SubscriptionPlan {
   VIP
 }
 
-// === Nuevo: opción de tiquete aéreo para selección ===
+// === Opción de tiquete aéreo para selección ===
 enum AirfareOption {
   WITH_AIRFARE
   WITHOUT_AIRFARE
@@ -114,6 +114,12 @@ model User {
   lookingFor     String?
   galleryImages  String[]   @default([])
 
+  // === Auto-asignación (aplica cuando role = SELLER)
+  autoAssignable   Boolean  @default(true)
+  assignmentWeight Int      @default(1)     // pesos para % (7/3 => 70%/30%)
+  maxActiveClients Int?                     // tope opcional de clientes activos
+
+  // Relaciones
   sellerClients       Client[]             @relation("SellerClients")
   sellerReservations  Reservation[]        @relation("SellerReservations")
   sellerTasks         Task[]               @relation("SellerTasks")
@@ -130,12 +136,10 @@ model User {
 }
 
 // ================== Catálogo de Categorías ==================
-// Permite agregar categorías libres como "playa", "aventura", "cultura", etc.
 model Category {
   id    String @id @default(uuid())
   name  String @unique
   slug  String @unique
-  // Relación M:N con destinos (implícita)
   destinations Destination[]
 }
 
@@ -150,29 +154,21 @@ model Destination {
   popularityScore Int  @default(0)
   imageUrl        String?
 
-  // === Membresía requerida para el destino (por defecto STANDARD) ===
   membership SubscriptionPlan @default(STANDARD)
 
-  // === Precios por moneda y con/sin tiquete aéreo (pensado para extranjeros) ===
   priceUSDWithAirfare     Decimal? @db.Decimal(12, 2)
   priceUSDWithoutAirfare  Decimal? @db.Decimal(12, 2)
   priceCOPWithAirfare     Decimal? @db.Decimal(14, 2)
   priceCOPWithoutAirfare  Decimal? @db.Decimal(14, 2)
 
-  // (opcional) precios “desde” para listados
   baseFromUSD Decimal? @db.Decimal(12, 2)
   baseFromCOP Decimal? @db.Decimal(14, 2)
 
-  // === Categorías (M:N) ===
   categories Category[]
-
-  // === Fechas (1:N) ===
-  tripDates TripDate[]
-
-  // Reservas que apuntan al destino
+  tripDates  TripDate[]
   reservations Reservation[]
 
-  // (campos legados; puedes eliminarlos si ya no los usas)
+  // legados
   price         Decimal? @db.Decimal(10, 2)
   discountPrice Decimal? @db.Decimal(10, 2)
 
@@ -185,7 +181,7 @@ model Destination {
   @@index([membership])
 }
 
-// === Fechas de viaje por destino (varias salidas) ===
+// === Fechas de viaje por destino ===
 model TripDate {
   id            String      @id @default(uuid())
   destinationId String
@@ -194,14 +190,10 @@ model TripDate {
   startDate DateTime
   endDate   DateTime
 
-  // Para UI/gestión
   isActive Boolean  @default(true)
   notes    String?
-
-  // (Opcional) cupos disponibles, si lo llegas a necesitar
   capacity Int?
 
-  // Si una reserva quiere amarrarse a una fecha concreta:
   reservations Reservation[]
 
   createdAt DateTime @default(now())
@@ -213,10 +205,11 @@ model TripDate {
 
 // ================== Clientes ==================
 model Client {
-  id         String   @id @default(uuid())
+  id       String @id @default(uuid())
 
-  sellerId String
-  seller   User   @relation("SellerClients", fields: [sellerId], references: [id], onDelete: Restrict)
+  // AHORA OPCIONAL para no bloquear creación de Client
+  sellerId String?
+  seller   User?  @relation("SellerClients", fields: [sellerId], references: [id], onDelete: Restrict)
 
   userId String @unique
   user   User   @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
@@ -250,7 +243,7 @@ model Client {
 model Reservation {
   id   String @id @default(uuid())
 
-  code String @unique // p.ej. RES-2025-000123
+  code String @unique
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -261,7 +254,6 @@ model Reservation {
   destinationId String
   destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Restrict)
 
-  // === (Opcional) vincular a una salida específica del destino ===
   tripDateId String?
   tripDate   TripDate? @relation(fields: [tripDateId], references: [id], onDelete: SetNull)
 
@@ -273,7 +265,6 @@ model Reservation {
   currency    String            @default("USD")
   totalAmount Decimal           @default(0) @db.Decimal(12, 2)
 
-  // === Selección del usuario: con/sin boleto aéreo ===
   airfareOption AirfareOption @default(WITHOUT_AIRFARE)
 
   status      ReservationStatus @default(LEAD)
