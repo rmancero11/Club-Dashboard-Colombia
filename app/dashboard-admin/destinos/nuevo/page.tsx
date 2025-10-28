@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type TripDate = { startDate: string; endDate: string; isActive?: boolean; notes?: string };
@@ -18,14 +18,6 @@ const CATEGORIES: { slug: string; name: string }[] = [
   { slug: "mixto", name: "Mixto" },
 ];
 
-const asNumber = (v: number | "" ) => (v === "" ? 0 : Number(v));
-const calcFinal = (base: number | "", pct: number | "") => {
-  const b = asNumber(base);
-  const d = asNumber(pct);
-  const f = b * (1 - d / 100);
-  return Number.isFinite(f) ? Number(f.toFixed(2)) : 0;
-};
-
 export default function NewDestinationPage() {
   const router = useRouter();
 
@@ -41,41 +33,15 @@ export default function NewDestinationPage() {
   // Categorías multi-select (por slug)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  // ===== USD =====
-  const [usdMode, setUsdMode] = useState<AirMode>("with");
-  const [usdBaseWith, setUsdBaseWith] = useState<number | "">("");
-  const [usdDiscWith, setUsdDiscWith] = useState<number | "">("");
-  const [usdBaseWithout, setUsdBaseWithout] = useState<number | "">("");
-  const [usdDiscWithout, setUsdDiscWithout] = useState<number | "">("");
+  // ===== USD (una sola elección con/sin, sin precio base) =====
+  const [usdAirMode, setUsdAirMode] = useState<AirMode>("with");
+  const [discountUSD, setDiscountUSD] = useState<number | "">("");
+  const [priceUSD, setPriceUSD] = useState<number | "">("");
 
-  const usdFinalWith = useMemo(
-    () => calcFinal(usdBaseWith, usdDiscWith),
-    [usdBaseWith, usdDiscWith]
-  );
-  const usdFinalWithout = useMemo(
-    () => calcFinal(usdBaseWithout, usdDiscWithout),
-    [usdBaseWithout, usdDiscWithout]
-  );
-
-  // ===== COP =====
-  const [copMode, setCopMode] = useState<AirMode>("with");
-  const [copBaseWith, setCopBaseWith] = useState<number | "">("");
-  const [copDiscWith, setCopDiscWith] = useState<number | "">("");
-  const [copBaseWithout, setCopBaseWithout] = useState<number | "">("");
-  const [copDiscWithout, setCopDiscWithout] = useState<number | "">("");
-
-  const copFinalWith = useMemo(
-    () => calcFinal(copBaseWith, copDiscWith),
-    [copBaseWith, copDiscWith]
-  );
-  const copFinalWithout = useMemo(
-    () => calcFinal(copBaseWithout, copDiscWithout),
-    [copBaseWithout, copDiscWithout]
-  );
-
-  // “Desde”
-  const [baseFromUSD, setBaseFromUSD] = useState<number | "">("");
-  const [baseFromCOP, setBaseFromCOP] = useState<number | "">("");
+  // ===== COP (una sola elección con/sin, sin precio base) =====
+  const [copAirMode, setCopAirMode] = useState<AirMode>("with");
+  const [discountCOP, setDiscountCOP] = useState<number | "">("");
+  const [priceCOP, setPriceCOP] = useState<number | "">("");
 
   // Fechas
   const [tripDates, setTripDates] = useState<TripDate[]>([
@@ -120,11 +86,13 @@ export default function NewDestinationPage() {
 
     try {
       // Validaciones mínimas
-      if (
-        !usdFinalWith || !usdFinalWithout ||
-        !copFinalWith || !copFinalWithout
-      ) {
-        setErr("Completa los precios base/desc. para calcular los 4 precios finales (USD/COP con y sin aéreo).");
+      if (priceUSD === "" || Number(priceUSD) <= 0) {
+        setErr("Ingresa el precio final en USD.");
+        setLoading(false);
+        return;
+      }
+      if (priceCOP === "" || Number(priceCOP) <= 0) {
+        setErr("Ingresa el precio final en COP.");
         setLoading(false);
         return;
       }
@@ -148,15 +116,14 @@ export default function NewDestinationPage() {
       // Categorías (enviamos slugs)
       formData.append("categories", JSON.stringify(selectedCategories));
 
-      // Precios (fINALES)
-      formData.append("priceUSDWithAirfare", String(usdFinalWith));
-      formData.append("priceUSDWithoutAirfare", String(usdFinalWithout));
-      formData.append("priceCOPWithAirfare", String(copFinalWith));
-      formData.append("priceCOPWithoutAirfare", String(copFinalWithout));
+      // ===== Enviar solo una variante por moneda =====
+      formData.append("priceUSD", String(priceUSD));
+      formData.append("usdAirMode", usdAirMode); // "with" | "without"
+      if (discountUSD !== "") formData.append("discountUSD", String(discountUSD));
 
-      // “Desde”
-      if (baseFromUSD !== "") formData.append("baseFromUSD", String(baseFromUSD));
-      if (baseFromCOP !== "") formData.append("baseFromCOP", String(baseFromCOP));
+      formData.append("priceCOP", String(priceCOP));
+      formData.append("copAirMode", copAirMode); // "with" | "without"
+      if (discountCOP !== "") formData.append("discountCOP", String(discountCOP));
 
       // Fechas
       formData.append("tripDates", JSON.stringify(tripDates));
@@ -311,178 +278,82 @@ export default function NewDestinationPage() {
           />
         </label>
 
-        {/* ===================== PRECIOS USD ===================== */}
+        {/* ===================== PRECIOS USD (sin precio base) ===================== */}
         <div className="border rounded-lg p-4 space-y-3">
           <h3 className="font-semibold text-gray-800">Precios en U$D</h3>
-          <div className="flex items-center gap-6">
-            <Radio name="usdMode" value="with" checked={usdMode==="with"} onChange={()=>setUsdMode("with")} label="Con aéreo" />
-            <Radio name="usdMode" value="without" checked={usdMode==="without"} onChange={()=>setUsdMode("without")} label="Sin aéreo" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className={labelClass}>
+              <span className="font-medium">Descuento (%)</span>
+              <input
+                type="number"
+                step="0.01"
+                value={discountUSD}
+                onChange={(e)=>setDiscountUSD(e.target.value===""?"":Number(e.target.value))}
+                className={inputClass}
+                placeholder="0"
+                min="0"
+              />
+            </label>
+            <label className={labelClass}>
+              <span className="font-medium">Precio final en U$D *</span>
+              <input
+                type="number"
+                step="0.01"
+                value={priceUSD}
+                onChange={(e)=>setPriceUSD(e.target.value===""?"":Number(e.target.value))}
+                className={inputClass}
+                placeholder="1499"
+                min="0"
+                required
+              />
+            </label>
           </div>
 
-          {usdMode === "with" ? (
-            <>
-              <label className={labelClass}>
-                <span className="font-medium">Precio base</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={usdBaseWith}
-                  onChange={(e)=>setUsdBaseWith(e.target.value===""?"":Number(e.target.value))}
-                  className={inputClass}
-                  placeholder="1499"
-                />
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className={labelClass}>
-                  <span className="font-medium">Descuento (%)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={usdDiscWith}
-                    onChange={(e)=>setUsdDiscWith(e.target.value===""?"":Number(e.target.value))}
-                    className={inputClass}
-                    placeholder="0"
-                  />
-                </label>
-                <label className={labelClass}>
-                  <span className="font-medium">Precio final en U$D</span>
-                  <input type="number" disabled value={usdFinalWith} className={inputClass} />
-                </label>
-              </div>
-            </>
-          ) : (
-            <>
-              <label className={labelClass}>
-                <span className="font-medium">Precio base</span>
-                <input
-                  type="number"
-                  step="0.01"
-                  value={usdBaseWithout}
-                  onChange={(e)=>setUsdBaseWithout(e.target.value===""?"":Number(e.target.value))}
-                  className={inputClass}
-                  placeholder="999"
-                />
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className={labelClass}>
-                  <span className="font-medium">Descuento (%)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={usdDiscWithout}
-                    onChange={(e)=>setUsdDiscWithout(e.target.value===""?"":Number(e.target.value))}
-                    className={inputClass}
-                    placeholder="0"
-                  />
-                </label>
-                <label className={labelClass}>
-                  <span className="font-medium">Precio final en U$D</span>
-                  <input type="number" disabled value={usdFinalWithout} className={inputClass} />
-                </label>
-              </div>
-            </>
-          )}
+          {/* Selección con/sin aéreo DEBAJO de descuento y precio final */}
+          <div className="flex items-center gap-6 pt-1">
+            <Radio name="usdAirMode" value="with" checked={usdAirMode==="with"} onChange={()=>setUsdAirMode("with")} label="Con aéreo" />
+            <Radio name="usdAirMode" value="without" checked={usdAirMode==="without"} onChange={()=>setUsdAirMode("without")} label="Sin aéreo" />
+          </div>
         </div>
 
-        {/* ===================== PRECIOS COP ===================== */}
+        {/* ===================== PRECIOS COP (sin precio base) ===================== */}
         <div className="border rounded-lg p-4 space-y-3">
           <h3 className="font-semibold text-gray-800">Precios en COP</h3>
-          <div className="flex items-center gap-6">
-            <Radio name="copMode" value="with" checked={copMode==="with"} onChange={()=>setCopMode("with")} label="Con aéreo" />
-            <Radio name="copMode" value="without" checked={copMode==="without"} onChange={()=>setCopMode("without")} label="Sin aéreo" />
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className={labelClass}>
+              <span className="font-medium">Descuento (%)</span>
+              <input
+                type="number"
+                step="0.01"
+                value={discountCOP}
+                onChange={(e)=>setDiscountCOP(e.target.value===""?"":Number(e.target.value))}
+                className={inputClass}
+                placeholder="0"
+                min="0"
+              />
+            </label>
+            <label className={labelClass}>
+              <span className="font-medium">Precio final en COP *</span>
+              <input
+                type="number"
+                step="1"
+                value={priceCOP}
+                onChange={(e)=>setPriceCOP(e.target.value===""?"":Number(e.target.value))}
+                className={inputClass}
+                placeholder="5800000"
+                min="0"
+                required
+              />
+            </label>
           </div>
 
-          {copMode === "with" ? (
-            <>
-              <label className={labelClass}>
-                <span className="font-medium">Precio base</span>
-                <input
-                  type="number"
-                  step="1"
-                  value={copBaseWith}
-                  onChange={(e)=>setCopBaseWith(e.target.value===""?"":Number(e.target.value))}
-                  className={inputClass}
-                  placeholder="5800000"
-                />
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className={labelClass}>
-                  <span className="font-medium">Descuento (%)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={copDiscWith}
-                    onChange={(e)=>setCopDiscWith(e.target.value===""?"":Number(e.target.value))}
-                    className={inputClass}
-                    placeholder="0"
-                  />
-                </label>
-                <label className={labelClass}>
-                  <span className="font-medium">Precio final en COP</span>
-                  <input type="number" disabled value={copFinalWith} className={inputClass} />
-                </label>
-              </div>
-            </>
-          ) : (
-            <>
-              <label className={labelClass}>
-                <span className="font-medium">Precio base</span>
-                <input
-                  type="number"
-                  step="1"
-                  value={copBaseWithout}
-                  onChange={(e)=>setCopBaseWithout(e.target.value===""?"":Number(e.target.value))}
-                  className={inputClass}
-                  placeholder="3900000"
-                />
-              </label>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <label className={labelClass}>
-                  <span className="font-medium">Descuento (%)</span>
-                  <input
-                    type="number"
-                    step="0.01"
-                    value={copDiscWithout}
-                    onChange={(e)=>setCopDiscWithout(e.target.value===""?"":Number(e.target.value))}
-                    className={inputClass}
-                    placeholder="0"
-                  />
-                </label>
-                <label className={labelClass}>
-                  <span className="font-medium">Precio final en COP</span>
-                  <input type="number" disabled value={copFinalWithout} className={inputClass} />
-                </label>
-              </div>
-            </>
-          )}
-        </div>
-
-        {/* Precios desde (opcionales) */}
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          <label className={labelClass}>
-            <span className="font-medium">Desde USD (opcional)</span>
-            <input
-              type="number"
-              value={baseFromUSD}
-              onChange={(e) => setBaseFromUSD(e.target.value === "" ? "" : Number(e.target.value))}
-              className={inputClass}
-              placeholder="999"
-              min="0"
-              step="0.01"
-            />
-          </label>
-          <label className={labelClass}>
-            <span className="font-medium">Desde COP (opcional)</span>
-            <input
-              type="number"
-              value={baseFromCOP}
-              onChange={(e) => setBaseFromCOP(e.target.value === "" ? "" : Number(e.target.value))}
-              className={inputClass}
-              placeholder="3900000"
-              min="0"
-              step="1"
-            />
-          </label>
+          {/* Selección con/sin aéreo DEBAJO de descuento y precio final */}
+          <div className="flex items-center gap-6 pt-1">
+            <Radio name="copAirMode" value="with" checked={copAirMode==="with"} onChange={()=>setCopAirMode("with")} label="Con aéreo" />
+            <Radio name="copAirMode" value="without" checked={copAirMode==="without"} onChange={()=>setCopAirMode("without")} label="Sin aéreo" />
+          </div>
         </div>
 
         {/* Fechas (múltiples) */}
