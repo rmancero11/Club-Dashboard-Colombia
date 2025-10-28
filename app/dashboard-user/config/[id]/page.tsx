@@ -202,51 +202,81 @@ export default function EditProfilePage() {
   };
 
   const handleSave = async () => {
-    if (!editingField || !user) return;
-    setLoading(true);
+  if (!editingField || !user) return;
+  setLoading(true);
 
-    const formData = new FormData();
-    if (tempFile) formData.append(editingField, tempFile);
-    else formData.append(editingField, tempValue);
+  const formData = new FormData();
+    formData.append("userId", user.id);
+  // 🟢 Si el campo es singleStatus, convertir el valor a booleano
+  if (editingField === "singleStatus") {
+    const boolValue = tempValue === "Sí" ? true : tempValue === "No" ? false : null;
+    formData.append(editingField, String(boolValue));
+  } 
+  // 🟢 Si es un archivo
+  else if (tempFile) {
+    formData.append(editingField, tempFile);
+  } 
+  // 🟢 Para todos los demás campos
+  else {
+    formData.append(editingField, tempValue);
+  }
 
-    try {
-      const res = await fetch("/api/user/update", {
-        method: "POST",
-        body: formData,
-        credentials: "include",
-      });
+  try {
+    const res = await fetch("/api/user/update", {
+      method: "POST",
+      body: formData,
+      credentials: "include",
+    });
 
-      if (res.ok) {
-        const data = await res.json().catch(() => null);
+    if (res.ok) {
+      const data = await res.json().catch(() => null);
 
-        if (data && data.user) {
-          setUser((prev) => {
-            if (!prev) return data.user;
+      if (data && data.user) {
+        setUser((prev) => {
+          if (!prev) return data.user;
 
-            return {
-              ...prev,
-              ...data.user,
-              galleryImages: Array.isArray(data.user.galleryImages)
-                ? data.user.galleryImages
-                : prev.galleryImages || [],
-              ...(tempFile && {
-                [editingField]: URL.createObjectURL(tempFile),
-              }),
-            };
-          });
-        }
+          // ⚙️ Convertir el valor de vuelta a "Sí"/"No"
+          const singleStatus =
+            data.user.singleStatus === true ||
+            data.user.singleStatus === "true"
+              ? "Sí"
+              : data.user.singleStatus === false ||
+                data.user.singleStatus === "false"
+              ? "No"
+              : prev.singleStatus;
 
-        // Cerramos el modal
-        closeEditor();
-      } else {
-        console.error("Error al actualizar el campo");
-      }
-    } catch (err) {
-      console.error(err);
-    } finally {
-      setLoading(false);
+          const isISODate = (str: string) => /^\d{4}-\d{2}-\d{2}$/.test(str);
+    const birthday =
+      data.user.birthday && !isISODate(data.user.birthday)
+        ? new Date(data.user.birthday).toISOString().split("T")[0]
+        : data.user.birthday || prev.birthday;
+
+    return {
+      ...prev,
+      ...data.user,
+      birthday, // ✅ se actualiza ya formateada
+      singleStatus,
+      galleryImages: Array.isArray(data.user.galleryImages)
+        ? data.user.galleryImages
+        : prev.galleryImages || [],
+      ...(tempFile && {
+        [editingField]: URL.createObjectURL(tempFile),
+      }),
+    };
+  });
+}
+
+      closeEditor();
+    } else {
+      console.error("Error al actualizar el campo");
     }
-  };
+  } catch (err) {
+    console.error(err);
+  } finally {
+    setLoading(false);
+  }
+};
+
 
   const editableFields = [
     "name",
