@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 
 type TripDate = { startDate: string; endDate: string; isActive?: boolean; notes?: string };
@@ -18,6 +18,19 @@ const CATEGORIES: { slug: string; name: string }[] = [
   { slug: "mixto", name: "Mixto" },
 ];
 
+/* ================= Helpers ================= */
+type UINumber = number | "";
+
+// Precio final = lista * (1 - d%)
+const computeFinal = (list: UINumber, discount: UINumber): UINumber => {
+  if (list === "" || Number(list) <= 0) return "";
+  const d = discount === "" ? 0 : Number(discount);
+  if (d < 0) return Number(list);
+  const factor = 1 - d / 100;
+  if (factor <= 0) return 0;
+  return Number(list) * factor;
+};
+
 export default function NewDestinationPage() {
   const router = useRouter();
 
@@ -33,15 +46,17 @@ export default function NewDestinationPage() {
   // Categorías multi-select (por slug)
   const [selectedCategories, setSelectedCategories] = useState<string[]>([]);
 
-  // ===== USD (una sola elección con/sin, sin precio base) =====
+  // ===== USD (una sola elección con/sin; se ingresa LISTA y se calcula FINAL) =====
   const [usdAirMode, setUsdAirMode] = useState<AirMode>("with");
-  const [discountUSD, setDiscountUSD] = useState<number | "">("");
-  const [priceUSD, setPriceUSD] = useState<number | "">("");
+  const [listUSD, setListUSD] = useState<number | "">("");         // Precio sin descuento (editable)
+  const [discountUSD, setDiscountUSD] = useState<number | "">(""); // %
+  const priceUSD = useMemo(() => computeFinal(listUSD, discountUSD), [listUSD, discountUSD]); // final (solo lectura)
 
-  // ===== COP (una sola elección con/sin, sin precio base) =====
+  // ===== COP (una sola elección con/sin; se ingresa LISTA y se calcula FINAL) =====
   const [copAirMode, setCopAirMode] = useState<AirMode>("with");
-  const [discountCOP, setDiscountCOP] = useState<number | "">("");
-  const [priceCOP, setPriceCOP] = useState<number | "">("");
+  const [listCOP, setListCOP] = useState<number | "">("");         // Precio sin descuento (editable)
+  const [discountCOP, setDiscountCOP] = useState<number | "">(""); // %
+  const priceCOP = useMemo(() => computeFinal(listCOP, discountCOP), [listCOP, discountCOP]); // final (solo lectura)
 
   // Fechas
   const [tripDates, setTripDates] = useState<TripDate[]>([
@@ -85,14 +100,24 @@ export default function NewDestinationPage() {
     setMsg(null);
 
     try {
-      // Validaciones mínimas
+      // Validaciones mínimas (sobre LISTA y FINAL calculado)
+      if (listUSD === "" || Number(listUSD) <= 0) {
+        setErr("Ingresa el precio sin descuento en USD.");
+        setLoading(false);
+        return;
+      }
       if (priceUSD === "" || Number(priceUSD) <= 0) {
-        setErr("Ingresa el precio final en USD.");
+        setErr("El precio final calculado en USD debe ser mayor a 0.");
+        setLoading(false);
+        return;
+      }
+      if (listCOP === "" || Number(listCOP) <= 0) {
+        setErr("Ingresa el precio sin descuento en COP.");
         setLoading(false);
         return;
       }
       if (priceCOP === "" || Number(priceCOP) <= 0) {
-        setErr("Ingresa el precio final en COP.");
+        setErr("El precio final calculado en COP debe ser mayor a 0.");
         setLoading(false);
         return;
       }
@@ -116,14 +141,29 @@ export default function NewDestinationPage() {
       // Categorías (enviamos slugs)
       formData.append("categories", JSON.stringify(selectedCategories));
 
-      // ===== Enviar solo una variante por moneda =====
-      formData.append("priceUSD", String(priceUSD));
-      formData.append("usdAirMode", usdAirMode); // "with" | "without"
-      if (discountUSD !== "") formData.append("discountUSD", String(discountUSD));
+      // ===== Enviar columnas por modo, alineadas con el schema =====
+      // USD - LISTA (sin descuento) y FINAL calculado + %
+      if (usdAirMode === "with") {
+        formData.append("listUSDWithAirfare", String(Number(listUSD).toFixed(2)));
+        formData.append("priceUSDWithAirfare", String(Number(priceUSD).toFixed(2)));
+        if (discountUSD !== "") formData.append("discountUSDWithAirfarePercent", String(Number(discountUSD)));
+      } else {
+        formData.append("listUSDWithoutAirfare", String(Number(listUSD).toFixed(2)));
+        formData.append("priceUSDWithoutAirfare", String(Number(priceUSD).toFixed(2)));
+        if (discountUSD !== "") formData.append("discountUSDWithoutAirfarePercent", String(Number(discountUSD)));
+      }
 
-      formData.append("priceCOP", String(priceCOP));
-      formData.append("copAirMode", copAirMode); // "with" | "without"
-      if (discountCOP !== "") formData.append("discountCOP", String(discountCOP));
+      // COP - LISTA (sin descuento) y FINAL calculado + %
+      // (en COP solemos guardar enteros para final y lista)
+      if (copAirMode === "with") {
+        formData.append("listCOPWithAirfare", String(Math.round(Number(listCOP))));
+        formData.append("priceCOPWithAirfare", String(Math.round(Number(priceCOP))));
+        if (discountCOP !== "") formData.append("discountCOPWithAirfarePercent", String(Number(discountCOP)));
+      } else {
+        formData.append("listCOPWithoutAirfare", String(Math.round(Number(listCOP))));
+        formData.append("priceCOPWithoutAirfare", String(Math.round(Number(priceCOP))));
+        if (discountCOP !== "") formData.append("discountCOPWithoutAirfarePercent", String(Number(discountCOP)));
+      }
 
       // Fechas
       formData.append("tripDates", JSON.stringify(tripDates));
@@ -278,78 +318,106 @@ export default function NewDestinationPage() {
           />
         </label>
 
-        {/* ===================== PRECIOS USD (sin precio base) ===================== */}
+        {/* ===================== PRECIOS USD ===================== */}
         <div className="border rounded-lg p-4 space-y-3">
           <h3 className="font-semibold text-gray-800">Precios en U$D</h3>
 
+          {/* Precio sin descuento (editable) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className={labelClass}>
+              <span className="font-medium">Precio sin descuento (U$D) *</span>
+              <input
+                type="number"
+                step="0.01"
+                value={listUSD}
+                onChange={(e)=>setListUSD(e.target.value==="" ? "" : Number(e.target.value))}
+                className={inputClass}
+                placeholder="1666.67"
+                min="0"
+                required
+              />
+            </label>
             <label className={labelClass}>
               <span className="font-medium">Descuento (%)</span>
               <input
                 type="number"
                 step="0.01"
                 value={discountUSD}
-                onChange={(e)=>setDiscountUSD(e.target.value===""?"":Number(e.target.value))}
+                onChange={(e)=>setDiscountUSD(e.target.value==="" ? "" : Number(e.target.value))}
                 className={inputClass}
-                placeholder="0"
+                placeholder="10"
                 min="0"
-              />
-            </label>
-            <label className={labelClass}>
-              <span className="font-medium">Precio final en U$D *</span>
-              <input
-                type="number"
-                step="0.01"
-                value={priceUSD}
-                onChange={(e)=>setPriceUSD(e.target.value===""?"":Number(e.target.value))}
-                className={inputClass}
-                placeholder="1499"
-                min="0"
-                required
               />
             </label>
           </div>
 
-          {/* Selección con/sin aéreo DEBAJO de descuento y precio final */}
+          {/* Precio final derivado (solo lectura) */}
+          <label className={labelClass}>
+            <span className="font-medium">Precio final en U$D (calculado)</span>
+            <input
+              type="number"
+              readOnly
+              value={priceUSD === "" ? "" : Number(priceUSD).toFixed(2)}
+              className={`${inputClass} bg-gray-50`}
+              placeholder="—"
+            />
+            <span className="text-xs text-gray-500">Se calcula como: lista × (1 - %/100).</span>
+          </label>
+
+          {/* Modo con/sin aéreo */}
           <div className="flex items-center gap-6 pt-1">
             <Radio name="usdAirMode" value="with" checked={usdAirMode==="with"} onChange={()=>setUsdAirMode("with")} label="Con aéreo" />
             <Radio name="usdAirMode" value="without" checked={usdAirMode==="without"} onChange={()=>setUsdAirMode("without")} label="Sin aéreo" />
           </div>
         </div>
 
-        {/* ===================== PRECIOS COP (sin precio base) ===================== */}
+        {/* ===================== PRECIOS COP ===================== */}
         <div className="border rounded-lg p-4 space-y-3">
           <h3 className="font-semibold text-gray-800">Precios en COP</h3>
 
+          {/* Precio sin descuento (editable) */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <label className={labelClass}>
+              <span className="font-medium">Precio sin descuento (COP) *</span>
+              <input
+                type="number"
+                step="1"
+                value={listCOP}
+                onChange={(e)=>setListCOP(e.target.value==="" ? "" : Number(e.target.value))}
+                className={inputClass}
+                placeholder="6666666"
+                min="0"
+                required
+              />
+            </label>
             <label className={labelClass}>
               <span className="font-medium">Descuento (%)</span>
               <input
                 type="number"
                 step="0.01"
                 value={discountCOP}
-                onChange={(e)=>setDiscountCOP(e.target.value===""?"":Number(e.target.value))}
+                onChange={(e)=>setDiscountCOP(e.target.value==="" ? "" : Number(e.target.value))}
                 className={inputClass}
-                placeholder="0"
+                placeholder="10"
                 min="0"
-              />
-            </label>
-            <label className={labelClass}>
-              <span className="font-medium">Precio final en COP *</span>
-              <input
-                type="number"
-                step="1"
-                value={priceCOP}
-                onChange={(e)=>setPriceCOP(e.target.value===""?"":Number(e.target.value))}
-                className={inputClass}
-                placeholder="5800000"
-                min="0"
-                required
               />
             </label>
           </div>
 
-          {/* Selección con/sin aéreo DEBAJO de descuento y precio final */}
+          {/* Precio final derivado (solo lectura) */}
+          <label className={labelClass}>
+            <span className="font-medium">Precio final en COP (calculado)</span>
+            <input
+              type="number"
+              readOnly
+              value={priceCOP === "" ? "" : Math.round(Number(priceCOP))}
+              className={`${inputClass} bg-gray-50`}
+              placeholder="—"
+            />
+            <span className="text-xs text-gray-500">Se calcula como: lista × (1 - %/100). Se redondea al entero más cercano.</span>
+          </label>
+
+          {/* Modo con/sin aéreo */}
           <div className="flex items-center gap-6 pt-1">
             <Radio name="copAirMode" value="with" checked={copAirMode==="with"} onChange={()=>setCopAirMode("with")} label="Con aéreo" />
             <Radio name="copAirMode" value="without" checked={copAirMode==="without"} onChange={()=>setCopAirMode("without")} label="Sin aéreo" />

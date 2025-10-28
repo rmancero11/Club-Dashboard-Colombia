@@ -40,14 +40,26 @@ type Dest = {
   membership: Membership;
   categories: CategoryLite[];
 
-  // Valores existentes en BD (formato anterior con 4 campos):
+  // Valores finales existentes en BD (por modo)
   priceUSDWithAirfare: UINumber;
   priceUSDWithoutAirfare: UINumber;
   priceCOPWithAirfare: UINumber;
   priceCOPWithoutAirfare: UINumber;
 
+  // “Desde”
   baseFromUSD?: UINumber;
   baseFromCOP?: UINumber;
+
+  // NUEVOS en BD (pueden venir null)
+  listUSDWithAirfare?: UINumber;
+  listUSDWithoutAirfare?: UINumber;
+  listCOPWithAirfare?: UINumber;
+  listCOPWithoutAirfare?: UINumber;
+
+  discountUSDWithAirfarePercent?: UINumber;
+  discountUSDWithoutAirfarePercent?: UINumber;
+  discountCOPWithAirfarePercent?: UINumber;
+  discountCOPWithoutAirfarePercent?: UINumber;
 
   tripDates: TripDateFromServer[];
 };
@@ -67,10 +79,29 @@ const toDateInput = (v: string | Date | undefined) => {
   return typeof v === "string" ? v.slice(0, 10) : v.toISOString().slice(0, 10);
 };
 
-const sameStr = (a?: string | null, b?: string | null) => (a ?? "") === (b ?? "");
+const sameStr = (a?: string | null, b?: string | null) =>
+  (a ?? "") === (b ?? "");
 const trimOrEmpty = (v: string) => v.trim();
 const toNumStr = (v: UINumber) => (v === "" ? "" : String(v));
 const sameNumStr = (a: UINumber, b: UINumber) => toNumStr(a) === toNumStr(b);
+
+const computeDiscountPercent = (
+  list: UINumber,
+  finalPrice: UINumber
+): UINumber => {
+  if (list === "" || finalPrice === "") return "";
+  const L = Number(list);
+  const F = Number(finalPrice);
+  if (L <= 0 || F <= 0 || F > L) return "";
+  return ((L - F) / L) * 100;
+};
+
+const computeFinal = (list: UINumber, discount: UINumber): UINumber => {
+  if (list === "" || Number(list) <= 0) return "";
+  const d = discount === "" ? 0 : Number(discount);
+  if (d <= 0) return Number(list);
+  return Number(list) * (1 - d / 100);
+};
 
 /* ================== Componente ================== */
 
@@ -87,7 +118,8 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
     () => (dest.categories || []).map((c) => c.slug),
     [dest.categories]
   );
-  const [selectedCategories, setSelectedCategories] = useState<string[]>(initialSelectedCats);
+  const [selectedCategories, setSelectedCategories] =
+    useState<string[]>(initialSelectedCats);
 
   // Para comparar cambios de categorías
   const categoriesEqual = useMemo(() => {
@@ -96,32 +128,110 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
     return JSON.stringify(a) === JSON.stringify(b);
   }, [initialSelectedCats, selectedCategories]);
 
-  // ====== Precios – nuevo modelo (una sola variante por moneda, sin precio base)
+  // ====== Precios – una variante activa por moneda (con/sin aéreo)
   type AirMode = "with" | "without";
 
-  const initialUsdMode: AirMode = (dest.priceUSDWithAirfare !== "" && Number(dest.priceUSDWithAirfare) > 0)
-    ? "with"
-    : "without";
-  const initialUsdPrice: UINumber =
-    initialUsdMode === "with" ? dest.priceUSDWithAirfare : dest.priceUSDWithoutAirfare;
+  // === USD
+  const initialUsdMode: AirMode =
+    dest.priceUSDWithAirfare !== "" && Number(dest.priceUSDWithAirfare) > 0
+      ? "with"
+      : "without";
 
-  const initialCopMode: AirMode = (dest.priceCOPWithAirfare !== "" && Number(dest.priceCOPWithAirfare) > 0)
-    ? "with"
-    : "without";
-  const initialCopPrice: UINumber =
-    initialCopMode === "with" ? dest.priceCOPWithAirfare : dest.priceCOPWithoutAirfare;
+  const initialUsdPrice: UINumber =
+    initialUsdMode === "with"
+      ? dest.priceUSDWithAirfare
+      : dest.priceUSDWithoutAirfare;
+
+  // Si no hay list* en BD, usamos el precio final original como punto de partida de la lista
+  const initialUsdList: UINumber =
+    initialUsdMode === "with"
+      ? dest.listUSDWithAirfare ?? initialUsdPrice ?? ""
+      : dest.listUSDWithoutAirfare ?? initialUsdPrice ?? "";
+
+  const initialUsdDiscount: UINumber =
+    initialUsdMode === "with"
+      ? dest.discountUSDWithAirfarePercent ??
+        computeDiscountPercent(
+          dest.listUSDWithAirfare ?? "",
+          dest.priceUSDWithAirfare ?? ""
+        )
+      : dest.discountUSDWithoutAirfarePercent ??
+        computeDiscountPercent(
+          dest.listUSDWithoutAirfare ?? "",
+          dest.priceUSDWithoutAirfare ?? ""
+        );
 
   const [usdAirMode, setUsdAirMode] = useState<AirMode>(initialUsdMode);
-  const [priceUSD, setPriceUSD] = useState<UINumber>(initialUsdPrice ?? "");
-  const [discountUSD, setDiscountUSD] = useState<UINumber>(""); // opcional, informativo
+  const [listUSD, setListUSD] = useState<UINumber>(initialUsdList ?? "");
+  const [discountUSD, setDiscountUSD] = useState<UINumber>(initialUsdDiscount);
+
+  // final derivado (solo lectura en UI)
+  const priceUSD = useMemo(() => {
+    const f = computeFinal(listUSD, discountUSD);
+    return f === "" ? "" : Number(Number(f).toFixed(2));
+  }, [listUSD, discountUSD]);
+
+  // Si falta % pero hay lista y final original, inferir %
+  useEffect(() => {
+    if (discountUSD === "" && listUSD !== "" && initialUsdPrice !== "") {
+      const inferred = computeDiscountPercent(listUSD, initialUsdPrice);
+      if (inferred !== "") setDiscountUSD(Number(Number(inferred).toFixed(2)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // === COP
+  const initialCopMode: AirMode =
+    dest.priceCOPWithAirfare !== "" && Number(dest.priceCOPWithAirfare) > 0
+      ? "with"
+      : "without";
+  const initialCopPrice: UINumber =
+    initialCopMode === "with"
+      ? dest.priceCOPWithAirfare
+      : dest.priceCOPWithoutAirfare;
+
+  const initialCopList: UINumber =
+    initialCopMode === "with"
+      ? dest.listCOPWithAirfare ?? initialCopPrice ?? ""
+      : dest.listCOPWithoutAirfare ?? initialCopPrice ?? "";
+
+  const initialCopDiscount: UINumber =
+    initialCopMode === "with"
+      ? dest.discountCOPWithAirfarePercent ??
+        computeDiscountPercent(
+          dest.listCOPWithAirfare ?? "",
+          dest.priceCOPWithAirfare ?? ""
+        )
+      : dest.discountCOPWithoutAirfarePercent ??
+        computeDiscountPercent(
+          dest.listCOPWithoutAirfare ?? "",
+          dest.priceCOPWithoutAirfare ?? ""
+        );
 
   const [copAirMode, setCopAirMode] = useState<AirMode>(initialCopMode);
-  const [priceCOP, setPriceCOP] = useState<UINumber>(initialCopPrice ?? "");
-  const [discountCOP, setDiscountCOP] = useState<UINumber>(""); // opcional, informativo
+  const [listCOP, setListCOP] = useState<UINumber>(initialCopList ?? "");
+  const [discountCOP, setDiscountCOP] = useState<UINumber>(initialCopDiscount);
+
+  const priceCOP = useMemo(() => {
+    const f = computeFinal(listCOP, discountCOP);
+    return f === "" ? "" : Math.round(Number(f));
+  }, [listCOP, discountCOP]);
+
+  useEffect(() => {
+    if (discountCOP === "" && listCOP !== "" && initialCopPrice !== "") {
+      const inferred = computeDiscountPercent(listCOP, initialCopPrice);
+      if (inferred !== "") setDiscountCOP(Number(Number(inferred).toFixed(2)));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // “Desde”
-  const [baseFromUSD, setBaseFromUSD] = useState<UINumber>(dest.baseFromUSD ?? "");
-  const [baseFromCOP, setBaseFromCOP] = useState<UINumber>(dest.baseFromCOP ?? "");
+  const [baseFromUSD, setBaseFromUSD] = useState<UINumber>(
+    dest.baseFromUSD ?? ""
+  );
+  const [baseFromCOP, setBaseFromCOP] = useState<UINumber>(
+    dest.baseFromCOP ?? ""
+  );
 
   // ====== TripDates (convertimos a strings para inputs date)
   const [tripDates, setTripDates] = useState<TripDateState[]>(
@@ -135,10 +245,15 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
   );
 
   function setTripDate(idx: number, patch: Partial<TripDateState>) {
-    setTripDates((prev) => prev.map((td, i) => (i === idx ? { ...td, ...patch } : td)));
+    setTripDates((prev) =>
+      prev.map((td, i) => (i === idx ? { ...td, ...patch } : td))
+    );
   }
   function addTripDate() {
-    setTripDates((prev) => [...prev, { startDate: "", endDate: "", isActive: true, notes: "" }]);
+    setTripDates((prev) => [
+      ...prev,
+      { startDate: "", endDate: "", isActive: true, notes: "" },
+    ]);
   }
   function removeTripDate(idx: number) {
     setTripDates((prev) => prev.filter((_, i) => i !== idx));
@@ -162,9 +277,6 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
     return JSON.stringify(normA) === JSON.stringify(normB);
   }, [dest.tripDates, tripDates]);
 
-  // ====== Imagen (si decides añadir en esta pantalla puedes reusar tu lógica previa)
-  // (omito imagen aquí porque el snippet original no incluía update de imagen)
-
   // ====== UI
   const [saving, setSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
@@ -178,20 +290,26 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
     setErrorMsg(null);
 
     try {
-      // Validaciones simples
+      // Validaciones simples (final derivado debe ser > 0)
       if (priceUSD === "" || Number(priceUSD) <= 0) {
-        setErrorMsg("Ingresa el precio final en USD.");
+        setErrorMsg(
+          "Ingresa un precio de lista y descuento válidos para obtener un final en USD."
+        );
         setSaving(false);
         return;
       }
       if (priceCOP === "" || Number(priceCOP) <= 0) {
-        setErrorMsg("Ingresa el precio final en COP.");
+        setErrorMsg(
+          "Ingresa un precio de lista y descuento válidos para obtener un final en COP."
+        );
         setSaving(false);
         return;
       }
       for (const td of tripDates) {
         if (!td.startDate || !td.endDate) {
-          setErrorMsg("Completa inicio y fin en todas las salidas o elimina las incompletas.");
+          setErrorMsg(
+            "Completa inicio y fin en todas las salidas o elimina las incompletas."
+          );
           setSaving(false);
           return;
         }
@@ -206,34 +324,86 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
 
       // Básicos
       if (!sameStr(dest.name, name)) setChange("name", trimOrEmpty(name));
-      if (!sameStr(dest.country, country)) setChange("country", trimOrEmpty(country));
+      if (!sameStr(dest.country, country))
+        setChange("country", trimOrEmpty(country));
       if (!sameStr(dest.city ?? "", city)) setChange("city", trimOrEmpty(city));
-      if (!sameStr(dest.description ?? "", description)) setChange("description", trimOrEmpty(description));
+      if (!sameStr(dest.description ?? "", description))
+        setChange("description", trimOrEmpty(description));
 
       // Membresía
       if (dest.membership !== membership) setChange("membership", membership);
 
       // Categorías
-      if (!categoriesEqual) setChange("categories", JSON.stringify(selectedCategories));
+      const categoriesEqualNow = categoriesEqual;
+      if (!categoriesEqualNow)
+        setChange("categories", JSON.stringify(selectedCategories));
 
-      // ===== Precios (nuevo modelo de edición)
-      // Comparamos contra el valor previo que estaba "activo" por cada moneda
+      // ===== Precios (por modo y moneda) =====
+
+      // USD modos
       if (usdAirMode !== initialUsdMode) setChange("usdAirMode", usdAirMode);
-      if (!sameNumStr(initialUsdPrice, priceUSD)) setChange("priceUSD", toNumStr(priceUSD));
-      if (discountUSD !== "") setChange("discountUSD", toNumStr(discountUSD)); // opcional
 
+      // lista (editable) -> listUSD*
+      if (listUSD !== "") {
+        const normalizedL = Number(Number(listUSD).toFixed(2));
+        if (usdAirMode === "with")
+          setChange("listUSDWithAirfare", toNumStr(normalizedL));
+        else setChange("listUSDWithoutAirfare", toNumStr(normalizedL));
+      }
+
+      // descuento % -> discountUSD*
+      if (discountUSD !== "") {
+        const normalizedD = Number(Number(discountUSD).toFixed(2));
+        if (usdAirMode === "with")
+          setChange("discountUSDWithAirfarePercent", toNumStr(normalizedD));
+        else
+          setChange("discountUSDWithoutAirfarePercent", toNumStr(normalizedD));
+      }
+
+      // final derivado -> priceUSD*
+      if (Number.isFinite(priceUSD)) {
+        const normalizedF = Number(priceUSD.toFixed(2));
+        if (usdAirMode === "with")
+          setChange("priceUSDWithAirfare", String(normalizedF));
+        else setChange("priceUSDWithoutAirfare", String(normalizedF));
+      }
+
+      // COP modos
       if (copAirMode !== initialCopMode) setChange("copAirMode", copAirMode);
-      if (!sameNumStr(initialCopPrice, priceCOP)) setChange("priceCOP", toNumStr(priceCOP));
-      if (discountCOP !== "") setChange("discountCOP", toNumStr(discountCOP)); // opcional
+
+      // lista (editable) -> listCOP*
+      if (listCOP !== "") {
+        const normalizedL = Math.round(Number(listCOP));
+        if (copAirMode === "with")
+          setChange("listCOPWithAirfare", toNumStr(normalizedL));
+        else setChange("listCOPWithoutAirfare", toNumStr(normalizedL));
+      }
+
+      // descuento % -> discountCOP*
+      if (discountCOP !== "") {
+        const normalizedD = Number(Number(discountCOP).toFixed(2));
+        if (copAirMode === "with")
+          setChange("discountCOPWithAirfarePercent", toNumStr(normalizedD));
+        else
+          setChange("discountCOPWithoutAirfarePercent", toNumStr(normalizedD));
+      }
+
+      // final derivado -> priceCOP*
+      if (Number.isFinite(priceCOP)) {
+        const normalizedF = Math.round(priceCOP);
+        if (copAirMode === "with")
+          setChange("priceCOPWithAirfare", String(normalizedF));
+        else setChange("priceCOPWithoutAirfare", String(normalizedF));
+      }
 
       // “Desde”
-      if (!sameNumStr(dest.baseFromUSD ?? "", baseFromUSD)) setChange("baseFromUSD", toNumStr(baseFromUSD));
-      if (!sameNumStr(dest.baseFromCOP ?? "", baseFromCOP)) setChange("baseFromCOP", toNumStr(baseFromCOP));
+      if (!sameNumStr(dest.baseFromUSD ?? "", baseFromUSD))
+        setChange("baseFromUSD", toNumStr(baseFromUSD));
+      if (!sameNumStr(dest.baseFromCOP ?? "", baseFromCOP))
+        setChange("baseFromCOP", toNumStr(baseFromCOP));
 
       // TripDates
-      if (!tripDatesEqual) {
-        setChange("tripDates", JSON.stringify(tripDates));
-      }
+      if (!tripDatesEqual) setChange("tripDates", JSON.stringify(tripDates));
 
       if (!hasChanges) {
         setSaving(false);
@@ -280,7 +450,13 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
     label: string;
   }) => (
     <label className="inline-flex items-center gap-2 text-sm">
-      <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
+      <input
+        type="radio"
+        name={name}
+        value={value}
+        checked={checked}
+        onChange={onChange}
+      />
       {label}
     </label>
   );
@@ -296,31 +472,51 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
       {/* Nombre */}
       <label className={labelBase}>
         <span className="font-medium">Nombre *</span>
-        <input required value={name} onChange={(e) => setName(e.target.value)} className={inputBase} />
+        <input
+          required
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          className={inputBase}
+        />
       </label>
 
       {/* País / Ciudad */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={labelBase}>
           <span className="font-medium">País *</span>
-          <input required value={country} onChange={(e) => setCountry(e.target.value)} className={inputBase} />
+          <input
+            required
+            value={country}
+            onChange={(e) => setCountry(e.target.value)}
+            className={inputBase}
+          />
         </label>
 
         <label className={labelBase}>
           <span className="font-medium">Ciudad</span>
-          <input value={city} onChange={(e) => setCity(e.target.value)} className={inputBase} />
+          <input
+            value={city}
+            onChange={(e) => setCity(e.target.value)}
+            className={inputBase}
+          />
         </label>
       </div>
 
       {/* Membresía */}
       <label className={labelBase}>
         <span className="font-medium">Membresía requerida</span>
-        <select value={membership} onChange={(e) => setMembership(e.target.value as Membership)} className={inputBase}>
+        <select
+          value={membership}
+          onChange={(e) => setMembership(e.target.value as Membership)}
+          className={inputBase}
+        >
           <option value="STANDARD">STANDARD</option>
           <option value="PREMIUM">PREMIUM</option>
           <option value="VIP">VIP</option>
         </select>
-        <span className="text-xs text-gray-500">Define qué plan puede ver/comprar este destino.</span>
+        <span className="text-xs text-gray-500">
+          Define qué plan puede ver/comprar este destino.
+        </span>
       </label>
 
       {/* Categorías (multi-select) */}
@@ -330,7 +526,9 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
           multiple
           value={selectedCategories}
           onChange={(e) => {
-            const opts = Array.from(e.target.selectedOptions).map((o) => o.value);
+            const opts = Array.from(e.target.selectedOptions).map(
+              (o) => o.value
+            );
             setSelectedCategories(opts);
           }}
           className={`${inputBase} h-28`}
@@ -346,9 +544,28 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
         </span>
       </label>
 
-      {/* ===================== BLOQUE PRECIOS USD (sin precio base) ===================== */}
+      {/* ===================== BLOQUE PRECIOS USD ===================== */}
       <div className="border rounded-lg p-4 space-y-3">
         <h3 className="font-semibold text-gray-800">Precios en U$D</h3>
+
+        {/* Precio sin descuento (editable) */}
+        <label className={labelBase}>
+          <span className="font-medium">Precio sin descuento (U$D)</span>
+          <input
+            type="number"
+            step="0.01"
+            value={listUSD}
+            onChange={(e) =>
+              setListUSD(e.target.value === "" ? "" : Number(e.target.value))
+            }
+            className={inputBase}
+            placeholder="Precio de lista en USD"
+            min="0"
+          />
+          <span className="text-xs text-gray-500">
+            Este es el precio inicial que se puso al crear el destino.
+          </span>
+        </label>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className={labelBase}>
@@ -357,28 +574,30 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
               type="number"
               step="0.01"
               value={discountUSD}
-              onChange={(e) => setDiscountUSD(e.target.value === "" ? "" : Number(e.target.value))}
+              onChange={(e) =>
+                setDiscountUSD(
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
               className={inputBase}
               placeholder="0"
               min="0"
             />
           </label>
+          {/* Final derivado (solo lectura) */}
           <label className={labelBase}>
             <span className="font-medium">Precio final en U$D *</span>
             <input
               type="number"
-              step="0.01"
-              value={priceUSD}
-              onChange={(e) => setPriceUSD(e.target.value === "" ? "" : Number(e.target.value))}
-              className={inputBase}
-              placeholder="1499"
-              min="0"
-              required
+              readOnly
+              value={priceUSD === "" ? "" : priceUSD}
+              className={`${inputBase} bg-gray-50`}
+              placeholder="—"
             />
           </label>
         </div>
 
-        {/* Radios DEBAJO de descuento y precio final */}
+        {/* Radios */}
         <div className="flex items-center gap-6 pt-1">
           <Radio
             name="usdAirMode"
@@ -397,9 +616,27 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
         </div>
       </div>
 
-      {/* ===================== BLOQUE PRECIOS COP (sin precio base) ===================== */}
+      {/* ===================== BLOQUE PRECIOS COP ===================== */}
       <div className="border rounded-lg p-4 space-y-3">
         <h3 className="font-semibold text-gray-800">Precios en COP</h3>
+
+        <label className={labelBase}>
+          <span className="font-medium">Precio sin descuento (COP)</span>
+          <input
+            type="number"
+            step="1"
+            value={listCOP}
+            onChange={(e) =>
+              setListCOP(e.target.value === "" ? "" : Number(e.target.value))
+            }
+            className={inputBase}
+            placeholder="Precio de lista en COP"
+            min="0"
+          />
+          <span className="text-xs text-gray-500">
+            Precio inicial sin descuento (editable).
+          </span>
+        </label>
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <label className={labelBase}>
@@ -408,28 +645,30 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
               type="number"
               step="0.01"
               value={discountCOP}
-              onChange={(e) => setDiscountCOP(e.target.value === "" ? "" : Number(e.target.value))}
+              onChange={(e) =>
+                setDiscountCOP(
+                  e.target.value === "" ? "" : Number(e.target.value)
+                )
+              }
               className={inputBase}
               placeholder="0"
               min="0"
             />
           </label>
+
           <label className={labelBase}>
             <span className="font-medium">Precio final en COP *</span>
             <input
               type="number"
-              step="1"
-              value={priceCOP}
-              onChange={(e) => setPriceCOP(e.target.value === "" ? "" : Number(e.target.value))}
-              className={inputBase}
-              placeholder="5800000"
-              min="0"
-              required
+              readOnly
+              value={priceCOP === "" ? "" : priceCOP}
+              className={`${inputBase} bg-gray-50`}
+              placeholder="—"
             />
           </label>
         </div>
 
-        {/* Radios DEBAJO de descuento y precio final */}
+        {/* Radios */}
         <div className="flex items-center gap-6 pt-1">
           <Radio
             name="copAirMode"
@@ -463,13 +702,18 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
 
         <div className="grid gap-3">
           {tripDates.map((td, idx) => (
-            <div key={idx} className="grid grid-cols-1 sm:grid-cols-5 gap-3 rounded-md border p-3">
+            <div
+              key={idx}
+              className="grid grid-cols-1 sm:grid-cols-5 gap-3 rounded-md border p-3"
+            >
               <label className={labelBase}>
                 <span className="text-xs">Inicio *</span>
                 <input
                   type="date"
                   value={td.startDate}
-                  onChange={(e) => setTripDate(idx, { startDate: e.target.value })}
+                  onChange={(e) =>
+                    setTripDate(idx, { startDate: e.target.value })
+                  }
                   className={inputBase}
                 />
               </label>
@@ -478,7 +722,9 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
                 <input
                   type="date"
                   value={td.endDate}
-                  onChange={(e) => setTripDate(idx, { endDate: e.target.value })}
+                  onChange={(e) =>
+                    setTripDate(idx, { endDate: e.target.value })
+                  }
                   className={inputBase}
                 />
               </label>
@@ -486,7 +732,9 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
                 <span className="text-xs">Activa</span>
                 <select
                   value={td.isActive ? "1" : "0"}
-                  onChange={(e) => setTripDate(idx, { isActive: e.target.value === "1" })}
+                  onChange={(e) =>
+                    setTripDate(idx, { isActive: e.target.value === "1" })
+                  }
                   className={inputBase}
                 >
                   <option value="1">Sí</option>

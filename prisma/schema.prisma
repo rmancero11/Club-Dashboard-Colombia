@@ -161,6 +161,16 @@ model Destination {
   priceCOPWithAirfare     Decimal? @db.Decimal(14, 2)
   priceCOPWithoutAirfare  Decimal? @db.Decimal(14, 2)
 
+  listUSDWithAirfare      Decimal? @db.Decimal(12, 2)
+  listUSDWithoutAirfare   Decimal? @db.Decimal(12, 2)
+  listCOPWithAirfare      Decimal? @db.Decimal(14, 2)
+  listCOPWithoutAirfare   Decimal? @db.Decimal(14, 2)
+
+  discountUSDWithAirfarePercent     Decimal? @db.Decimal(5, 2)
+  discountUSDWithoutAirfarePercent  Decimal? @db.Decimal(5, 2)
+  discountCOPWithAirfarePercent     Decimal? @db.Decimal(5, 2)
+  discountCOPWithoutAirfarePercent  Decimal? @db.Decimal(5, 2)
+
   baseFromUSD Decimal? @db.Decimal(12, 2)
   baseFromCOP Decimal? @db.Decimal(14, 2)
 
