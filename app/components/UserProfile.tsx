@@ -52,6 +52,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
     country: string;
     imageUrl?: string | null;
     description?: string | null;
+    price?: string | null;
   } | null>(null);
 
   async function handleSave(data: { gustos: string[]; destinos: string[] }) {

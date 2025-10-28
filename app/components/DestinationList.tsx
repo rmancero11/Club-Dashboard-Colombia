@@ -17,6 +17,13 @@ export default function DestinationsList({
   const [error, setError] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const router = useRouter(); // ✅ para redireccionar
+  
+  const calcDiscountedPrice = (listPrice?: number | null, discountPercent?: number | null) => {
+  if (!listPrice) return null;
+  if (!discountPercent) return listPrice;
+  return listPrice - (listPrice * discountPercent) / 100;
+};
+
 
   const normalize = (str: string) =>
     str
@@ -80,7 +87,7 @@ export default function DestinationsList({
     );
 
   return (
-    <div className="relative">
+    <div className="relative font-montserrat">
       {/* Flechas de scroll en desktop */}
       <button
         onClick={() => scroll("left")}
@@ -115,63 +122,185 @@ export default function DestinationsList({
             </div>
 
             <div className="p-5">
-              <h2 className="text-xl font-semibold text-gray-800 mb-1">
+              <h2 className="text-xl font-semibold text-gray-800 mb-1 font-montserrat">
                 {destino.name}
               </h2>
-              <p className="text-sm text-gray-500 mb-2">
+              <p className="text-sm text-gray-500 mb-2 font-montserrat">
                 {destino.city
                   ? `${destino.city}, ${destino.country}`
                   : destino.country}
               </p>
 
               {destino.description && (
-                <p className="text-gray-600 mb-3 line-clamp-2">
+                <p className="text-gray-600 mb-3 line-clamp-2 font-montserrat">
                   {destino.description}
                 </p>
               )}
 
               {destino.category && (
-                <span className="inline-block bg-purple-100 text-purple-700 text-xs font-medium px-3 py-1 rounded-full">
+                <span className="inline-block bg-purple-100 text-purple-700 text-xs font-medium px-3 py-1 rounded-full font-montserrat">
                   {destino.category}
                 </span>
               )}
 
-              {/* Precios */}
-              <div className="mt-4 flex flex-wrap gap-2 items-center">
-                {destino.discountPrice ? (
-                  <>
-                    <span className="px-3 py-1 bg-gray-200 text-gray-600 text-sm font-medium rounded-md line-through">
-                      ${Number(destino.price).toLocaleString()}
-                    </span>
-                    <span className="px-3 py-1 bg-primary text-white text-sm font-semibold rounded-md">
-                      ${Number(destino.discountPrice).toLocaleString()}
-                    </span>
-                  </>
-                ) : (
-                  <span className="px-3 py-1 bg-primary text-white text-sm font-semibold rounded-md">
-                    ${Number(destino.price).toLocaleString()}
-                  </span>
-                )}
-                <a
-                  href=""
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-center gap-2 bg-white text-green-600 border border-green-500 px-4 py-1.5 rounded-lg hover:bg-green-50 transition text-sm font-montserrat"
-                >
-                  <Image
-                    src="/favicon/whatsapp.svg"
-                    alt="WhatsApp"
-                    width={16}
-                    height={16}
-                  />
-                  WhatsApp
-                </a>
-              </div>
+              {/* 💵 Precios */}
+<div className="mt-4 space-y-2">
+
+  {/* USD con vuelo */}
+  {destino.listUSDWithAirfare != null && destino.listUSDWithAirfare > 0 && (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-600 text-sm font-montserrat">USD con vuelo</span>
+      <span className="text-right">
+        {destino.discountUSDWithAirfarePercent ? (
+          <>
+            <span className="line-through text-gray-400 text-sm mr-2">
+              ${destino.listUSDWithAirfare.toLocaleString()}
+            </span>
+            <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+              $
+              {calcDiscountedPrice(
+                destino.listUSDWithAirfare,
+                destino.discountUSDWithAirfarePercent
+              )?.toLocaleString()}
+            </span>
+          </>
+        ) : (
+          <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+            ${destino.listUSDWithAirfare.toLocaleString()}
+          </span>
+        )}
+      </span>
+    </div>
+  )}
+
+  {/* USD sin vuelo */}
+  {destino.listUSDWithoutAirfare != null && destino.listUSDWithoutAirfare > 0 && (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-600 text-sm font-montserrat">USD sin vuelo</span>
+      <span className="text-right">
+        {destino.discountUSDWithoutAirfarePercent ? (
+          <>
+            <span className="line-through text-gray-400 text-sm mr-2">
+              ${destino.listUSDWithoutAirfare.toLocaleString()}
+            </span>
+            <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+              $
+              {calcDiscountedPrice(
+                destino.listUSDWithoutAirfare,
+                destino.discountUSDWithoutAirfarePercent
+              )?.toLocaleString()}
+            </span>
+          </>
+        ) : (
+          <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+            ${destino.listUSDWithoutAirfare.toLocaleString()}
+          </span>
+        )}
+      </span>
+    </div>
+  )}
+
+  {/* COP con vuelo */}
+  {destino.listCOPWithAirfare != null && destino.listCOPWithAirfare > 0 && (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-600 text-sm font-montserrat">COP con vuelo</span>
+      <span className="text-right">
+        {destino.discountCOPWithAirfarePercent ? (
+          <>
+            <span className="line-through text-gray-400 text-sm mr-2">
+              ${destino.listCOPWithAirfare.toLocaleString("es-CO")}
+            </span>
+            <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+              $
+              {calcDiscountedPrice(
+                destino.listCOPWithAirfare,
+                destino.discountCOPWithAirfarePercent
+              )?.toLocaleString("es-CO")}
+            </span>
+          </>
+        ) : (
+          <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+            ${destino.listCOPWithAirfare.toLocaleString("es-CO")}
+          </span>
+        )}
+      </span>
+    </div>
+  )}
+
+  {/* COP sin vuelo */}
+  {destino.listCOPWithoutAirfare != null && destino.listCOPWithoutAirfare > 0 && (
+    <div className="flex items-center justify-between">
+      <span className="text-gray-600 text-sm font-montserrat">COP sin vuelo</span>
+      <span className="text-right">
+        {destino.discountCOPWithoutAirfarePercent ? (
+          <>
+            <span className="line-through text-gray-400 text-sm mr-2">
+              ${destino.listCOPWithoutAirfare.toLocaleString("es-CO")}
+            </span>
+            <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+              $
+              {calcDiscountedPrice(
+                destino.listCOPWithoutAirfare,
+                destino.discountCOPWithoutAirfarePercent
+              )?.toLocaleString("es-CO")}
+            </span>
+          </>
+        ) : (
+          <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+            ${destino.listCOPWithoutAirfare.toLocaleString("es-CO")}
+          </span>
+        )}
+      </span>
+    </div>
+  )}
+
+  {/* 💰 Fallback: precio común si no hay precios nuevos */}
+  {!destino.listUSDWithAirfare &&
+    !destino.listUSDWithoutAirfare &&
+    !destino.listCOPWithAirfare &&
+    !destino.listCOPWithoutAirfare &&
+    destino.price &&
+    destino.price > 0 && (
+      <div className="flex items-center justify-between">
+        <span className="text-gray-600 text-sm font-montserrat">Precio base</span>
+        <span className="text-right">
+          {destino.discountPrice ? (
+            <>
+              <span className="line-through text-gray-400 text-sm mr-2">
+                ${destino.price.toLocaleString()}
+              </span>
+              <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+                ${destino.discountPrice.toLocaleString()}
+              </span>
+            </>
+          ) : (
+            <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+              ${destino.price.toLocaleString()}
+            </span>
+          )}
+        </span>
+      </div>
+    )}
+
+  {/* Botón WhatsApp */}
+  <a
+    href=""
+    target="_blank"
+    rel="noopener noreferrer"
+    className="flex items-center justify-center gap-2 bg-white text-green-600 border border-green-500 px-4 py-1.5 rounded-lg hover:bg-green-50 transition text-sm font-montserrat mt-3"
+  >
+    <Image src="/favicon/whatsapp.svg" alt="WhatsApp" width={16} height={16} />
+    WhatsApp
+  </a>
+</div>
+
+
+
 
               {/* Viajeros */}
               {destino.travelers && destino.travelers.length > 0 && (
                 <div className="mt-5">
-                  <p className="text-sm font-medium text-gray-700 mb-2">
+                  <p className="text-sm font-medium text-gray-700 mb-2 font-montserrat">
                     Viajan:
                   </p>
                   <div className="flex -space-x-3">
