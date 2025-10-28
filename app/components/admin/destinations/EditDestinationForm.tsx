@@ -448,32 +448,6 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
         </div>
       </div>
 
-      {/* “Desde” (opcionales, sin cambios) */}
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className={labelBase}>
-          <span className="font-medium">Desde USD (opcional)</span>
-          <input
-            type="number"
-            step="0.01"
-            value={baseFromUSD}
-            onChange={(e) => setBaseFromUSD(e.target.value === "" ? "" : Number(e.target.value))}
-            className={inputBase}
-            placeholder="999"
-          />
-        </label>
-        <label className={labelBase}>
-          <span className="font-medium">Desde COP (opcional)</span>
-          <input
-            type="number"
-            step="1"
-            value={baseFromCOP}
-            onChange={(e) => setBaseFromCOP(e.target.value === "" ? "" : Number(e.target.value))}
-            className={inputBase}
-            placeholder="3900000"
-          />
-        </label>
-      </div>
-
       {/* Fechas de viaje */}
       <div className="grid gap-2">
         <div className="flex items-center justify-between">
