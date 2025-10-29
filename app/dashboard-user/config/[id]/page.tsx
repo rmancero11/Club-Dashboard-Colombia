@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import PushSwitch from "@/app/components/PushSwitch"; // Switch de notificaciones
 
 type UserShape = {
   id: string;
@@ -44,7 +45,6 @@ export default function EditProfilePage() {
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   const [isGalleryModalOpen, setIsGalleryModalOpen] = useState(false);
 
-  // Límite configurable para la galería
   const MAX_GALLERY_IMAGES = 3;
 
   useEffect(() => {
@@ -54,7 +54,6 @@ export default function EditProfilePage() {
         const data = await res.json();
 
         if (data.user) {
-          // --- CORRECCIÓN AQUÍ ---
           const isISODate = (str: string) => /^\d{4}-\d{2}-\d{2}$/.test(str);
           const birthday =
             data.user.birthday && !isISODate(data.user.birthday)
@@ -121,7 +120,6 @@ export default function EditProfilePage() {
         setUser((prev) => {
           if (!prev) return prev;
 
-          // Mantiene todos los campos del usuario
           const newImages =
             data.user?.galleryImages ||
             data.images ||
@@ -236,7 +234,6 @@ export default function EditProfilePage() {
           });
         }
 
-        // Cerramos el modal
         closeEditor();
       } else {
         console.error("Error al actualizar el campo");
@@ -363,7 +360,6 @@ export default function EditProfilePage() {
       key: "affirmation",
       value: user.affirmation,
     },
-    { label: "Seguridad", key: "security", value: user.security },
   ];
 
   return (
@@ -378,7 +374,7 @@ export default function EditProfilePage() {
       </div>
       <h1 className="text-2xl font-bold mb-6 text-center">Perfil</h1>
 
-      {/* Imagen del usuario */}
+      {/* Avatar */}
       <div className="flex justify-center mb-6">
         <div className="w-[150px] h-[150px] rounded-full border-4 border-purple-500 overflow-hidden">
           <Image
@@ -419,12 +415,10 @@ export default function EditProfilePage() {
           </div>
         ))}
 
-        {/* Botón +: se muestra solo si hay menos de 3 imágenes */}
         {user.galleryImages.length < MAX_GALLERY_IMAGES && (
           <button
             onClick={() => setIsGalleryModalOpen(true)}
             className="flex items-center justify-center border-dashed border-2 border-gray-400 rounded-lg h-40 hover:border-purple-600 hover:text-purple-600 text-gray-400 font-semibold text-3xl"
-            aria-label="Agregar imagen a la galería"
           >
             +
           </button>
@@ -479,13 +473,13 @@ export default function EditProfilePage() {
         )}
       </AnimatePresence>
 
+      {/* Identificación */}
       <div className="border rounded-xl p-4 mb-6">
         <div className="flex items-center mb-4 gap-2">
           <h2 className="text-lg font-semibold">Identificación</h2>
         </div>
 
         <div className="flex justify-between items-center">
-          {/* Texto a la izquierda */}
           <div className="flex items-center gap-2">
             {user.verified ? (
               <>
@@ -504,7 +498,6 @@ export default function EditProfilePage() {
             )}
           </div>
 
-          {/* Botón a la derecha */}
           <div>
             {user.dniFile ? (
               <a
@@ -527,8 +520,8 @@ export default function EditProfilePage() {
         </div>
       </div>
 
+      {/* Acerca de ti + Switch de Notificaciones */}
       <div className="space-y-8">
-        {/* Sección: Acerca de ti */}
         <div className="border rounded-xl p-4">
           <div className="flex items-center mb-4">
             <h2 className="text-lg font-semibold mx-2">Acerca de ti</h2>
@@ -563,9 +556,20 @@ export default function EditProfilePage() {
               </div>
             ))}
           </div>
+
+          {/* 🔔 Switch de notificaciones debajo de "afirmación" */}
+          <div className="mt-6 p-4 border rounded-xl flex items-center justify-between">
+            <div className="pr-4">
+              <p className="text-sm font-semibold">Notificaciones</p>
+              <p className="text-xs text-gray-500">
+                Activa o desactiva alertas de matches, reservas y mensajes.
+              </p>
+            </div>
+            <PushSwitch showStatus={false} />
+          </div>
         </div>
 
-        {/* Sección: Archivos */}
+        {/* Documentos */}
         <div className="border rounded-xl p-4">
           <div className="flex items-center mb-4 gap-2">
             <h2 className="text-lg font-semibold">Documentos</h2>
@@ -579,7 +583,7 @@ export default function EditProfilePage() {
 
           <div className="space-y-2">
             {fileList
-              .filter((file) => file.key !== "dniFile") // <-- filtramos el DNI
+              .filter((file) => file.key !== "dniFile")
               .map((file) => (
                 <div
                   key={file.key}
@@ -635,7 +639,7 @@ export default function EditProfilePage() {
               <h3 className="text-lg font-semibold mb-3 text-center">Editar</h3>
 
               {["dniFile", "passportFile", "visaFile"].includes(
-                editingField
+                editingField as string
               ) ? (
                 <input
                   type="file"
