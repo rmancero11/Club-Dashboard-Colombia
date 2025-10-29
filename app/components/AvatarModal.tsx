@@ -16,6 +16,7 @@ type AvatarModalProps = {
   loading?: boolean;
   onChangeAvatar?: (file: File) => void;
   verified?: boolean;
+  destino?: string[];
 };
 
 export default function AvatarModal({

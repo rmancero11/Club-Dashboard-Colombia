@@ -100,7 +100,7 @@ export default function UserPreferences({
             onClick={() =>
               setEditando(editando === "destinos" ? null : "destinos")
             }
-            className="text-sm text-purple-600 hover:underline font-montserrat"
+            className="text-sm text-primary hover:underline font-montserrat"
           >
             {editando === "destinos" ? "Cancelar" : "Editar"}
           </button>
@@ -189,7 +189,7 @@ export default function UserPreferences({
           </h2>
           <button
             onClick={() => setEditando(editando === "gustos" ? null : "gustos")}
-            className="text-sm text-purple-600 hover:underline font-montserrat"
+            className="text-sm text-primary hover:underline font-montserrat"
           >
             {editando === "gustos" ? "Cancelar" : "Editar"}
           </button>

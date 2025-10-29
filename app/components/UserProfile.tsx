@@ -179,7 +179,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
         {/* Avatar */}
         {/* Avatar Desktop */}
         <div className="hidden md:flex flex-col items-center md:col-span-1 relative">
-          <div className="relative w-48 h-48 rounded-full border-4 border-purple-500 overflow-visible">
+          <div className="relative w-48 h-48 rounded-full border-4 border-primary overflow-visible">
             <Image
               src={avatarPreview}
               alt={user.name ?? "User profile"}
@@ -200,9 +200,9 @@ export default function UserProfile({ user }: { user: UserShape }) {
           </div>
           <label
             htmlFor="avatar-upload"
-            className="mt-3 text-sm text-white bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded-md cursor-pointer font-montserrat"
+            className="mt-3 text-sm text-white bg-primary hover:bg-purple-700 px-4 py-2 rounded-md cursor-pointer font-montserrat"
           >
-            {loading ? "Subiendo..." : "Cambiar foto"}
+            {loading ? "Subiendo..." : "Cambiar Imagen"}
           </label>
         </div>
 
@@ -370,7 +370,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
           </h1>
           <span className="mt-2 text-sm font-medium bg-purple-100 text-purple-700 px-3 py-1 rounded-md font-montserrat">
             {user.role === "USER"
-              ? "Viajero Principiante"
+              ? "Explorador"
               : user.role === "SELLER"
               ? "Vendedor"
               : "Administrador"}

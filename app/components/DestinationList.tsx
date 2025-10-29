@@ -10,22 +10,37 @@ interface DestinationsListProps {
   userDestino?: string;
 }
 
-export default function DestinationsList({ userDestino }: DestinationsListProps) {
+export default function DestinationsList({
+  userDestino,
+}: DestinationsListProps) {
   const [destinos, setDestinos] = useState<DestinationDTO[]>([]);
   const [usuarios, setUsuarios] = useState<User[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
-  const calcDiscountedPrice = (listPrice?: number | null, discountPercent?: number | null) => {
+  const calcDiscountedPrice = (
+    listPrice?: number | null,
+    discountPercent?: number | null
+  ) => {
     if (!listPrice) return null;
     if (!discountPercent) return listPrice;
     return listPrice - (listPrice * discountPercent) / 100;
   };
 
+  const isValidPrice = (value: any): boolean => {
+    const num = Number(value);
+    return !isNaN(num) && num > 0;
+  };
+
   const normalize = (str: string) =>
-    str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").trim();
+    str
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim();
 
   // Fetch destinos
   useEffect(() => {
@@ -61,21 +76,37 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
     fetchDestinos();
   }, [userDestino]);
 
+  useEffect(() => {
+  const fetchCurrentUser = async () => {
+    try {
+      const res = await fetch("/api/auth/me", { cache: "no-store" });
+      if (!res.ok) throw new Error("No se pudo obtener el usuario");
+      const { user } = await res.json();
+      setCurrentUser(user);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+  fetchCurrentUser();
+}, []);
+
   // Fetch usuarios
   useEffect(() => {
-    const fetchUsuarios = async () => {
-      try {
-        const res = await fetch("/api/users", { cache: "no-store" });
-        if (!res.ok) throw new Error("Error al cargar usuarios");
-        const { users } = await res.json();
-        setUsuarios(users);
-      } catch (err) {
-        console.error("Error al obtener usuarios:", err);
-      }
-    };
+  if (!currentUser) return; // esperamos a tener el usuario
 
-    fetchUsuarios();
-  }, []);
+  const fetchUsuarios = async () => {
+    try {
+      const res = await fetch(`/api/users?excludeUserId=${currentUser.id}`, { cache: "no-store" });
+      if (!res.ok) throw new Error("Error al cargar usuarios");
+      const { users } = await res.json();
+      setUsuarios(users);
+    } catch (err) {
+      console.error("Error al obtener usuarios:", err);
+    }
+  };
+
+  fetchUsuarios();
+}, [currentUser]);
 
   const scroll = (direction: "left" | "right") => {
     if (!carouselRef.current) return;
@@ -87,10 +118,16 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
   };
 
   if (loading)
-    return <p className="text-gray-500 text-center mt-4">Cargando destinos...</p>;
+    return (
+      <p className="text-gray-500 text-center mt-4">Cargando destinos...</p>
+    );
   if (error) return <p className="text-red-500 text-center mt-4">⚠️ {error}</p>;
   if (destinos.length === 0)
-    return <p className="text-gray-400 text-center mt-4">No hay destinos disponibles</p>;
+    return (
+      <p className="text-gray-400 text-center mt-4">
+        No hay destinos disponibles
+      </p>
+    );
 
   return (
     <div className="relative font-montserrat">
@@ -109,18 +146,31 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
       </button>
 
       {/* Carrusel */}
-      <div ref={carouselRef} className="flex gap-6 p-4 overflow-x-auto touch-pan-x scrollbar-hidden">
+      <div
+        ref={carouselRef}
+        className="flex gap-6 p-4 overflow-x-auto touch-pan-x scrollbar-hidden"
+      >
         {destinos.map((destino) => {
           const usuariosConEseDestino = usuarios.filter(
             (u) =>
               Array.isArray(u.destino) &&
-              u.destino.some((d) => normalize(d).trim() === normalize(destino.name).trim())
+              u.destino.some(
+                (d) => normalize(d).trim() === normalize(destino.name).trim()
+              )
           );
 
-          const hasUSDWithAirfare = destino.listUSDWithAirfare && Number(destino.listUSDWithAirfare) > 0;
-          const hasUSDWithoutAirfare = destino.listUSDWithoutAirfare && Number(destino.listUSDWithoutAirfare) > 0;
-          const hasCOPWithAirfare = destino.listCOPWithAirfare && Number(destino.listCOPWithAirfare) > 0;
-          const hasCOPWithoutAirfare = destino.listCOPWithoutAirfare && Number(destino.listCOPWithoutAirfare) > 0;
+          const hasUSDWithAirfare =
+            destino.listUSDWithAirfare &&
+            Number(destino.listUSDWithAirfare) > 0;
+          const hasUSDWithoutAirfare =
+            destino.listUSDWithoutAirfare &&
+            Number(destino.listUSDWithoutAirfare) > 0;
+          const hasCOPWithAirfare =
+            destino.listCOPWithAirfare &&
+            Number(destino.listCOPWithAirfare) > 0;
+          const hasCOPWithoutAirfare =
+            destino.listCOPWithoutAirfare &&
+            Number(destino.listCOPWithoutAirfare) > 0;
           const hasBasePrice = destino.price && Number(destino.price) > 0;
 
           return (
@@ -138,13 +188,19 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
               </div>
 
               <div className="p-5">
-                <h2 className="text-xl font-semibold text-gray-800 mb-1">{destino.name}</h2>
+                <h2 className="text-xl font-semibold text-gray-800 mb-1">
+                  {destino.name}
+                </h2>
                 <p className="text-sm text-gray-500 mb-2">
-                  {destino.city ? `${destino.city}, ${destino.country}` : destino.country}
+                  {destino.city
+                    ? `${destino.city}, ${destino.country}`
+                    : destino.country}
                 </p>
 
                 {destino.description && (
-                  <p className="text-gray-600 mb-3 line-clamp-2">{destino.description}</p>
+                  <p className="text-gray-600 mb-3 line-clamp-2">
+                    {destino.description}
+                  </p>
                 )}
 
                 {destino.category && (
@@ -155,115 +211,181 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
 
                 {/* 💵 Precios */}
                 <div className="mt-4 space-y-2">
-                  {hasUSDWithAirfare && (
+                  {/* USD con vuelo */}
+                  {isValidPrice(destino.listUSDWithAirfare) && (
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600 text-sm">USD con vuelo</span>
+                      <span className="text-gray-600 text-sm font-montserrat">
+                        USD con vuelo
+                      </span>
                       <span className="text-right">
-                        {destino.discountUSDWithAirfarePercent ? (
+                        {isValidPrice(destino.discountUSDWithAirfarePercent) ? (
                           <>
                             <span className="line-through text-gray-400 text-sm mr-2">
-                              ${Number(destino.listUSDWithAirfare).toLocaleString()}
+                              $
+                              {Number(
+                                destino.listUSDWithAirfare
+                              ).toLocaleString()}
                             </span>
                             <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                              ${calcDiscountedPrice(Number(destino.listUSDWithAirfare), destino.discountUSDWithAirfarePercent)?.toLocaleString()}
+                              $
+                              {calcDiscountedPrice(
+                                Number(destino.listUSDWithAirfare),
+                                Number(destino.discountUSDWithAirfarePercent)
+                              )?.toLocaleString()}
                             </span>
                           </>
                         ) : (
                           <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                            ${Number(destino.listUSDWithAirfare).toLocaleString()}
+                            $
+                            {Number(
+                              destino.listUSDWithAirfare
+                            ).toLocaleString()}
                           </span>
                         )}
                       </span>
                     </div>
                   )}
 
-                  {hasUSDWithoutAirfare && (
+                  {/* USD sin vuelo */}
+                  {isValidPrice(destino.listUSDWithoutAirfare) && (
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600 text-sm">USD sin vuelo</span>
+                      <span className="text-gray-600 text-sm font-montserrat">
+                        USD sin vuelo
+                      </span>
                       <span className="text-right">
-                        {destino.discountUSDWithoutAirfarePercent ? (
+                        {isValidPrice(
+                          destino.discountUSDWithoutAirfarePercent
+                        ) ? (
                           <>
                             <span className="line-through text-gray-400 text-sm mr-2">
-                              ${Number(destino.listUSDWithoutAirfare).toLocaleString()}
+                              $
+                              {Number(
+                                destino.listUSDWithoutAirfare
+                              ).toLocaleString()}
                             </span>
                             <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                              ${calcDiscountedPrice(Number(destino.listUSDWithoutAirfare), destino.discountUSDWithoutAirfarePercent)?.toLocaleString()}
+                              $
+                              {calcDiscountedPrice(
+                                Number(destino.listUSDWithoutAirfare),
+                                Number(destino.discountUSDWithoutAirfarePercent)
+                              )?.toLocaleString()}
                             </span>
                           </>
                         ) : (
                           <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                            ${Number(destino.listUSDWithoutAirfare).toLocaleString()}
+                            $
+                            {Number(
+                              destino.listUSDWithoutAirfare
+                            ).toLocaleString()}
                           </span>
                         )}
                       </span>
                     </div>
                   )}
 
-                  {hasCOPWithAirfare && (
+                  {/* COP con vuelo */}
+                  {isValidPrice(destino.listCOPWithAirfare) && (
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600 text-sm">COP con vuelo</span>
+                      <span className="text-gray-600 text-sm font-montserrat">
+                        COP con vuelo
+                      </span>
                       <span className="text-right">
-                        {destino.discountCOPWithAirfarePercent ? (
+                        {isValidPrice(destino.discountCOPWithAirfarePercent) ? (
                           <>
                             <span className="line-through text-gray-400 text-sm mr-2">
-                              ${Number(destino.listCOPWithAirfare).toLocaleString("es-CO")}
+                              $
+                              {Number(
+                                destino.listCOPWithAirfare
+                              ).toLocaleString("es-CO")}
                             </span>
                             <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                              ${calcDiscountedPrice(Number(destino.listCOPWithAirfare), destino.discountCOPWithAirfarePercent)?.toLocaleString("es-CO")}
+                              $
+                              {calcDiscountedPrice(
+                                Number(destino.listCOPWithAirfare),
+                                Number(destino.discountCOPWithAirfarePercent)
+                              )?.toLocaleString("es-CO")}
                             </span>
                           </>
                         ) : (
                           <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                            ${Number(destino.listCOPWithAirfare).toLocaleString("es-CO")}
+                            $
+                            {Number(destino.listCOPWithAirfare).toLocaleString(
+                              "es-CO"
+                            )}
                           </span>
                         )}
                       </span>
                     </div>
                   )}
 
-                  {hasCOPWithoutAirfare && (
+                  {/* COP sin vuelo */}
+                  {isValidPrice(destino.listCOPWithoutAirfare) && (
                     <div className="flex items-center justify-between">
-                      <span className="text-gray-600 text-sm">COP sin vuelo</span>
+                      <span className="text-gray-600 text-sm font-montserrat">
+                        COP sin vuelo
+                      </span>
                       <span className="text-right">
-                        {destino.discountCOPWithoutAirfarePercent ? (
+                        {isValidPrice(
+                          destino.discountCOPWithoutAirfarePercent
+                        ) ? (
                           <>
                             <span className="line-through text-gray-400 text-sm mr-2">
-                              ${Number(destino.listCOPWithoutAirfare).toLocaleString("es-CO")}
+                              $
+                              {Number(
+                                destino.listCOPWithoutAirfare
+                              ).toLocaleString("es-CO")}
                             </span>
                             <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                              ${calcDiscountedPrice(Number(destino.listCOPWithoutAirfare), destino.discountCOPWithoutAirfarePercent)?.toLocaleString("es-CO")}
+                              $
+                              {calcDiscountedPrice(
+                                Number(destino.listCOPWithoutAirfare),
+                                Number(destino.discountCOPWithoutAirfarePercent)
+                              )?.toLocaleString("es-CO")}
                             </span>
                           </>
                         ) : (
                           <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                            ${Number(destino.listCOPWithoutAirfare).toLocaleString("es-CO")}
+                            $
+                            {Number(
+                              destino.listCOPWithoutAirfare
+                            ).toLocaleString("es-CO")}
                           </span>
                         )}
                       </span>
                     </div>
                   )}
 
-                  {hasBasePrice && !hasUSDWithAirfare && !hasUSDWithoutAirfare && !hasCOPWithAirfare && !hasCOPWithoutAirfare && (
-                    <div className="flex items-center justify-between">
-                      <span className="text-gray-600 text-sm">Precio base</span>
-                      <span className="text-right">
-                        {destino.discountPrice ? (
-                          <>
-                            <span className="line-through text-gray-400 text-sm mr-2">
+                  {/* Fallback: precio base solo si no hay ninguno de los anteriores */}
+                  {!(
+                    isValidPrice(destino.listUSDWithAirfare) ||
+                    isValidPrice(destino.listUSDWithoutAirfare) ||
+                    isValidPrice(destino.listCOPWithAirfare) ||
+                    isValidPrice(destino.listCOPWithoutAirfare)
+                  ) &&
+                    isValidPrice(destino.price) && (
+                      <div className="flex items-center justify-between">
+                        <span className="text-gray-600 text-sm font-montserrat">
+                          Precio base
+                        </span>
+                        <span className="text-right">
+                          {isValidPrice(destino.discountPrice) ? (
+                            <>
+                              <span className="line-through text-gray-400 text-sm mr-2">
+                                ${Number(destino.price).toLocaleString()}
+                              </span>
+                              <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
+                                $
+                                {Number(destino.discountPrice).toLocaleString()}
+                              </span>
+                            </>
+                          ) : (
+                            <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
                               ${Number(destino.price).toLocaleString()}
                             </span>
-                            <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                              ${Number(destino.discountPrice).toLocaleString()}
-                            </span>
-                          </>
-                        ) : (
-                          <span className="font-semibold text-white bg-primary px-2 py-1 rounded-lg">
-                            ${Number(destino.price).toLocaleString()}
-                          </span>
-                        )}
-                      </span>
-                    </div>
-                  )}
+                          )}
+                        </span>
+                      </div>
+                    )}
 
                   {/* Botón WhatsApp */}
                   <a
@@ -272,7 +394,12 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
                     rel="noopener noreferrer"
                     className="flex items-center justify-center gap-2 bg-white text-green-600 border border-green-500 px-4 py-1.5 rounded-lg hover:bg-green-50 transition text-sm mt-3"
                   >
-                    <Image src="/favicon/whatsapp.svg" alt="WhatsApp" width={16} height={16} />
+                    <Image
+                      src="/favicon/whatsapp.svg"
+                      alt="WhatsApp"
+                      width={16}
+                      height={16}
+                    />
                     WhatsApp
                   </a>
                 </div>
@@ -288,7 +415,9 @@ export default function DestinationsList({ userDestino }: DestinationsListProps)
                         <div
                           key={user.id}
                           className="relative group cursor-pointer"
-                          onClick={() => router.push(`/dashboard-user/profile/${user.id}`)}
+                          onClick={() =>
+                            router.push(`/dashboard-user/match-viajes`)
+                          }
                         >
                           <Image
                             src={user.avatar || "/images/default-avatar.png"}
