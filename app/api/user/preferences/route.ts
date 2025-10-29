@@ -23,19 +23,18 @@ export async function POST(req: Request) {
 
     // 2️⃣ Leer FormData
     const formData = await req.formData();
-    const preferenceRaw = formData.getAll("preference") || [];
-    const destinoRaw = formData.getAll("destino") || [];
+    const preferenceRaw = formData.getAll("preference").map(String);
+const destinoRaw = formData.getAll("destino").map(String);
 
     // 3️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
-      where: { id: userId },
-      data: {
-        ...(preferenceRaw.length > 0 && {
-          preference: preferenceRaw.join(", "),
-        }),
-        ...(destinoRaw.length > 0 && { destino: destinoRaw.join(", ") }),
-      },
-    });
+  where: { id: userId },
+  data: {
+    ...(preferenceRaw.length > 0 && { preference: preferenceRaw }),
+    ...(destinoRaw.length > 0 && { destino: destinoRaw }),
+  },
+});
+
 
     return NextResponse.json({ user: updatedUser });
   } catch (err) {

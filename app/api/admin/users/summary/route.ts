@@ -20,35 +20,35 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const { from, to } = parseRange(searchParams);
 
-    const [totalUsers, newUsers, countriesGroup, topDestGroup] = await Promise.all([
+    // 1️⃣ Contar total y nuevos usuarios
+    const [totalUsers, newUsers, countriesGroup, usersWithDestinos] = await Promise.all([
       prisma.user.count(),
       prisma.user.count({
         where: { createdAt: { gte: from, lte: to } },
       }),
       prisma.user.groupBy({
         by: ['country'],
-        where: {
-          createdAt: { gte: from, lte: to },
-          country: { not: null },
-        },
+        where: { createdAt: { gte: from, lte: to }, country: { not: null } },
       }),
-      prisma.user.groupBy({
-        by: ['destino'],
-        where: {
-          createdAt: { gte: from, lte: to },
-          destino: { not: null },
-        },
-        _count: { destino: true },
-        orderBy: { _count: { destino: 'desc' } },
-        take: 1,
+      prisma.user.findMany({
+        where: { createdAt: { gte: from, lte: to }, destino: { isEmpty: false } },
+        select: { destino: true },
       }),
     ]);
 
-    const uniqueCountries = countriesGroup
-      .map((g) => g.country)
-      .filter((c): c is string => !!c).length;
+    // 2️⃣ Contar destinos más populares
+    const freq: Record<string, number> = {};
+    usersWithDestinos.forEach(u => u.destino.forEach(d => {
+      if (!d) return;
+      freq[d] = (freq[d] || 0) + 1;
+    }));
 
-    const topDestination = topDestGroup.length ? topDestGroup[0].destino : null;
+    const topDestination = Object.entries(freq).sort((a, b) => b[1] - a[1])[0]?.[0] || null;
+
+    // 3️⃣ Contar países únicos
+    const uniqueCountries = countriesGroup
+      .map(g => g.country)
+      .filter((c): c is string => !!c).length;
 
     return NextResponse.json({
       totalUsers,

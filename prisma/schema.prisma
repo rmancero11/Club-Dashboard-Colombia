@@ -47,38 +47,35 @@ enum TaskPriority {
 }
 
 enum ActivityAction {
-  // Autenticación
   LOGIN
   LOGOUT
-
-  // Clientes / Leads
   CREATE_CLIENT
   UPDATE_CLIENT
   LEAD_CREATED_FROM_WP
   LEAD_ASSIGNED
-
-  // Reservas
   CREATE_RESERVATION
   UPDATE_RESERVATION
   CHANGE_STATUS
   QUOTE_SENT
   HOLD_SET
   EXPIRED_AUTO
-
-  // Comunicación
   WHATSAPP_SENT
   WHATSAPP_RECEIVED
-
-  // Reportes / notas
   GENERATE_REPORT
   NOTE
 }
 
-// === Suscripciones (se mantiene el enum) ===
+// === Suscripciones ===
 enum SubscriptionPlan {
   STANDARD
   PREMIUM
   VIP
+}
+
+// === Opción de tiquete aéreo para selección ===
+enum AirfareOption {
+  WITH_AIRFARE
+  WITHOUT_AIRFARE
 }
 
 // ================== Usuarios ==================
@@ -89,8 +86,8 @@ model User {
   phone          String?
   country        String?
   budget         String?
-  preference     String?
-  destino        String?
+  preference String[]
+  destino    String[]
   password       String
   role           Role       @default(USER)
   status         UserStatus @default(ACTIVE)
@@ -117,7 +114,12 @@ model User {
   lookingFor     String?
   galleryImages  String[]   @default([])
 
-  // Relaciones cuando es SELLER (agente)
+  // === Auto-asignación (aplica cuando role = SELLER)
+  autoAssignable   Boolean  @default(true)
+  assignmentWeight Int      @default(1)     // pesos para % (7/3 => 70%/30%)
+  maxActiveClients Int?                     // tope opcional de clientes activos
+
+  // Relaciones
   sellerClients       Client[]             @relation("SellerClients")
   sellerReservations  Reservation[]        @relation("SellerReservations")
   sellerTasks         Task[]               @relation("SellerTasks")
@@ -126,7 +128,6 @@ model User {
   whatsappNumber  String?
   currentlyLink   String?
 
-  // Perfil de cliente (solo si role = USER) — validado en la app
   clientProfile Client? @relation("ClientUser")
 
   activities ActivityLog[] @relation("UserActivities")
@@ -134,21 +135,52 @@ model User {
   @@index([role, status])
 }
 
-// ================== Viajes ==================
+// ================== Catálogo de Categorías ==================
+model Category {
+  id    String @id @default(uuid())
+  name  String @unique
+  slug  String @unique
+  destinations Destination[]
+}
+
+// ================== Viajes / Destinos ==================
 model Destination {
   id          String   @id @default(uuid())
   name        String
   country     String
   city        String?
   description String?
-  category    String?
   isActive    Boolean  @default(true)
   popularityScore Int  @default(0)
   imageUrl        String?
-  price           Decimal? @db.Decimal(10, 2)
-  discountPrice   Decimal? @db.Decimal(10, 2)
 
+  membership SubscriptionPlan @default(STANDARD)
+
+  priceUSDWithAirfare     Decimal? @db.Decimal(12, 2)
+  priceUSDWithoutAirfare  Decimal? @db.Decimal(12, 2)
+  priceCOPWithAirfare     Decimal? @db.Decimal(14, 2)
+  priceCOPWithoutAirfare  Decimal? @db.Decimal(14, 2)
+
+  listUSDWithAirfare      Decimal? @db.Decimal(12, 2)
+  listUSDWithoutAirfare   Decimal? @db.Decimal(12, 2)
+  listCOPWithAirfare      Decimal? @db.Decimal(14, 2)
+  listCOPWithoutAirfare   Decimal? @db.Decimal(14, 2)
+
+  discountUSDWithAirfarePercent     Decimal? @db.Decimal(5, 2)
+  discountUSDWithoutAirfarePercent  Decimal? @db.Decimal(5, 2)
+  discountCOPWithAirfarePercent     Decimal? @db.Decimal(5, 2)
+  discountCOPWithoutAirfarePercent  Decimal? @db.Decimal(5, 2)
+
+  baseFromUSD Decimal? @db.Decimal(12, 2)
+  baseFromCOP Decimal? @db.Decimal(14, 2)
+
+  categories Category[]
+  tripDates  TripDate[]
   reservations Reservation[]
+
+  // legados
+  price         Decimal? @db.Decimal(10, 2)
+  discountPrice Decimal? @db.Decimal(10, 2)
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -156,16 +188,39 @@ model Destination {
   @@unique([name, country, city])
   @@index([isActive, popularityScore])
   @@index([country, city])
+  @@index([membership])
 }
 
+// === Fechas de viaje por destino ===
+model TripDate {
+  id            String      @id @default(uuid())
+  destinationId String
+  destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  startDate DateTime
+  endDate   DateTime
+
+  isActive Boolean  @default(true)
+  notes    String?
+  capacity Int?
+
+  reservations Reservation[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([destinationId, startDate, endDate])
+  @@index([isActive])
+}
+
+// ================== Clientes ==================
 model Client {
-  id         String   @id @default(uuid())
+  id       String @id @default(uuid())
 
-  // Dueño/gestor del cliente (agente)
-  sellerId String
-  seller   User   @relation("SellerClients", fields: [sellerId], references: [id], onDelete: Restrict)
+  // AHORA OPCIONAL para no bloquear creación de Client
+  sellerId String?
+  seller   User?  @relation("SellerClients", fields: [sellerId], references: [id], onDelete: Restrict)
 
-  // Vínculo OBLIGATORIO al usuario (role=USER)
   userId String @unique
   user   User   @relation("ClientUser", fields: [userId], references: [id], onDelete: Cascade)
 
@@ -180,7 +235,6 @@ model Client {
   notes      String?
   isArchived Boolean   @default(false)
 
-  // === Nuevo: plan de suscripción solo para clientes ===
   subscriptionPlan SubscriptionPlan @default(STANDARD)
 
   reservations Reservation[]
@@ -192,13 +246,14 @@ model Client {
   @@index([sellerId, name])
   @@index([email])
   @@index([documentId])
-  @@index([sellerId, subscriptionPlan]) // segmentación por agente y plan
+  @@index([sellerId, subscriptionPlan])
 }
 
+// ================== Reservas ==================
 model Reservation {
   id   String @id @default(uuid())
 
-  code String @unique // p.ej. RES-2025-000123
+  code String @unique
 
   clientId String
   client   Client @relation(fields: [clientId], references: [id], onDelete: Cascade)
@@ -209,6 +264,9 @@ model Reservation {
   destinationId String
   destination   Destination @relation(fields: [destinationId], references: [id], onDelete: Restrict)
 
+  tripDateId String?
+  tripDate   TripDate? @relation(fields: [tripDateId], references: [id], onDelete: SetNull)
+
   startDate   DateTime
   endDate     DateTime
   paxAdults   Int      @default(1)
@@ -216,6 +274,9 @@ model Reservation {
 
   currency    String            @default("USD")
   totalAmount Decimal           @default(0) @db.Decimal(12, 2)
+
+  airfareOption AirfareOption @default(WITHOUT_AIRFARE)
+
   status      ReservationStatus @default(LEAD)
   notes       String?
 
@@ -229,6 +290,7 @@ model Reservation {
   @@index([destinationId, status])
   @@index([startDate, endDate])
   @@index([clientId])
+  @@index([tripDateId])
 }
 
 model Task {

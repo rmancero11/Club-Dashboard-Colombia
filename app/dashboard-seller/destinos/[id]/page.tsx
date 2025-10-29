@@ -4,11 +4,15 @@ import { redirect, notFound } from "next/navigation";
 import Image from "next/image";
 
 /* ===== Helpers UI ===== */
-function money(n?: any) {
-  if (n == null) return null;
+function money(n?: any, currency: string = "USD") {
+  if (n == null) return "—";
   const num = Number(n);
-  if (!Number.isFinite(num)) return null;
-  return `$${num.toLocaleString("es-CO")}`;
+  if (!Number.isFinite(num)) return "—";
+  return new Intl.NumberFormat("es-CO", {
+    style: "currency",
+    currency,
+    minimumFractionDigits: 0,
+  }).format(num);
 }
 function fmtDate(d?: Date | string | null) {
   if (!d) return "—";
@@ -18,7 +22,9 @@ function fmtDate(d?: Date | string | null) {
 
 export default async function SellerDestinationDetailPage({
   params,
-}: { params: { id: string } }) {
+}: {
+  params: { id: string };
+}) {
   const auth = await getAuth();
   if (!auth) redirect("/login");
   if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
@@ -30,49 +36,63 @@ export default async function SellerDestinationDetailPage({
       name: true,
       country: true,
       city: true,
-      category: true,
       description: true,
-      price: true,
-      discountPrice: true,
       isActive: true,
       popularityScore: true,
       imageUrl: true,
+      membership: true,
+      priceUSDWithAirfare: true,
+      priceUSDWithoutAirfare: true,
+      priceCOPWithAirfare: true,
+      priceCOPWithoutAirfare: true,
+      baseFromUSD: true,
+      baseFromCOP: true,
       createdAt: true,
       updatedAt: true,
+      categories: { select: { name: true } },
       _count: { select: { reservations: true } },
     },
   });
   if (!destination) notFound();
 
-  // Sugerencias de "similares" (mismo país o categoría)
+  // === Sugerencias de "similares" (mismo país o categoría) ===
   const related = await prisma.destination.findMany({
     where: {
       isActive: true,
       id: { not: destination.id },
       OR: [
         destination.country ? { country: destination.country } : undefined,
-        destination.category ? { category: destination.category } : undefined,
+        destination.categories.length > 0
+          ? {
+              categories: {
+                some: {
+                  name: { in: destination.categories.map((c) => c.name) },
+                },
+              },
+            }
+          : undefined,
       ].filter(Boolean) as any[],
     },
     select: {
       id: true,
       name: true,
       country: true,
+      city: true,
       imageUrl: true,
       popularityScore: true,
-      discountPrice: true,
-      price: true,
+      baseFromUSD: true,
+      baseFromCOP: true,
+      membership: true,
     },
     orderBy: [{ popularityScore: "desc" }, { createdAt: "desc" }],
     take: 6,
   });
 
-  const price = money(destination.price);
-  const dprice = money(destination.discountPrice);
   const location =
     [destination.city, destination.country].filter(Boolean).join(", ") ||
     destination.country ||
     "—";
+  const categoryNames = destination.categories.map((c) => c.name).join(" · ") || "Sin categoría";
 
   return (
     <div className="space-y-6">
@@ -81,7 +101,7 @@ export default async function SellerDestinationDetailPage({
         <div>
           <h1 className="text-2xl font-semibold">{destination.name}</h1>
           <p className="text-sm text-gray-500">
-            {location} {destination.category ? `· ${destination.category}` : ""}
+            {location} {categoryNames ? `· ${categoryNames}` : ""}
           </p>
           <p className="text-xs text-gray-400">
             Creado: {fmtDate(destination.createdAt)} · Actualizado:{" "}
@@ -123,51 +143,66 @@ export default async function SellerDestinationDetailPage({
           <div className="mt-6 rounded-lg border p-4">
             <h3 className="mb-2 text-sm font-semibold">Tips de venta</h3>
             <ul className="list-disc pl-5 text-sm text-gray-700 space-y-1">
-              {destination.category && (
+              {destination.categories.length > 0 && (
                 <li>
-                  Enfatiza la experiencia de <strong>{destination.category}</strong> y personaliza el itinerario.
+                  Enfatiza la experiencia de{" "}
+                  <strong>{destination.categories.map((c) => c.name).join(", ")}</strong> y
+                  personaliza el itinerario.
                 </li>
               )}
               {destination.country && (
                 <li>
-                  Menciona highlights del país: <strong>{destination.country}</strong> (gastronomía, cultura, clima).
+                  Menciona highlights del país:{" "}
+                  <strong>{destination.country}</strong> (gastronomía, cultura, clima).
                 </li>
               )}
-              <li>Si hay tarifa promocional, muéstrala primero y crea urgencia (cupos limitados).</li>
-              <li>Propón fechas sugeridas según temporada alta/baja y disponibilidad.</li>
+              <li>Si hay tarifas “desde”, muéstralas como valor atractivo inicial.</li>
+              <li>Propón fechas sugeridas según temporada y disponibilidad.</li>
               <li>Ofrece upsells: seguros, upgrades de hotel, traslados y actividades.</li>
             </ul>
           </div>
         </div>
 
-        {/* Panel lateral de venta */}
+        {/* Panel lateral */}
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Detalle comercial</h2>
 
-          <div className="space-y-3">
+          <div className="space-y-3 text-sm">
             <div>
-              <div className="text-xs text-gray-500">Precio</div>
-              {price ? (
-                destination.discountPrice != null ? (
-                  <div className="flex items-baseline gap-2">
-                    <span className="rounded-md bg-gray-100 px-2 py-0.5 text-xs text-gray-500 line-through">
-                      {price}
-                    </span>
-                    <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white">
-                      {dprice}
-                    </span>
-                  </div>
-                ) : (
-                  <div className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white inline-block">
-                    {price}
-                  </div>
-                )
-              ) : (
-                <div className="text-sm text-gray-400">—</div>
-              )}
+              <div className="text-xs text-gray-500 mb-1">Precios estimados</div>
+              <ul className="space-y-1">
+                <li>
+                  <strong>USD (con tiquete):</strong>{" "}
+                  {money(destination.priceUSDWithAirfare, "USD")}
+                </li>
+                <li>
+                  <strong>USD (sin tiquete):</strong>{" "}
+                  {money(destination.priceUSDWithoutAirfare, "USD")}
+                </li>
+                <li>
+                  <strong>COP (con tiquete):</strong>{" "}
+                  {money(destination.priceCOPWithAirfare, "COP")}
+                </li>
+                <li>
+                  <strong>COP (sin tiquete):</strong>{" "}
+                  {money(destination.priceCOPWithoutAirfare, "COP")}
+                </li>
+              </ul>
             </div>
 
-            <div className="grid grid-cols-2 gap-3">
+            <div>
+              <div className="text-xs text-gray-500 mb-1">Desde</div>
+              <ul className="space-y-1">
+                <li>
+                  <strong>USD:</strong> {money(destination.baseFromUSD, "USD")}
+                </li>
+                <li>
+                  <strong>COP:</strong> {money(destination.baseFromCOP, "COP")}
+                </li>
+              </ul>
+            </div>
+
+            <div className="grid grid-cols-2 gap-3 pt-2">
               <div className="rounded-lg border p-3">
                 <div className="text-xs text-gray-500">Popularidad</div>
                 <div className="text-sm">{destination.popularityScore}</div>
@@ -191,11 +226,18 @@ export default async function SellerDestinationDetailPage({
               </span>
             </div>
 
+            <div className="text-xs text-gray-500">
+              Membresía requerida:{" "}
+              <span className="font-medium">{destination.membership}</span>
+            </div>
+
             <div className="pt-2">
               <a
                 href={`/dashboard-seller/reservas/nueva?destinationId=${destination.id}`}
                 className={`rounded-md px-3 py-2 text-sm ${
-                  destination.isActive ? "bg-black text-white" : "bg-gray-200 text-gray-500 pointer-events-none"
+                  destination.isActive
+                    ? "bg-black text-white"
+                    : "bg-gray-200 text-gray-500 pointer-events-none"
                 }`}
                 title={destination.isActive ? "Crear reserva" : "No disponible (inactivo)"}
               >
@@ -231,19 +273,15 @@ export default async function SellerDestinationDetailPage({
                   )}
                   <div className="p-3">
                     <div className="font-medium">{d.name}</div>
-                    <div className="text-xs text-gray-500">{d.country || "—"}</div>
+                    <div className="text-xs text-gray-500">
+                      {d.city ? `${d.city}, ` : ""}
+                      {d.country || "—"}
+                    </div>
                     <div className="mt-1 text-xs text-gray-600 flex items-center gap-2">
                       <span>Pop: {d.popularityScore}</span>
-                      {d.discountPrice != null ? (
-                        <>
-                          <span className="line-through text-gray-400">{money(d.price)}</span>
-                          <span className="rounded bg-primary px-1.5 py-0.5 text-white">
-                            {money(d.discountPrice)}
-                          </span>
-                        </>
-                      ) : money(d.price) ? (
-                        <span className="rounded bg-gray-100 px-1.5 py-0.5">{money(d.price)}</span>
-                      ) : null}
+                      <span className="rounded bg-gray-100 px-1.5 py-0.5">
+                        {money(d.baseFromUSD, "USD")}
+                      </span>
                     </div>
                   </div>
                 </a>

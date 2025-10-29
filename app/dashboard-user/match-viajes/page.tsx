@@ -14,12 +14,12 @@ export default function TravelersMatchList() {
   const [error, setError] = useState<string | null>(null);
   const carouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
   const [selectedTraveler, setSelectedTraveler] = useState<{
-    id: string;
-    name?: string | null;
-    avatar: string;
-    country?: string | null;
-    preferences?: string[];
-  } | null>(null);
+  id: string;
+  name?: string | null;
+  avatar: string;
+  country?: string | null;
+  preferences?: string[];
+} | null>(null);
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => setMounted(true), []);
@@ -33,13 +33,20 @@ export default function TravelersMatchList() {
         const res = await fetch("/api/destination", { cache: "no-store" });
         if (!res.ok) throw new Error("Error al cargar destinos");
         const { items } = await res.json();
+const normalizedItems = items.map((d: DestinationDTO) => ({
+  ...d,
+  travelers: (d.travelers || []).map((t: any) => {
+    const prefs =
+      Array.isArray(t.preferences)
+        ? t.preferences
+        : typeof t.preference === "string"
+        ? t.preference.split(",").map((p: string) => p.trim())
+        : [];
+    return { ...t, preferences: prefs };
+  }),
+}))
 
-        const sortedItems = items.sort(
-          (a: DestinationDTO, b: DestinationDTO) =>
-            (b.travelers?.length || 0) - (a.travelers?.length || 0)
-        );
-
-        setDestinos(sortedItems);
+setDestinos(normalizedItems);
       } catch (err: any) {
         console.error(err);
         setError(err.message || "Error desconocido");
@@ -151,18 +158,20 @@ export default function TravelersMatchList() {
                 <div
                   key={viajero.id}
                   onClick={() =>
-                    setSelectedTraveler({
-                      id: viajero.id,
-                      name: viajero.name,
-                      avatar: viajero.avatar || "/images/default-avatar.png",
-                      country: viajero.country,
-                      preferences: Array.isArray(viajero.preferences)
-                        ? viajero.preferences
-                        : viajero.preferences
-                        ? [viajero.preferences]
-                        : [],
-                    })
-                  }
+  setSelectedTraveler({
+    id: viajero.id,
+    name: viajero.name,
+    avatar: viajero.avatar || "/images/default-avatar.png",
+    country: viajero.country,
+    preferences: Array.isArray((viajero as any).preferences)
+      ? (viajero as any).preferences
+      : typeof (viajero as any).preference === "string"
+      ? (viajero as any).preference.split(",").map((p: string) => p.trim())
+      : [],
+  })
+}
+
+
                   className="
                     flex-shrink-0 w-64 rounded-xl overflow-hidden shadow-md hover:shadow-lg
                     transition duration-300 cursor-pointer snap-center bg-white
@@ -207,13 +216,13 @@ export default function TravelersMatchList() {
         selectedTraveler &&
         createPortal(
           <AvatarModal
-            isOpen={!!selectedTraveler}
-            onClose={() => setSelectedTraveler(null)}
-            avatar={selectedTraveler.avatar}
-            name={selectedTraveler.name}
-            country={selectedTraveler.country}
-            preferences={selectedTraveler.preferences}
-          />,
+  isOpen={!!selectedTraveler}
+  onClose={() => setSelectedTraveler(null)}
+  avatar={selectedTraveler.avatar}
+  name={selectedTraveler.name}
+  country={selectedTraveler.country}
+  preferences={selectedTraveler.preferences}
+/>,
           document.body
         )}
     </div>

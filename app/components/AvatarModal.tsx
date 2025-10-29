@@ -58,67 +58,63 @@ export default function AvatarModal({
             />
 
             {/* Overlay info */}
-            <div className="absolute top-4 left-4 text-white font-montserrat space-y-2">
-              <div className="flex items-center gap-2">
-                <h2 className="text-lg font-semibold font-montserrat">
-                  {name}
-                </h2>
-                {verified && (
-                  <Image
-                    src="/favicon/check-aprobacion-club-solteros.svg"
-                    alt="Verificado"
-                    width={20}
-                    height={20}
-                  />
-                )}
-              </div>
+<div className="absolute top-4 left-4 text-white font-montserrat flex flex-col items-start gap-2">
+  {/* Nombre y verificación */}
+  <div className="flex items-center gap-2">
+    <h2 className="text-lg font-semibold">{name}</h2>
+    {verified && (
+      <Image
+        src="/favicon/check-aprobacion-club-solteros.svg"
+        alt="Verificado"
+        width={20}
+        height={20}
+      />
+    )}
+  </div>
 
-              {country && (
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-montserrat bg-white/90 text-black px-3 py-1 rounded-full shadow-sm">
-                    {country}
-                  </p>
-                </div>
-              )}
+  {/* País */}
+  {country && (
+    <p className="text-sm bg-white/90 text-black px-3 py-1 rounded-full shadow-sm">
+      {country}
+    </p>
+  )}
 
-              {preferences.length > 0 ? (
-                <ul className="flex flex-wrap gap-3 font-montserrat">
-                  {preferences.map((g, i) => {
-                    const icons: string[] = [];
-                    if (g.toLowerCase() === "playa")
-                      icons.push("/favicon/playa-club-solteros.svg");
-                    if (g.toLowerCase() === "aventura")
-                      icons.push("/favicon/aventura-club-solteros.svg");
-                    if (g.toLowerCase() === "cultura")
-                      icons.push("/favicon/cultura-club-solteros.svg");
-                    if (g.toLowerCase() === "mixto")
-                      icons.push(
-                        "/favicon/playa-club-solteros.svg",
-                        "/favicon/aventura-club-solteros.svg",
-                        "/favicon/cultura-club-solteros.svg"
-                      );
+  {/* Preferencias */}
+  {preferences.length > 0 ? (
+    <ul className="flex items-center m-0 p-0 list-none">
+      {preferences.map((g, i) => {
+        const icons: string[] = [];
+        if (g.toLowerCase() === "playa") icons.push("/favicon/playa-club-solteros.svg");
+        if (g.toLowerCase() === "aventura") icons.push("/favicon/aventura-club-solteros.svg");
+        if (g.toLowerCase() === "cultura") icons.push("/favicon/cultura-club-solteros.svg");
+        if (g.toLowerCase() === "mixto")
+          icons.push(
+            "/favicon/playa-club-solteros.svg",
+            "/favicon/aventura-club-solteros.svg",
+            "/favicon/cultura-club-solteros.svg"
+          );
 
-                    return (
-                      <li key={i} className="flex items-center gap-1">
-                        {icons.map((icon, idx) => (
-                          <Image
-                            key={idx}
-                            src={icon}
-                            alt={g}
-                            width={20}
-                            height={20}
-                          />
-                        ))}
-                      </li>
-                    );
-                  })}
-                </ul>
-              ) : (
-                <p className="text-gray-500 text-sm font-montserrat">
-                  No especificado
-                </p>
-              )}
-            </div>
+        return (
+          <li key={i} className="flex items-center gap-1">
+            {icons.map((icon, idx) => (
+              <Image
+                key={idx}
+                src={icon}
+                alt={g}
+                width={28}
+                height={28}
+              />
+            ))}
+          </li>
+        );
+      })}
+    </ul>
+  ) : (
+    <p className="text-gray-300 text-sm">No especificado</p>
+  )}
+</div>
+
+
 
             {/* Sección inferior */}
             <div className="absolute bottom-4 w-full flex flex-col items-center gap-2 font-montserrat">

@@ -13,7 +13,6 @@ function parseRange(searchParams: URLSearchParams) {
   if (Number.isNaN(to.getTime())) throw new Error('Invalid "to" date');
 
   const limit = Math.max(1, Math.min(50, Number(searchParams.get('limit') ?? 7)));
-
   return { from, to, limit };
 }
 
@@ -22,21 +21,27 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const { from, to, limit } = parseRange(searchParams);
 
-    const grouped = await prisma.user.groupBy({
-      by: ['destino'],
+    // Traer todos los usuarios con destinos dentro del rango
+    const users = await prisma.user.findMany({
       where: {
         createdAt: { gte: from, lte: to },
-        destino: { not: null },
+        destino: { isEmpty: false },
       },
-      _count: { destino: true },
-      orderBy: { _count: { destino: 'desc' } },
-      take: limit,
+      select: { destino: true },
     });
 
-    const data = grouped.map((g) => ({
-      destino: g.destino ?? '—',
-      count: (g as any)._count?.destino ?? 0,
+    // Contar frecuencia de cada destino
+    const freq: Record<string, number> = {};
+    users.forEach(u => u.destino.forEach(d => {
+      if (!d) return;
+      freq[d] = (freq[d] || 0) + 1;
     }));
+
+    // Ordenar y limitar
+    const data = Object.entries(freq)
+      .sort(([, a], [, b]) => b - a)
+      .slice(0, limit)
+      .map(([destino, count]) => ({ destino, count }));
 
     return NextResponse.json(data);
   } catch (err) {

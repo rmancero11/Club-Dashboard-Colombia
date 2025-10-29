@@ -8,19 +8,46 @@ export interface TravelerDTO {
 
 export interface DestinationDTO {
   id: string;
-  businessId: string;
   name: string;
   country: string;
   city?: string | null;
   description?: string | null;
-  category?: string | null;
   isActive: boolean;
   popularityScore: number;
-  createdAt: string; 
-  updatedAt: string;
-  imageUrl: string;
-  price: number | null; 
-  discountPrice?: number | null;
-  travelers?: TravelerDTO[]; 
+  imageUrl?: string | null;
+  category?: string | null;
+  membership: "STANDARD" | "PREMIUM" | "VIP"; // o los valores de tu enum
+
+
+  price?: string | null;
+  discountPrice?: string | null;
+  // 💵 Precios base
+  priceUSDWithAirfare?: number | null;
+  priceUSDWithoutAirfare?: number | null;
+  priceCOPWithAirfare?: number | null;
+  priceCOPWithoutAirfare?: number | null;
+
+  // 💰 Listas originales
+  listUSDWithAirfare?: number | null;
+  listUSDWithoutAirfare?: number | null;
+  listCOPWithAirfare?: number | null;
+  listCOPWithoutAirfare?: number | null;
+
+  // 🔻 Descuentos
+  discountUSDWithAirfarePercent?: number | null;
+  discountUSDWithoutAirfarePercent?: number | null;
+  discountCOPWithAirfarePercent?: number | null;
+  discountCOPWithoutAirfarePercent?: number | null;
+
+  // 🔹 Otros
+  baseFromUSD?: number | null;
+  baseFromCOP?: number | null;
+  travelers?: {
+    id: string;
+    name?: string | null;
+    avatar?: string | null;
+    country?: string | null;
+  }[];
 }
+
 

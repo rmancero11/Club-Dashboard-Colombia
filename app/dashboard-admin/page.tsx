@@ -13,38 +13,69 @@ import ConfirmadosVsPerdidosChart from "@/app/components/admin/ConfirmadosVsPedi
 import MonthlyLeadsChart from "@/app/components/admin/MonthlyLeadsChart";
 import HomeDateFilter from "@/app/components/HomeDateFilter";
 
-// ==== helpers de fechas basados en una referencia ====
-function endOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
-}
-function startOfMonth(d: Date) {
-  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+// ==== helpers de fechas ====
+function startOfDay(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 0, 0, 0, 0);
 }
 function endOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999);
 }
-function monthsAgoFrom(base: Date, n: number) {
-  const d = new Date(base);
-  d.setMonth(d.getMonth() - n);
-  d.setDate(1);
-  d.setHours(0, 0, 0, 0);
-  return d;
+function startOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth(), 1, 0, 0, 0, 0);
+}
+function endOfMonth(d: Date) {
+  return new Date(d.getFullYear(), d.getMonth() + 1, 0, 23, 59, 59, 999);
+}
+function addDays(d: Date, days: number) {
+  const x = new Date(d);
+  x.setDate(x.getDate() + days);
+  return x;
 }
 function ymKey(d: Date) {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
 }
-function parseAsOf(asOf?: string | string[]) {
-  const raw = Array.isArray(asOf) ? asOf[0] : asOf;
-  if (!raw) return new Date();
+function parseYMD(s?: string | string[]) {
+  const raw = Array.isArray(s) ? s[0] : s;
+  if (!raw) return null;
   const [y, m, d] = raw.split("-").map(Number);
   const dt = new Date(y, (m ?? 1) - 1, d ?? 1);
-  return isNaN(dt.getTime()) ? new Date() : dt;
+  return isNaN(dt.getTime()) ? null : dt;
+}
+/**
+ * Prioridad de parsing:
+ * - Si vienen from & to => usar rango [from..to].
+ * - Si viene asOf => usar [startOfMonth(asOf)..endOfDay(asOf)] (compatibilidad).
+ * - Si nada => [primer día mes actual .. hoy].
+ */
+function parseDateRange(sp?: { [k: string]: string | string[] | undefined }) {
+  const today = new Date();
+  const fromParam = parseYMD(sp?.from);
+  const toParam = parseYMD(sp?.to);
+  const asOfParam = parseYMD(sp?.asOf);
+
+  if (fromParam && toParam) {
+    const start = startOfDay(fromParam);
+    const end = endOfDay(toParam);
+    if (start > end) {
+      // corrige inversión si llega mal
+      return { rangeStart: startOfDay(toParam), rangeEnd: endOfDay(fromParam) };
+    }
+    return { rangeStart: start, rangeEnd: end };
+  }
+
+  if (asOfParam) {
+    return {
+      rangeStart: startOfMonth(asOfParam),
+      rangeEnd: endOfDay(asOfParam),
+    };
+  }
+
+  return { rangeStart: startOfMonth(today), rangeEnd: endOfDay(today) };
 }
 
-// ==== utilidades de variación ====
 function getDelta(curr: number, prev: number) {
   const diff = curr - prev;
-  const pct = prev > 0 ? Math.round((diff / prev) * 100) : null; // null si no hay base
+  const pct = prev > 0 ? Math.round((diff / prev) * 100) : null;
   const up = diff > 0;
   const down = diff < 0;
   const neutral = diff === 0;
@@ -54,7 +85,7 @@ function getDelta(curr: number, prev: number) {
 function DeltaBadge({
   curr,
   prev,
-  label = "vs mes anterior",
+  label = "vs periodo anterior",
 }: {
   curr: number;
   prev: number;
@@ -83,79 +114,99 @@ function DeltaBadge({
 
 type RowYMCount = { ym: string; count: bigint };
 
+// Genera un arreglo de claves YYYY-MM desde el inicio del mes de rangeStart hasta el fin de mes de rangeEnd
+function monthKeysBetween(rangeStart: Date, rangeEnd: Date) {
+  const keys: string[] = [];
+  const start = startOfMonth(rangeStart);
+  const end = endOfMonth(rangeEnd);
+  const cursor = new Date(start);
+  while (cursor <= end) {
+    keys.push(ymKey(cursor));
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  return keys;
+}
+
 export default async function AdminHomePage({
   searchParams,
 }: {
   searchParams?: { [k: string]: string | string[] | undefined };
 }) {
-  // evitar caché del request
   noStore();
 
   const auth = await getAuth();
   if (!auth) redirect("/login");
   if (auth.role !== "ADMIN") redirect("/unauthorized");
 
-  // === fecha de referencia (filtra TODO “hasta” esa fecha) ===
-  const refDate = parseAsOf(searchParams?.asOf);
-  const monthStart = startOfMonth(refDate);
-  const rangeEnd = endOfDay(refDate);
-  const yearStart = monthsAgoFrom(refDate, 11); // 12 meses terminando en refDate
+  // === rango de fechas ===
+  const { rangeStart, rangeEnd } = parseDateRange(searchParams);
 
-  // --- Mes anterior (para comparativas)
-  const prevMonthStart = monthsAgoFrom(refDate, 1);
-  const prevMonthEnd = endOfMonth(prevMonthStart);
+  // === periodo anterior (misma duración)
+  const daysInRange = Math.max(
+    1,
+    Math.ceil((endOfDay(rangeEnd).getTime() - startOfDay(rangeStart).getTime()) / (1000 * 60 * 60 * 24)) + 0
+  );
+  const prevRangeEnd = addDays(startOfDay(rangeStart), -1);
+  const prevRangeStart = addDays(prevRangeEnd, -(daysInRange - 1));
 
-  // ===== KPIs fila 1 (Vendedores | Clientes | Leads totales)
+  // ===== KPIs fila 1 (filtrados por periodo)
   const kpisPromise = Promise.all([
-    prisma.user.count({ where: { role: "SELLER" } }),
-    prisma.client.count(),
+    prisma.user.count({
+      where: {
+        role: "SELLER",
+        createdAt: { gte: rangeStart, lte: rangeEnd },
+      },
+    }),
+    prisma.client.count({
+      where: { createdAt: { gte: rangeStart, lte: rangeEnd } },
+    }),
     prisma.reservation.count({
-      where: { createdAt: { lte: rangeEnd } }, // <= refDate
+      where: { createdAt: { gte: rangeStart, lte: rangeEnd } },
     }),
   ]);
 
-  // ===== KPIs fila 2 (Actuales)
+  // ===== KPIs fila 2 (estado en el periodo)
   const statusPromise = Promise.all([
     prisma.reservation.count({
       where: {
         status: { in: ["LEAD", "QUOTED", "HOLD"] },
-        createdAt: { lte: rangeEnd },
+        createdAt: { gte: rangeStart, lte: rangeEnd },
       },
     }),
     prisma.reservation.count({
       where: {
         status: "CONFIRMED",
-        createdAt: { lte: rangeEnd },
+        createdAt: { gte: rangeStart, lte: rangeEnd },
       },
     }),
     prisma.reservation.count({
       where: {
-        createdAt: { gte: monthStart, lte: rangeEnd }, // mes de ref
+        createdAt: { gte: rangeStart, lte: rangeEnd },
       },
     }),
   ]);
 
-  // ===== Comparativas (mes anterior)
+  // ===== Comparativas (periodo anterior de igual duración)
   const prevKPIsPromise = Promise.all([
     prisma.reservation.count({
       where: {
         status: "CONFIRMED",
-        createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
+        createdAt: { gte: prevRangeStart, lte: prevRangeEnd },
       },
     }),
     prisma.reservation.count({
       where: {
-        createdAt: { gte: prevMonthStart, lte: prevMonthEnd },
+        createdAt: { gte: prevRangeStart, lte: prevRangeEnd },
       },
     }),
   ]);
 
-  // ===== Series (12 meses) — usamos createdAt BETWEEN yearStart AND rangeEnd
+  // ===== Series (entre meses de rangeStart y rangeEnd)
   const seriesTotalPromise = prisma.$queryRaw<RowYMCount[]>`
     SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
-    WHERE "createdAt" >= ${yearStart}
+    WHERE "createdAt" >= ${rangeStart}
       AND "createdAt" <= ${rangeEnd}
     GROUP BY 1
     ORDER BY 1
@@ -165,7 +216,7 @@ export default async function AdminHomePage({
     SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
-    WHERE "createdAt" >= ${yearStart}
+    WHERE "createdAt" >= ${rangeStart}
       AND "createdAt" <= ${rangeEnd}
       AND "status" = 'CONFIRMED'
     GROUP BY 1
@@ -176,7 +227,7 @@ export default async function AdminHomePage({
     SELECT to_char(date_trunc('month', "createdAt"), 'YYYY-MM') AS ym,
            COUNT(*)::bigint AS count
     FROM "Reservation"
-    WHERE "createdAt" >= ${yearStart}
+    WHERE "createdAt" >= ${rangeStart}
       AND "createdAt" <= ${rangeEnd}
       AND "status" IN ('CANCELED','EXPIRED')
     GROUP BY 1
@@ -185,8 +236,8 @@ export default async function AdminHomePage({
 
   const [
     [sellersCount, clientsCount, leadsTotal],
-    [openLeadsCount, confirmedCount, leadsThisMonth],
-    [prevConfirmedCount, prevLeadsThisMonth],
+    [openLeadsCount, confirmedCount, leadsInPeriod],
+    [prevConfirmedCount, prevLeadsInPeriod],
     seriesTotal,
     seriesConfirmed,
     seriesLost,
@@ -199,16 +250,13 @@ export default async function AdminHomePage({
     seriesLostPromise,
   ]);
 
-  // ===== Normalizar etiquetas/series (12 meses hacia atrás desde refDate)
-  const labels: string[] = [];
+  // ===== Normalizar etiquetas/series dinámicas del rango
+  const labels = monthKeysBetween(rangeStart, rangeEnd);
   const totalPerMonth: number[] = [];
   const confirmedPerMonth: number[] = [];
   const lostPerMonth: number[] = [];
 
-  for (let i = 11; i >= 0; i--) {
-    const d = monthsAgoFrom(refDate, i);
-    const key = ymKey(d);
-    labels.push(key);
+  for (const key of labels) {
     const t = seriesTotal.find((r) => r.ym === key);
     const c = seriesConfirmed.find((r) => r.ym === key);
     const l = seriesLost.find((r) => r.ym === key);
@@ -223,33 +271,35 @@ export default async function AdminHomePage({
       <header className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold">Panel de control</h1>
-          <p className="text-sm text-gray-500">Resumen general</p>
+          <p className="text-sm text-gray-500">
+            Resumen general ({rangeStart.toISOString().slice(0,10)} → {rangeEnd.toISOString().slice(0,10)})
+          </p>
         </div>
-        {/* Calendario que actualiza ?asOf=YYYY-MM-DD */}
+        {/* Debe actualizar ?from=YYYY-MM-DD&to=YYYY-MM-DD (o asOf=YYYY-MM-DD para modo anterior) */}
         <HomeDateFilter />
       </header>
 
-      {/* KPIs fila 1 */}
+      {/* KPIs fila 1 (filtrados por periodo) */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KpiCard label="Vendedores" value={sellersCount} />
-        <KpiCard label="Clientes" value={clientsCount} />
-        <KpiCard label="Leads totales" value={leadsTotal} />
+        <KpiCard label="Vendedores (periodo)" value={sellersCount} />
+        <KpiCard label="Clientes (periodo)" value={clientsCount} />
+        <KpiCard label="Leads totales (periodo)" value={leadsTotal} />
       </section>
 
-      {/* KPIs fila 2 (con comparativas) */}
+      {/* KPIs fila 2 (con comparativas al periodo anterior) */}
       <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <KpiCard label="Leads abiertos" value={openLeadsCount} />
+        <KpiCard label="Leads abiertos (periodo)" value={openLeadsCount} />
 
         <div className="rounded-xl border bg-white p-3">
-          <div className="text-xs text-gray-500">Confirmadas (mes)</div>
+          <div className="text-xs text-gray-500">Confirmadas (periodo)</div>
           <div className="text-xl font-semibold">{confirmedCount}</div>
           {DeltaBadge({ curr: confirmedCount, prev: prevConfirmedCount })}
         </div>
 
         <div className="rounded-xl border bg-white p-3">
-          <div className="text-xs text-gray-500">Leads creados (mes)</div>
-          <div className="text-xl font-semibold">{leadsThisMonth}</div>
-          {DeltaBadge({ curr: leadsThisMonth, prev: prevLeadsThisMonth })}
+          <div className="text-xs text-gray-500">Leads creados (periodo)</div>
+          <div className="text-xl font-semibold">{leadsInPeriod}</div>
+          {DeltaBadge({ curr: leadsInPeriod, prev: prevLeadsInPeriod })}
         </div>
       </section>
 
@@ -266,7 +316,6 @@ export default async function AdminHomePage({
       </section>
 
       {/* Insights */}
-      {/* ⚠️ Ajustaremos este componente para que no requiera businessId */}
       <TopDestinosSection />
     </div>
   );

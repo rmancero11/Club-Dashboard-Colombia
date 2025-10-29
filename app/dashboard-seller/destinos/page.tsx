@@ -33,7 +33,7 @@ export default async function SellerDestinationsPage({
   if (!auth) redirect("/login");
   if (!["SELLER", "ADMIN"].includes(auth.role)) redirect("/unauthorized");
 
-  // Filtros (por defecto: solo activos para seller)
+  // === Filtros ===
   const q =
     (Array.isArray(searchParams.q) ? searchParams.q[0] : searchParams.q) ?? "";
   const active =
@@ -55,33 +55,37 @@ export default async function SellerDestinationsPage({
   const page = toInt(searchParams.page, 1);
   const pageSize = Math.min(toInt(searchParams.pageSize, 10), 50);
 
-  // Buscador por nombre + filtros
+  // === Construcción del WHERE ===
   const where: any = {};
   if (q) where.name = { contains: q, mode: "insensitive" };
   if (active === "yes") where.isActive = true;
   if (active === "no") where.isActive = false;
   if (country) where.country = country;
-  if (category) where.category = category;
+  if (category) {
+    where.categories = {
+      some: { name: { equals: category } },
+    };
+  }
 
+  // === Opciones para filtros dinámicos ===
   const [countries, categories] = await Promise.all([
     prisma.destination.findMany({
       select: { country: true },
       distinct: ["country"],
       orderBy: { country: "asc" },
     }),
-    prisma.destination.findMany({
-      select: { category: true },
-      distinct: ["category"],
-      orderBy: { category: "asc" },
+    prisma.category.findMany({
+      select: { name: true },
+      orderBy: { name: "asc" },
     }),
   ]);
+
   const countryOpts = (
     countries.map((c) => c.country).filter(Boolean) as string[]
   ).sort();
-  const categoryOpts = (
-    categories.map((c) => c.category).filter(Boolean) as string[]
-  ).sort();
+  const categoryOpts = categories.map((c) => c.name);
 
+  // === Consulta principal ===
   const [total, items] = await Promise.all([
     prisma.destination.count({ where }),
     prisma.destination.findMany({
@@ -94,10 +98,11 @@ export default async function SellerDestinationsPage({
         name: true,
         country: true,
         city: true,
-        category: true,
-        price: true,
-        discountPrice: true,
+        categories: { select: { name: true } },
+        baseFromUSD: true,
+        baseFromCOP: true,
         isActive: true,
+        membership: true,
         popularityScore: true,
         createdAt: true,
         imageUrl: true,
@@ -201,10 +206,7 @@ export default async function SellerDestinationsPage({
 
           <div className="flex items-center gap-2">
             <input type="hidden" name="page" value="1" />
-            <button
-              className="rounded-md border px-3 py-2 text-sm"
-              type="submit"
-            >
+            <button className="rounded-md border px-3 py-2 text-sm" type="submit">
               Aplicar
             </button>
             <a
@@ -223,23 +225,22 @@ export default async function SellerDestinationsPage({
 
         {/* Tabla */}
         <div className="overflow-auto">
-          <table className="table-fixed min-w-[720px] sm:min-w-[900px] text-sm">
+          <table className="table-fixed min-w-[900px] text-sm">
             <colgroup>
-              <col className="w-[40%] sm:w-[35%]" />
-              <col className="w-[28%] sm:w-[22%]" />
-              <col className="hidden sm:table-column w-[12%]" />
-              <col className="w-[16%]" />
+              <col className="w-[35%]" />
+              <col className="w-[20%]" />
+              <col className="hidden sm:table-column w-[15%]" />
+              <col className="w-[10%]" />
               <col className="hidden md:table-column w-[10%]" />
-              <col className="hidden lg:table-column w-[12%]" />
-              <col className="w-[12%]" />
+              <col className="hidden lg:table-column w-[10%]" />
             </colgroup>
 
             <thead>
               <tr className="text-left text-gray-500">
                 <th className="px-2 py-2">Destino</th>
                 <th className="px-2 py-2">Ubicación</th>
-                <th className="hidden sm:table-cell px-2 py-2">Categoría</th>
-                <th className="px-2 py-2">Precio</th>
+                <th className="hidden sm:table-cell px-2 py-2">Categorías</th>
+                <th className="px-2 py-2">Desde (USD)</th>
                 <th className="hidden md:table-cell px-2 py-2">Reservas</th>
                 <th className="hidden lg:table-cell px-2 py-2">Popularidad</th>
                 <th className="px-2 py-2"></th>
@@ -260,7 +261,6 @@ export default async function SellerDestinationsPage({
 
               {items.map((d) => (
                 <tr key={d.id} className="border-t align-top">
-                  {/* DESTINO */}
                   <td className="px-2 py-2">
                     <div className="flex items-start gap-3">
                       {d.imageUrl && (
@@ -282,46 +282,28 @@ export default async function SellerDestinationsPage({
                     </div>
                   </td>
 
-                  {/* UBICACIÓN */}
                   <td className="px-2 py-2 break-words">
                     {[d.city, d.country].filter(Boolean).join(", ") || d.country}
                   </td>
 
-                  {/* CATEGORÍA (oculta en XS) */}
                   <td className="hidden sm:table-cell px-2 py-2 break-words">
-                    {d.category || "—"}
+                    {d.categories.map((c) => c.name).join(", ") || "—"}
                   </td>
 
-                  {/* PRECIO (no cortar) */}
                   <td className="px-2 py-2 whitespace-nowrap">
-                    {d.price != null &&
-                      (d.discountPrice != null ? (
-                        <div className="flex flex-col">
-                          <span className="bg-gray-100 px-2 py-0.5 text-xs text-gray-500 line-through rounded-md">
-                            ${Number(d.price).toLocaleString()}
-                          </span>
-                          <span className="mt-1 rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white">
-                            ${Number(d.discountPrice).toLocaleString()}
-                          </span>
-                        </div>
-                      ) : (
-                        <span className="rounded-md bg-primary px-2 py-0.5 text-xs font-semibold text-white">
-                          ${Number(d.price).toLocaleString()}
-                        </span>
-                      ))}
+                    {d.baseFromUSD
+                      ? `$${Number(d.baseFromUSD).toLocaleString()}`
+                      : "—"}
                   </td>
 
-                  {/* RESERVAS (md+) */}
                   <td className="hidden md:table-cell px-2 py-2 whitespace-nowrap">
                     {d._count.reservations}
                   </td>
 
-                  {/* POPULARIDAD (lg+) */}
                   <td className="hidden lg:table-cell px-2 py-2 whitespace-nowrap">
                     {d.popularityScore}
                   </td>
 
-                  {/* ACCIONES */}
                   <td className="px-2 py-2">
                     <div className="flex justify-end gap-2">
                       <a

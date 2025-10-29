@@ -3,17 +3,20 @@ import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import prisma from "@/app/lib/prisma";
 
-export const runtime = "nodejs";           
-export const dynamic = "force-dynamic";    
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 const enc = new TextEncoder();
+const COOKIE_DOMAIN = process.env.NODE_ENV === "production"
+  ? "dashboard.clubdeviajerossolteros.com"
+  : undefined;
 
 async function signToken(
   payload: Record<string, unknown>,
   { expiresIn = "1d", subject }: { expiresIn?: string; subject: string }
 ) {
   const secret = process.env.JWT_SECRET;
-  if (!secret) throw new Error("JWT_SECRET missing"); 
+  if (!secret) throw new Error("JWT_SECRET missing");
   return new SignJWT(payload)
     .setProtectedHeader({ alg: "HS256", typ: "JWT" })
     .setIssuedAt()
@@ -29,21 +32,17 @@ export async function POST(req: Request) {
     if (!email || !password) {
       return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
     }
-
     if (!process.env.JWT_SECRET) {
-      console.error("[LOGIN] JWT_SECRET no definido en Production");
+      console.error("[LOGIN] JWT_SECRET no definido");
       return NextResponse.json({ error: "Error de configuración" }, { status: 500 });
     }
 
+    const emailNorm = String(email).trim().toLowerCase();
     const user = await prisma.user.findUnique({
-      where: { email },
+      where: { email: emailNorm },
       select: {
-        id: true,
-        name: true,
-        email: true,
-        password: true,
-        role: true,   
-        status: true,
+        id: true, name: true, email: true, password: true,
+        role: true, status: true,
       },
     });
 
@@ -60,7 +59,7 @@ export async function POST(req: Request) {
     }
 
     const token = await signToken(
-      { id: user.id, role: user.role },
+      { id: user.id, role: user.role, email: user.email },
       { expiresIn: "1d", subject: user.id }
     );
 
@@ -70,10 +69,11 @@ export async function POST(req: Request) {
 
     res.cookies.set("token", token, {
       httpOnly: true,
-      secure: process.env.NODE_ENV === "production",
+      secure: true,                 // en prod debe ser true
       sameSite: "lax",
       path: "/",
-      maxAge: 60 * 60 * 24, 
+      maxAge: 60 * 60 * 24,         // 1 día
+      ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
     });
 
     return res;

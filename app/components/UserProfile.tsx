@@ -52,6 +52,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
     country: string;
     imageUrl?: string | null;
     description?: string | null;
+    price?: string | null;
   } | null>(null);
 
   async function handleSave(data: { gustos: string[]; destinos: string[] }) {
@@ -111,7 +112,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
 
   const logout = async () => {
     try {
-      await fetch("/api/logout", { method: "POST" });
+      await fetch("/api/auth/logout", { method: "POST" });
     } catch {}
     router.replace("/login");
   };

@@ -27,6 +27,7 @@ export async function GET() {
             country: true,
             imageUrl: true,
             description: true,
+            price: true,
           },
         },
       },

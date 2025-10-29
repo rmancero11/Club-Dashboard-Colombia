@@ -49,18 +49,22 @@ export async function POST(req: Request) {
     const uploadsDir = path.join(process.cwd(), "public", "uploads");
     await fs.mkdir(uploadsDir, { recursive: true });
 
-    // 4️⃣ Guardar archivos si existen
+    // 4️⃣ Obtener datos actuales del usuario para conservar archivos antiguos si no se reemplazan
+    const existingUser = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { dniFile: true, passport: true, visa: true },
+    });
+
+    // 5️⃣ Guardar archivos si existen nuevos
     const saveFile = async (file: File | null, field: string) => {
       if (!file) return null;
-
       const bytes = await file.arrayBuffer();
       const buffer = Buffer.from(bytes);
       const ext = path.extname(file.name) || ".jpg";
       const fileName = `${field}-${userId}-${Date.now()}${ext}`;
       const filePath = path.join(uploadsDir, fileName);
-
       await fs.writeFile(filePath, buffer);
-      return `/uploads/${fileName}`; // ruta accesible públicamente
+      return `/uploads/${fileName}`;
     };
 
     const [dniFileUrl, passportFileUrl, visaFileUrl] = await Promise.all([
@@ -69,8 +73,9 @@ export async function POST(req: Request) {
       saveFile(visaFile, "visa"),
     ]);
 
-    // 5️⃣ Construir objeto de actualización dinámico
+    // 6️⃣ Construir objeto de actualización
     const dataToUpdate: any = {};
+
     if (name) dataToUpdate.name = name;
     if (phone) dataToUpdate.phone = phone;
     if (country) dataToUpdate.country = country;
@@ -81,12 +86,12 @@ export async function POST(req: Request) {
     if (security) dataToUpdate.security = security;
     if (birthday) dataToUpdate.birthday = birthday;
 
-    if (dniFileUrl) dataToUpdate.dniFile = dniFileUrl;
-if (passportFileUrl) dataToUpdate.passport = passportFileUrl;
-if (visaFileUrl) dataToUpdate.visa = visaFileUrl;
+    // ✅ Mantener los archivos anteriores si no se subieron nuevos
+    dataToUpdate.dniFile = dniFileUrl || existingUser?.dniFile || null;
+    dataToUpdate.passport = passportFileUrl || existingUser?.passport || null;
+    dataToUpdate.visa = visaFileUrl || existingUser?.visa || null;
 
-
-    // 6️⃣ Actualizar usuario
+    // 7️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
