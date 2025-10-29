@@ -86,8 +86,8 @@ model User {
   phone          String?
   country        String?
   budget         String?
-  preference     String?
-  destino        String?
+  preference String[]
+  destino    String[]
   password       String
   role           Role       @default(USER)
   status         UserStatus @default(ACTIVE)
