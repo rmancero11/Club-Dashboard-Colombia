@@ -279,8 +279,6 @@ export default function EditProfilePage() {
 
 
   const editableFields = [
-    "name",
-    "email",
     "birthday",
     "gender",
     "lookingFor",
