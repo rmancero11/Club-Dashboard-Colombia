@@ -153,14 +153,11 @@ export async function POST(req: Request) {
       `${BASE_DASHBOARD}/api/auth/accept-register` +
       `?r=${encodeURIComponent(onboardToken)}&next=/dashboard-user`;
 
-    return NextResponse.redirect(redirectUrl, {
-  status: 303, // “See Other” → redirección segura después de un POST
-  headers,
-});
-  } catch (err) {
-    console.error("Error en /api/register:", err);
+     return NextResponse.redirect(redirectUrl, { status: 303, headers });
+  } catch (err: any) {
+    console.error("❌ Error en /api/register:", err);
     return NextResponse.json(
-      { success: false, error: "Error al registrar" },
+      { success: false, error: err.message || "Error al registrar" },
       { status: 500, headers }
     );
   }
