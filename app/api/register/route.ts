@@ -6,17 +6,18 @@ import prisma from "@/app/lib/prisma";
 import bcrypt from "bcryptjs";
 import { SignJWT } from "jose";
 import { pickSellerWeighted } from "@/app/lib/assignSeller";
+import { parsePhoneNumberFromString } from "libphonenumber-js"; // sólo esto
 
 const enc = new TextEncoder();
 
-// Orígenes permitidos (WP)
+// === CONFIGURACIÓN ===
 const WP_ALLOWED = new Set([
   "https://clubdeviajerossolteros.com",
   "https://www.clubdeviajerossolteros.com",
 ]);
-
 const BASE_DASHBOARD = "https://dashboard.clubdeviajerossolteros.com";
 
+// === HELPERS ===
 function normalizeOrigin(o: string | null) {
   return o ? o.replace(/\/$/, "") : null;
 }
@@ -34,11 +35,55 @@ function corsHeaders(origin: string | null) {
   } as Record<string, string>;
 }
 
+/**
+ * Normaliza un teléfono a E.164 cuando es posible.
+ * - Si `phone` ya empieza con '+' intentamos parsear directamente.
+ * - Si no empieza con '+', y `countryDialCode` es un dial code (ej '54'), construimos +{countryDialCode}{phone} y parseamos.
+ * - Si falla, devolvemos `phone` tal cual.
+ *
+ * Nota: no usaremos CountryCode de libphonenumber-js para evitar TS2345.
+ */
+function normalizePhone(phone: string | null, countryDialCode: string | null) {
+  if (!phone) return null;
+
+  try {
+    const raw = String(phone).trim();
+
+    // Si ya viene en E.164 (ej "+54911..."), parseamos directo
+    if (raw.startsWith("+")) {
+      const parsed = parsePhoneNumberFromString(raw);
+      return parsed ? parsed.number : raw;
+    }
+
+    // Si tenemos un country dial code (p.e. '54' o '1'), intentamos construir +{dial}{phone}
+    const dial = countryDialCode ? String(countryDialCode).replace(/\D/g, "") : "";
+    if (dial) {
+      // quitamos ceros a la izquierda del celular local si vinieran
+      const candidate = `+${dial}${raw.replace(/^0+/, "")}`;
+      const parsed = parsePhoneNumberFromString(candidate);
+      if (parsed && parsed.isValid && parsed.isValid()) return parsed.number;
+      // si no es válido, intentamos parsear sin modificar
+      const parsed2 = parsePhoneNumberFromString(raw);
+      if (parsed2 && parsed2.isValid && parsed2.isValid()) return parsed2.number;
+      // fallback al candidate sin validación estricta
+      return parsed?.number || candidate;
+    }
+
+    // Si no tenemos dial, intentamos parsear el raw (quizá incluye código)
+    const parsed = parsePhoneNumberFromString(raw);
+    return parsed ? parsed.number : raw;
+  } catch {
+    return phone;
+  }
+}
+
+// === HANDLER OPTIONS ===
 export async function OPTIONS(req: Request) {
   const origin = req.headers.get("origin");
   return new NextResponse(null, { status: 204, headers: corsHeaders(origin) });
 }
 
+// === HANDLER POST ===
 export async function POST(req: Request) {
   const origin = req.headers.get("origin");
   const headers = corsHeaders(origin);
@@ -52,11 +97,39 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
+    // 🔹 1. Lectura del body (JSON o FormData / urlencoded)
+    let body: any;
+    const contentType = String(req.headers.get("content-type") || "").toLowerCase();
+    if (contentType.includes("application/json")) {
+      body = await req.json();
+    } else if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
+      const form = await req.formData();
+      // formData values pueden ser File o string; convertimos a string donde haga falta
+      body = Object.fromEntries(Array.from(form.entries()).map(([k, v]) => [k, typeof v === "string" ? v : v]));
+    } else {
+      return NextResponse.json({ success: false, message: "Tipo de contenido no soportado" }, { status: 400, headers });
+    }
+
+    // 🔹 2. Extraer campos (mapeo esperado desde tu formulario)
     const {
-      name, email, country, whatsapp, destino, password, comentario,
-      soltero, afirmacion, gustos, acepta_terminos, flujo,
+      name,
+      email,
+      country,
+      country_code, // hidden -> dial code (ej '54')
+      whatsapp,     // hidden E.164 o campo 'phone' dependiendo de lo que envíe el formulario
+      phone,        // a veces el formulario envía phone en vez de whatsapp
+      destino,
+      password,
+      comentario,
+      soltero,
+      afirmacion,
+      gustos,
+      acepta_terminos,
+      flujo,
     } = body ?? {};
+
+    // Aceptar whatsapp o phone según lo que llegue
+    const rawPhone = whatsapp || phone || null;
 
     if (!email || !password) {
       return NextResponse.json(
@@ -65,7 +138,10 @@ export async function POST(req: Request) {
       );
     }
 
+    // 🔹 3. Normalización de datos
     const emailNorm = String(email).toLowerCase().trim();
+    const phoneNorm = normalizePhone(rawPhone, country_code || null);
+
     const exists = await prisma.user.findUnique({ where: { email: emailNorm } });
     if (exists) {
       return NextResponse.json(
@@ -76,18 +152,25 @@ export async function POST(req: Request) {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const toArray = (value: any) => {
-  if (!value) return [];
-  if (Array.isArray(value)) return value;
-  return [value];
-};
+      if (value == null) return [];
+      if (Array.isArray(value)) return value;
+      if (typeof value === "string") {
+        // si viene coma-separado -> split, si viene vacío -> []
+        if (value.trim() === "") return [];
+        if (value.includes(",")) return value.split(",").map((v) => v.trim()).filter(Boolean);
+        return [value];
+      }
+      return [String(value)];
+    };
 
+    // 🔹 4. Transacción Prisma
     const { newUser, clientId } = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
         data: {
           email: emailNorm,
-          name,
-          phone: whatsapp,
-          country,
+          name: name ?? null,
+          phone: phoneNorm,
+          country: country ?? null,
           password: hashedPassword,
           role: "USER",
           status: "ACTIVE",
@@ -104,14 +187,14 @@ export async function POST(req: Request) {
         select: { id: true, email: true, name: true },
       });
 
-      const sellerId = await pickSellerWeighted(tx); 
+      const sellerId = await pickSellerWeighted(tx);
       const createdClient = await tx.client.create({
         data: {
           userId: createdUser.id,
-          sellerId: sellerId ?? null,  
+          sellerId: sellerId ?? null,
           name: name || emailNorm,
           email: createdUser.email,
-          phone: whatsapp ?? null,
+          phone: phoneNorm ?? null,
           country: country ?? null,
           city: null,
           notes: comentario ?? null,
@@ -134,13 +217,11 @@ export async function POST(req: Request) {
       return { newUser: createdUser, clientId: createdClient.id };
     });
 
+    // 🔹 5. Crear token y redirect
     const JWT_SECRET = process.env.JWT_SECRET;
     if (!JWT_SECRET) {
       console.error("[REGISTER] JWT_SECRET faltante");
-      return NextResponse.json(
-        { success: false, message: "Config JWT faltante" },
-        { status: 500, headers }
-      );
+      return NextResponse.json({ success: false, message: "Config JWT faltante" }, { status: 500, headers });
     }
 
     const onboardToken = await new SignJWT({ sub: newUser.id, purpose: "onboard" })
@@ -153,16 +234,10 @@ export async function POST(req: Request) {
       `${BASE_DASHBOARD}/api/auth/accept-register` +
       `?r=${encodeURIComponent(onboardToken)}&next=/dashboard-user`;
 
-    return NextResponse.json(
-      { success: true, usuario: newUser, clientId, redirectUrl },
-      { status: 201, headers }
-    );
+    return NextResponse.json({ success: true, usuario: newUser, clientId, redirectUrl }, { status: 201, headers });
   } catch (err) {
     console.error("Error en /api/register:", err);
-    return NextResponse.json(
-      { success: false, error: "Error al registrar" },
-      { status: 500, headers }
-    );
+    return NextResponse.json({ success: false, error: "Error al registrar" }, { status: 500, headers });
   }
 }
 
