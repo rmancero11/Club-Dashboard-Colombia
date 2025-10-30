@@ -10,6 +10,7 @@ import DestinationCard from "./DestinationCard";
 import { div } from "framer-motion/client";
 import UserPreferences from "./UserPreferences";
 import { useSearchParams } from "next/navigation";
+import InstallAppButton from "./InstallAppButton";
 
 type Role = "ADMIN" | "SELLER" | "USER";
 
@@ -171,6 +172,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
                 >
                   Cerrar sesión
                 </button>
+                <InstallAppButton />
               </motion.div>
             )}
           </AnimatePresence>

@@ -75,6 +75,11 @@ export async function POST(req: Request) {
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
+    const toArray = (value: any) => {
+  if (!value) return [];
+  if (Array.isArray(value)) return value;
+  return [value];
+};
 
     const { newUser, clientId } = await prisma.$transaction(async (tx) => {
       const createdUser = await tx.user.create({
@@ -83,14 +88,14 @@ export async function POST(req: Request) {
           name,
           phone: whatsapp,
           country,
-          destino,
           password: hashedPassword,
           role: "USER",
           status: "ACTIVE",
           comment: comentario ?? null,
           singleStatus: soltero ?? null,
           affirmation: afirmacion ?? null,
-          preference: gustos ?? null,
+          destino: toArray(destino),
+          preference: toArray(gustos),
           acceptedTerms: acepta_terminos === "on" || acepta_terminos === true || acepta_terminos === "true",
           flow: flujo ?? null,
           timezone: "America/Bogota",

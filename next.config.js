@@ -1,10 +1,17 @@
 /** @type {import('next').NextConfig} */
+const withPWA = require("next-pwa")({
+  dest: "public",
+  register: true,
+  skipWaiting: true,
+  disable: process.env.NODE_ENV === "development", // evita errores en dev
+});
+
 const nextConfig = {
   images: {
-    domains: ['via.placeholder.com'],
+    domains: ["via.placeholder.com"],
     remotePatterns: [
-      { protocol: 'https', hostname: 'res.cloudinary.com', pathname: '/**' },
-      { protocol: 'https', hostname: 'static.vecteezy.com', pathname: '/**' },
+      { protocol: "https", hostname: "res.cloudinary.com", pathname: "/**" },
+      { protocol: "https", hostname: "static.vecteezy.com", pathname: "/**" },
     ],
   },
 
@@ -12,10 +19,10 @@ const nextConfig = {
     config.module.rules.push({
       test: /\.svg$/,
       issuer: /\.[jt]sx?$/,
-      use: ['@svgr/webpack'],
+      use: ["@svgr/webpack"],
     });
 
-    // Evita que Vercel intente incluir módulos de Node en runtime edge
+    // Evita incluir módulos de Node en entornos edge (como Vercel)
     config.resolve = config.resolve || {};
     config.resolve.fallback = {
       ...(config.resolve.fallback || {}),
@@ -29,9 +36,9 @@ const nextConfig = {
 
   async redirects() {
     return [
-      { source: '/', destination: '/login', permanent: false },
+      { source: "/", destination: "/login", permanent: false },
     ];
   },
 };
 
-module.exports = nextConfig;
+module.exports = withPWA(nextConfig);
