@@ -234,7 +234,10 @@ export async function POST(req: Request) {
       `${BASE_DASHBOARD}/api/auth/accept-register` +
       `?r=${encodeURIComponent(onboardToken)}&next=/dashboard-user`;
 
-    return NextResponse.json({ success: true, usuario: newUser, clientId, redirectUrl }, { status: 201, headers });
+    return NextResponse.redirect(redirectUrl, {
+  status: 303, // “See Other” para redirigir después de un POST
+  headers,
+});
   } catch (err) {
     console.error("Error en /api/register:", err);
     return NextResponse.json({ success: false, error: "Error al registrar" }, { status: 500, headers });
