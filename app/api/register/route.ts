@@ -46,7 +46,7 @@ function corsHeaders(origin: string | null) {
  */
 async function sendToClientify(data: Record<string, any>) {
   try {
-    const CLIENTIFY_WEBFORM_ID = "262801"; // ID de tu formulario Clientify
+    const CLIENTIFY_WEBFORM_ID = "262806"; // ID de tu formulario Clientify
     const CLIENTIFY_URL = `https://api.clientify.net/web-marketing/webforms/external/submit/${CLIENTIFY_WEBFORM_ID}/`;
 
     const response = await fetch(CLIENTIFY_URL, {
