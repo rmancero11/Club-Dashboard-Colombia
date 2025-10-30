@@ -52,7 +52,17 @@ export async function POST(req: Request) {
       );
     }
 
-    const body = await req.json();
+    let body;
+const contentType = req.headers.get("content-type") || "";
+
+if (contentType.includes("application/json")) {
+  body = await req.json();
+} else if (contentType.includes("application/x-www-form-urlencoded")) {
+  const text = await req.text();
+  body = Object.fromEntries(new URLSearchParams(text));
+} else {
+  throw new Error(`Formato no soportado: ${contentType}`);
+}
     const {
       name, email, country, whatsapp, destino, password, comentario,
       soltero, afirmacion, gustos, acepta_terminos, flujo,
