@@ -282,177 +282,153 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   // ====== Submit
-async function onSubmit(e: React.FormEvent) {
-  e.preventDefault();
-  if (saving) return;
+  async function onSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    if (saving) return;
 
-  setSaving(true);
-  setErrorMsg(null);
+    setSaving(true);
+    setErrorMsg(null);
 
-  try {
-    // Validaciones simples (final derivado debe ser > 0)
-    if (priceUSD === "" || Number(priceUSD) <= 0) {
-      setErrorMsg(
-        "Ingresa un precio de lista y descuento válidos para obtener un final en USD."
-      );
-      setSaving(false);
-      return;
-    }
-    if (priceCOP === "" || Number(priceCOP) <= 0) {
-      setErrorMsg(
-        "Ingresa un precio de lista y descuento válidos para obtener un final en COP."
-      );
-      setSaving(false);
-      return;
-    }
-    for (const td of tripDates) {
-      if (!td.startDate || !td.endDate) {
+    try {
+      // Validaciones simples (final derivado debe ser > 0)
+      if (priceUSD === "" || Number(priceUSD) <= 0) {
         setErrorMsg(
-          "Completa inicio y fin en todas las salidas o elimina las incompletas."
+          "Ingresa un precio de lista y descuento válidos para obtener un final en USD."
         );
         setSaving(false);
         return;
       }
-    }
+      if (priceCOP === "" || Number(priceCOP) <= 0) {
+        setErrorMsg(
+          "Ingresa un precio de lista y descuento válidos para obtener un final en COP."
+        );
+        setSaving(false);
+        return;
+      }
+      for (const td of tripDates) {
+        if (!td.startDate || !td.endDate) {
+          setErrorMsg(
+            "Completa inicio y fin en todas las salidas o elimina las incompletas."
+          );
+          setSaving(false);
+          return;
+        }
+      }
 
-    const fd = new FormData();
-    let hasChanges = false;
-    const setChange = (key: string, val: string | Blob) => {
-      fd.set(key, val as any);
-      hasChanges = true;
-    };
+      const fd = new FormData();
+      let hasChanges = false;
+      const setChange = (key: string, val: string | Blob) => {
+        fd.set(key, val as any);
+        hasChanges = true;
+      };
 
-    // Básicos
-    if (!sameStr(dest.name, name)) setChange("name", trimOrEmpty(name));
-    if (!sameStr(dest.country, country))
-      setChange("country", trimOrEmpty(country));
-    if (!sameStr(dest.city ?? "", city)) setChange("city", trimOrEmpty(city));
-    if (!sameStr(dest.description ?? "", description))
-      setChange("description", trimOrEmpty(description));
+      // Básicos
+      if (!sameStr(dest.name, name)) setChange("name", trimOrEmpty(name));
+      if (!sameStr(dest.country, country))
+        setChange("country", trimOrEmpty(country));
+      if (!sameStr(dest.city ?? "", city)) setChange("city", trimOrEmpty(city));
+      if (!sameStr(dest.description ?? "", description))
+        setChange("description", trimOrEmpty(description));
 
-    // Membresía
-    if (dest.membership !== membership) setChange("membership", membership);
+      // Membresía
+      if (dest.membership !== membership) setChange("membership", membership);
 
-    // Categorías
-    if (!categoriesEqual)
-      setChange("categories", JSON.stringify(selectedCategories));
+      // Categorías
+      const categoriesEqualNow = categoriesEqual;
+      if (!categoriesEqualNow)
+        setChange("categories", JSON.stringify(selectedCategories));
 
-    // ===== Precios – enviar **todos los campos siempre** =====
+      // ===== Precios (por modo y moneda) =====
 
-    // USD
-    setChange(
-      "listUSDWithAirfare",
-      toNumStr(usdAirMode === "with" ? listUSD : dest.listUSDWithAirfare ?? "")
-    );
-    setChange(
-      "discountUSDWithAirfarePercent",
-      toNumStr(
-        usdAirMode === "with"
-          ? discountUSD
-          : dest.discountUSDWithAirfarePercent ?? ""
-      )
-    );
-    setChange(
-      "priceUSDWithAirfare",
-      toNumStr(
-        usdAirMode === "with" ? priceUSD : dest.priceUSDWithAirfare ?? ""
-      )
-    );
+      // USD modos
+      if (usdAirMode !== initialUsdMode) setChange("usdAirMode", usdAirMode);
 
-    setChange(
-      "listUSDWithoutAirfare",
-      toNumStr(
-        usdAirMode === "without" ? listUSD : dest.listUSDWithoutAirfare ?? ""
-      )
-    );
-    setChange(
-      "discountUSDWithoutAirfarePercent",
-      toNumStr(
-        usdAirMode === "without"
-          ? discountUSD
-          : dest.discountUSDWithoutAirfarePercent ?? ""
-      )
-    );
-    setChange(
-      "priceUSDWithoutAirfare",
-      toNumStr(
-        usdAirMode === "without" ? priceUSD : dest.priceUSDWithoutAirfare ?? ""
-      )
-    );
+      // lista (editable) -> listUSD*
+      if (listUSD !== "") {
+        const normalizedL = Number(Number(listUSD).toFixed(2));
+        if (usdAirMode === "with")
+          setChange("listUSDWithAirfare", toNumStr(normalizedL));
+        else setChange("listUSDWithoutAirfare", toNumStr(normalizedL));
+      }
 
-    // COP
-    setChange(
-      "listCOPWithAirfare",
-      toNumStr(copAirMode === "with" ? listCOP : dest.listCOPWithAirfare ?? "")
-    );
-    setChange(
-      "discountCOPWithAirfarePercent",
-      toNumStr(
-        copAirMode === "with"
-          ? discountCOP
-          : dest.discountCOPWithAirfarePercent ?? ""
-      )
-    );
-    setChange(
-      "priceCOPWithAirfare",
-      toNumStr(copAirMode === "with" ? priceCOP : dest.priceCOPWithAirfare ?? "")
-    );
+      // descuento % -> discountUSD*
+      if (discountUSD !== "") {
+        const normalizedD = Number(Number(discountUSD).toFixed(2));
+        if (usdAirMode === "with")
+          setChange("discountUSDWithAirfarePercent", toNumStr(normalizedD));
+        else
+          setChange("discountUSDWithoutAirfarePercent", toNumStr(normalizedD));
+      }
 
-    setChange(
-      "listCOPWithoutAirfare",
-      toNumStr(
-        copAirMode === "without" ? listCOP : dest.listCOPWithoutAirfare ?? ""
-      )
-    );
-    setChange(
-      "discountCOPWithoutAirfarePercent",
-      toNumStr(
-        copAirMode === "without"
-          ? discountCOP
-          : dest.discountCOPWithoutAirfarePercent ?? ""
-      )
-    );
-    setChange(
-      "priceCOPWithoutAirfare",
-      toNumStr(
-        copAirMode === "without" ? priceCOP : dest.priceCOPWithoutAirfare ?? ""
-      )
-    );
+      // final derivado -> priceUSD*
+      if (Number.isFinite(priceUSD)) {
+        const normalizedF = Number(priceUSD.toFixed(2));
+        if (usdAirMode === "with")
+          setChange("priceUSDWithAirfare", String(normalizedF));
+        else setChange("priceUSDWithoutAirfare", String(normalizedF));
+      }
 
-    // “Desde”
-    if (!sameNumStr(dest.baseFromUSD ?? "", baseFromUSD))
-      setChange("baseFromUSD", toNumStr(baseFromUSD));
-    if (!sameNumStr(dest.baseFromCOP ?? "", baseFromCOP))
-      setChange("baseFromCOP", toNumStr(baseFromCOP));
+      // COP modos
+      if (copAirMode !== initialCopMode) setChange("copAirMode", copAirMode);
 
-    // TripDates
-    if (!tripDatesEqual) setChange("tripDates", JSON.stringify(tripDates));
+      // lista (editable) -> listCOP*
+      if (listCOP !== "") {
+        const normalizedL = Math.round(Number(listCOP));
+        if (copAirMode === "with")
+          setChange("listCOPWithAirfare", toNumStr(normalizedL));
+        else setChange("listCOPWithoutAirfare", toNumStr(normalizedL));
+      }
 
-    if (!hasChanges) {
+      // descuento % -> discountCOP*
+      if (discountCOP !== "") {
+        const normalizedD = Number(Number(discountCOP).toFixed(2));
+        if (copAirMode === "with")
+          setChange("discountCOPWithAirfarePercent", toNumStr(normalizedD));
+        else
+          setChange("discountCOPWithoutAirfarePercent", toNumStr(normalizedD));
+      }
+
+      // final derivado -> priceCOP*
+      if (Number.isFinite(priceCOP)) {
+        const normalizedF = Math.round(priceCOP);
+        if (copAirMode === "with")
+          setChange("priceCOPWithAirfare", String(normalizedF));
+        else setChange("priceCOPWithoutAirfare", String(normalizedF));
+      }
+
+      // “Desde”
+      if (!sameNumStr(dest.baseFromUSD ?? "", baseFromUSD))
+        setChange("baseFromUSD", toNumStr(baseFromUSD));
+      if (!sameNumStr(dest.baseFromCOP ?? "", baseFromCOP))
+        setChange("baseFromCOP", toNumStr(baseFromCOP));
+
+      // TripDates
+      if (!tripDatesEqual) setChange("tripDates", JSON.stringify(tripDates));
+
+      if (!hasChanges) {
+        setSaving(false);
+        return;
+      }
+
+      const res = await fetch(`/api/admin/destinations/${dest.id}`, {
+        method: "PATCH",
+        body: fd,
+        credentials: "include",
+      });
+
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setErrorMsg(data?.error || "No se pudo actualizar el destino");
+        return;
+      }
+
+      location.reload();
+    } catch {
+      setErrorMsg("Error de red");
+    } finally {
       setSaving(false);
-      return;
     }
-
-    const res = await fetch(`/api/admin/destinations/${dest.id}`, {
-      method: "PATCH",
-      body: fd,
-      credentials: "include",
-    });
-
-    if (!res.ok) {
-      const data = await res.json().catch(() => ({}));
-      setErrorMsg(data?.error || "No se pudo actualizar el destino");
-      return;
-    }
-
-    location.reload();
-  } catch {
-    setErrorMsg("Error de red");
-  } finally {
-    setSaving(false);
   }
-}
-
 
   /* ================== UI ================== */
 

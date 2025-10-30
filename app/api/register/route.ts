@@ -163,7 +163,10 @@ if (contentType.includes("application/json")) {
       `${BASE_DASHBOARD}/api/auth/accept-register` +
       `?r=${encodeURIComponent(onboardToken)}&next=/dashboard-user`;
 
-     return NextResponse.redirect(redirectUrl, { status: 303, headers });
+     return NextResponse.json(
+  { success: true, redirectUrl },
+  { status: 200, headers }
+);
   } catch (err: any) {
     console.error("❌ Error en /api/register:", err);
     return NextResponse.json(
