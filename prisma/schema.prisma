@@ -32,6 +32,14 @@ enum ReservationStatus {
   EXPIRED
 }
 
+enum DocumentType {
+  PURCHASE_ORDER
+  FLIGHT_TICKETS
+  SERVICE_VOUCHER
+  MEDICAL_ASSISTANCE_CARD
+  TRAVEL_TIPS
+}
+
 enum TaskStatus {
   OPEN
   IN_PROGRESS
@@ -129,6 +137,8 @@ model User {
   currentlyLink   String?
 
   clientProfile Client? @relation("ClientUser")
+
+  uploadedDocuments ReservationDocument[] @relation("UserUploadedDocuments")
 
   activities ActivityLog[] @relation("UserActivities")
 
@@ -272,6 +282,8 @@ model Reservation {
   paxAdults   Int      @default(1)
   paxChildren Int      @default(0)
 
+  documents ReservationDocument[]
+
   currency    String            @default("USD")
   totalAmount Decimal           @default(0) @db.Decimal(12, 2)
 
@@ -338,6 +350,21 @@ model ActivityLog {
   @@index([clientId])
   @@index([reservationId])
 }
+
+model ReservationDocument {
+  id             String   @id @default(uuid())
+  reservationId  String
+  reservation    Reservation @relation(fields: [reservationId], references: [id], onDelete: Cascade)
+
+  type           DocumentType
+  url            String
+  uploadedAt     DateTime @default(now())
+
+  uploadedById   String?
+  uploadedBy     User? @relation("UserUploadedDocuments", fields: [uploadedById], references: [id], onDelete: SetNull)
+}
+
+
 
 model PasswordResetToken {
   id        String  @id @default(uuid())

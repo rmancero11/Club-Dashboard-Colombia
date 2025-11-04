@@ -2,68 +2,38 @@
 
 import { useState } from "react";
 
+
 type Seller = { id: string; name: string | null; email: string };
-
-// Enum/union del plan de suscripción
 type SubscriptionPlan = "STANDARD" | "PREMIUM" | "VIP";
-
-// Mapa legible para UI (opcional: si quieres etiquetas distintas)
-const SUBSCRIPTION_LABEL: Record<SubscriptionPlan, string> = {
-  STANDARD: "Standard",
-  PREMIUM: "Premium",
-  VIP: "VIP",
-};
-
-// Campos de documentos permitidos (en User)
-const DOC_KEYS = [
-  "purchaseOrder",
-  "flightTickets",
-  "serviceVoucher",
-  "medicalAssistanceCard",
-  "travelTips",
-] as const;
-
-// Función para emitir evento de actualización de documentos
-function emitDocUpdated(key: typeof DOC_KEYS[number], url: string) {
-  if (!url) return;
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(
-    new CustomEvent("client-doc-updated", { detail: { key, url } })
-  );
-}
 
 export default function AdminClientEditForm({
   clientId,
   currentSellerId,
   currentArchived,
   currentNotes,
-  currentSubscriptionPlan, // <<< NUEVO PROP
+  currentSubscriptionPlan,
   sellers,
+  
 }: {
   clientId: string;
   currentSellerId: string;
   currentArchived: boolean;
   currentNotes: string;
-  currentSubscriptionPlan: SubscriptionPlan; // <<< NUEVO PROP
+  currentSubscriptionPlan: SubscriptionPlan;
   sellers: Seller[];
+ 
 }) {
   const [sellerId, setSellerId] = useState(currentSellerId);
   const [subscriptionPlan, setSubscriptionPlan] =
-    useState<SubscriptionPlan>(currentSubscriptionPlan); // <<< NUEVO ESTADO
+    useState<SubscriptionPlan>(currentSubscriptionPlan);
   const [archived, setArchived] = useState(currentArchived);
   const [notes, setNotes] = useState(currentNotes);
-
-  // Archivos (se guardan en el User asociado al Client)
-  const [purchaseOrder, setPurchaseOrder] = useState<File | null>(null);
-  const [flightTickets, setFlightTickets] = useState<File | null>(null);
-  const [serviceVoucher, setServiceVoucher] = useState<File | null>(null);
-  const [medicalAssistanceCard, setMedicalAssistanceCard] =
-    useState<File | null>(null);
-  const [travelTips, setTravelTips] = useState<File | null>(null);
-
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
+
+
+
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -73,44 +43,22 @@ export default function AdminClientEditForm({
 
     try {
       const formData = new FormData();
-      formData.append("sellerId", sellerId || ""); // requerido por el schema
+      formData.append("sellerId", sellerId || "");
       formData.append("isArchived", String(archived));
       formData.append("notes", notes ?? "");
-      formData.append("subscriptionPlan", subscriptionPlan); // <<< ENVÍO DEL PLAN
+      formData.append("subscriptionPlan", subscriptionPlan);
 
-      if (purchaseOrder) formData.append("purchaseOrder", purchaseOrder);
-      if (flightTickets) formData.append("flightTickets", flightTickets);
-      if (serviceVoucher) formData.append("serviceVoucher", serviceVoucher);
-      if (medicalAssistanceCard)
-        formData.append("medicalAssistanceCard", medicalAssistanceCard);
-      if (travelTips) formData.append("travelTips", travelTips);
-
-      // La API debe actualizar:
-      // - Client: sellerId, isArchived, notes, subscriptionPlan
-      // - User: documentos
       const res = await fetch(`/api/admin/clients/${clientId}`, {
         method: "PATCH",
         body: formData,
       });
 
-      let data: any = null;
-      try {
-        data = await res.json();
-      } catch {}
+      const data = await res.json().catch(() => null);
 
       if (!res.ok) {
         setErr(data?.error || `No se pudo actualizar (HTTP ${res.status})`);
       } else {
         setMsg("Cliente actualizado correctamente.");
-
-        // Emite evento con URLs definitivas si tu API las devuelve
-        const updated = data?.updated ?? data?.user ?? data ?? {};
-        (DOC_KEYS as readonly string[]).forEach((k) => {
-          const url = updated[k as keyof typeof updated];
-          if (typeof url === "string" && url.trim()) {
-            emitDocUpdated(k as any, url.trim());
-          }
-        });
       }
     } catch (e) {
       setErr("Error de red");
@@ -136,7 +84,7 @@ export default function AdminClientEditForm({
         </div>
       )}
 
-      {/* Vendedor asignado (obligatorio) */}
+      {/* Vendedor */}
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Vendedor asignado</span>
         <select
@@ -153,22 +101,23 @@ export default function AdminClientEditForm({
         </select>
       </label>
 
-      {/* <<< NUEVO: Plan de Suscripción >>> */}
+      {/* Plan de suscripción */}
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Plan de suscripción</span>
         <select
           value={subscriptionPlan}
-          onChange={(e) => setSubscriptionPlan(e.target.value as SubscriptionPlan)}
+          onChange={(e) =>
+            setSubscriptionPlan(e.target.value as SubscriptionPlan)
+          }
           className="rounded-md border px-3 py-2"
         >
-          {(Object.keys(SUBSCRIPTION_LABEL) as SubscriptionPlan[]).map((p) => (
+          {["STANDARD", "PREMIUM", "VIP"].map((p) => (
             <option key={p} value={p}>
-              {SUBSCRIPTION_LABEL[p]}
+              {p}
             </option>
           ))}
         </select>
       </label>
-      {/* ^^^ FIN SUSCRIPCIÓN ^^^ */}
 
       {/* Archivar */}
       <label className="flex items-center gap-2 text-sm">
@@ -191,72 +140,7 @@ export default function AdminClientEditForm({
         />
       </label>
 
-      {/* Archivos (PDF/imagen/video). La API debe almacenar en User.* */}
-      <label className="grid gap-1 text-sm">
-        <span className="font-medium">Orden de compra</span>
-        <input
-          type="file"
-          accept="application/pdf,image/*,video/*"
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            setPurchaseOrder(f);
-            if (f) emitDocUpdated("purchaseOrder", URL.createObjectURL(f));
-          }}
-        />
-      </label>
 
-      <label className="grid gap-1 text-sm">
-        <span className="font-medium">Boletos de vuelo</span>
-        <input
-          type="file"
-          accept="application/pdf,image/*,video/*"
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            setFlightTickets(f);
-            if (f) emitDocUpdated("flightTickets", URL.createObjectURL(f));
-          }}
-        />
-      </label>
-
-      <label className="grid gap-1 text-sm">
-        <span className="font-medium">Voucher de servicio</span>
-        <input
-          type="file"
-          accept="application/pdf,image/*,video/*"
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            setServiceVoucher(f);
-            if (f) emitDocUpdated("serviceVoucher", URL.createObjectURL(f));
-          }}
-        />
-      </label>
-
-      <label className="grid gap-1 text-sm">
-        <span className="font-medium">Asistencia médica</span>
-        <input
-          type="file"
-          accept="application/pdf,image/*,video/*"
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            setMedicalAssistanceCard(f);
-            if (f)
-              emitDocUpdated("medicalAssistanceCard", URL.createObjectURL(f));
-          }}
-        />
-      </label>
-
-      <label className="grid gap-1 text-sm">
-        <span className="font-medium">Tips de viaje</span>
-        <input
-          type="file"
-          accept="application/pdf,image/*,video/*"
-          onChange={(e) => {
-            const f = e.target.files?.[0] ?? null;
-            setTravelTips(f);
-            if (f) emitDocUpdated("travelTips", URL.createObjectURL(f));
-          }}
-        />
-      </label>
 
       <div className="flex gap-2 pt-2">
         <button

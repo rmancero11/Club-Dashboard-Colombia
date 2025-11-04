@@ -67,14 +67,16 @@ export async function POST(req: Request) {
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
 
-    res.cookies.set("token", token, {
-      httpOnly: true,
-      secure: true,                 // en prod debe ser true
-      sameSite: "lax",
-      path: "/",
-      maxAge: 60 * 60 * 24,         // 1 día
-      ...(COOKIE_DOMAIN ? { domain: COOKIE_DOMAIN } : {}),
-    });
+   const isLocal = process.env.NODE_ENV !== "production";
+
+res.cookies.set("token", token, {
+  httpOnly: true,
+  secure: !isLocal, // 🔹 false en local, true en prod
+  sameSite: "lax",
+  path: "/",
+  maxAge: 60 * 60 * 24,
+  ...(isLocal ? {} : { domain: "dashboard.clubdeviajerossolteros.com" }), // 🔹 sin dominio en local
+});
 
     return res;
   } catch (err) {

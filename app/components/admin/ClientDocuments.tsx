@@ -7,11 +7,6 @@ const FILE_LABELS: Record<string, string> = {
   dniFile: "Documento de identidad",
   passport: "Pasaporte",
   visa: "Visa",
-  purchaseOrder: "Orden de compra",
-  flightTickets: "Boletos de vuelo",
-  serviceVoucher: "Voucher de servicio",
-  medicalAssistanceCard: "Asistencia médica",
-  travelTips: "Tips de viaje",
 };
 const ALLOWED_DOC_FIELDS = Object.keys(FILE_LABELS) as (keyof typeof FILE_LABELS)[];
 
@@ -64,16 +59,6 @@ function filenameForKey(key: string) {
       return "pasaporte.pdf";
     case "visa":
       return "visa.pdf";
-    case "purchaseOrder":
-      return "orden_compra.pdf";
-    case "flightTickets":
-      return "boletos_vuelo.pdf";
-    case "serviceVoucher":
-      return "voucher_servicio.pdf";
-    case "medicalAssistanceCard":
-      return "asistencia_medica.pdf";
-    case "travelTips":
-      return "tips_viaje.pdf";
     default:
       return "documento.pdf";
   }

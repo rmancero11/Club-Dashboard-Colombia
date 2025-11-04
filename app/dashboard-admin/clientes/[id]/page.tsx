@@ -5,6 +5,7 @@ import { getAuth } from "@/app/lib/auth";
 import { redirect, notFound } from "next/navigation";
 import AdminClientEditForm from "@/app/components/admin/AdminClientEditform";
 import ClientDocuments from "@/app/components/admin/ClientDocuments";
+import ReservationDocuments from "@/app/components/admin/reservations/ReservationDocuments";
 
 /** Utils */
 function fmtDate(d: Date | string) {
@@ -25,9 +26,7 @@ function money(n: number, currency = "USD") {
 
 /** Tasa USD↔COP desde env (fallback 4000) */
 const USD_COP_RATE = Number(
-  process.env.NEXT_PUBLIC_USD_COP_RATE ||
-    process.env.USD_COP_RATE ||
-    4000
+  process.env.NEXT_PUBLIC_USD_COP_RATE || process.env.USD_COP_RATE || 4000
 );
 
 /** Normaliza a USD sin tocar el valor original en base de datos */
@@ -44,11 +43,6 @@ const FILE_LABELS: Record<string, string> = {
   dniFile: "Documento de identidad",
   passport: "Pasaporte",
   visa: "Visa",
-  purchaseOrder: "Orden de compra",
-  flightTickets: "Boletos de vuelo",
-  serviceVoucher: "Voucher de servicio",
-  medicalAssistanceCard: "Asistencia médica",
-  travelTips: "Tips de viaje",
 };
 const ALLOWED_DOC_FIELDS = Object.keys(
   FILE_LABELS
@@ -94,16 +88,6 @@ function filenameForKey(key: string) {
       return "pasaporte.pdf";
     case "visa":
       return "visa.pdf";
-    case "purchaseOrder":
-      return "orden_compra.pdf";
-    case "flightTickets":
-      return "boletos_vuelo.pdf";
-    case "serviceVoucher":
-      return "voucher_servicio.pdf";
-    case "medicalAssistanceCard":
-      return "asistencia_medica.pdf";
-    case "travelTips":
-      return "tips_viaje.pdf";
     default:
       return "documento.pdf";
   }
@@ -210,7 +194,9 @@ function FilePreview({
   // Fallback genérico
   return (
     <div className="rounded-md border p-3 text-xs text-gray-600">
-      <div className="mb-2">No se puede previsualizar este tipo de archivo.</div>
+      <div className="mb-2">
+        No se puede previsualizar este tipo de archivo.
+      </div>
       <div className="flex gap-2">
         <a
           href={url}
@@ -253,14 +239,13 @@ function DocumentList({
       {entries.map(({ key, label, url }) => {
         const filename = filenameForKey(key);
         const ext = getExt(url);
-        const openUrl =
-          isPdf(ext)
-            ? `/api/file-proxy?url=${encodeURIComponent(
-                url
-              )}&filename=${encodeURIComponent(filename)}${
-                clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""
-              }`
-            : url;
+        const openUrl = isPdf(ext)
+          ? `/api/file-proxy?url=${encodeURIComponent(
+              url
+            )}&filename=${encodeURIComponent(filename)}${
+              clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""
+            }`
+          : url;
 
         return (
           <li key={key} className="rounded-md border p-2">
@@ -335,11 +320,6 @@ export default async function AdminClientDetailPage({
           dniFile: true,
           passport: true,
           visa: true,
-          purchaseOrder: true,
-          flightTickets: true,
-          serviceVoucher: true,
-          medicalAssistanceCard: true,
-          travelTips: true,
           verified: true,
         },
       },
@@ -491,7 +471,9 @@ export default async function AdminClientDetailPage({
             currentSellerId={client.seller?.id || ""}
             currentArchived={client.isArchived}
             currentNotes={client.notes || ""}
-            currentSubscriptionPlan={client.subscriptionPlan as "STANDARD" | "PREMIUM" | "VIP"}
+            currentSubscriptionPlan={
+              client.subscriptionPlan as "STANDARD" | "PREMIUM" | "VIP"
+            }
             sellers={sellers}
           />
         </div>
@@ -527,6 +509,27 @@ export default async function AdminClientDetailPage({
               </li>
             ))}
           </ul>
+        )}
+      </div>
+
+      {/* Documentos de reservas (bloque independiente) */}
+      <div className="mt-6 rounded-xl border bg-white p-4">
+        <h2 className="mb-3 text-lg font-semibold">
+          Documentos de las reservas
+        </h2>
+        {reservations.length === 0 ? (
+          <p className="text-gray-400 text-sm">No hay reservas aún.</p>
+        ) : (
+          <div className="space-y-6">
+            {reservations.map((r) => (
+              <div key={r.id} className="rounded-xl border bg-gray-50 p-4">
+                <h3 className="font-semibold text-base mb-2">
+                  {r.destination?.name || "—"} · {r.code}
+                </h3>
+                <ReservationDocuments reservationId={r.id} />
+              </div>
+            ))}
+          </div>
         )}
       </div>
     </div>
