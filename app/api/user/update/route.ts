@@ -2,14 +2,24 @@ import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
 import { cookies } from "next/headers";
 import { jwtVerify } from "jose";
-import { promises as fs } from "fs";
-import path from "path";
+import { uploadToCloudinary } from "@/app/lib/cloudinary";
 
 const JWT_SECRET = process.env.JWT_SECRET;
 if (!JWT_SECRET) {
   throw new Error("JWT_SECRET no está definido en las variables de entorno");
 }
 const enc = new TextEncoder();
+
+// ✅ función helper definida FUERA del bloque
+async function uploadIfPresent(file: File | null, folder: string) {
+  if (!file || typeof file !== "object" || (file as any).size <= 0) return null;
+  const result: any = await uploadToCloudinary(file, {
+    access: "public",
+    folder,
+    filename: file.name,
+  });
+  return result.secure_url;
+}
 
 export async function POST(req: Request) {
   try {
@@ -40,40 +50,25 @@ export async function POST(req: Request) {
 
     const birthday = birthdayRaw ? new Date(birthdayRaw) : null;
 
-    // 🔑 Archivos
+    // 🔑 Archivos (vía Cloudinary)
     const dniFile = formData.get("dniFile") as File | null;
     const passportFile = formData.get("passportFile") as File | null;
     const visaFile = formData.get("visaFile") as File | null;
 
-    // 3️⃣ Crear carpeta uploads si no existe
-    const uploadsDir = path.join(process.cwd(), "public", "uploads");
-    await fs.mkdir(uploadsDir, { recursive: true });
-
-    // 4️⃣ Obtener datos actuales del usuario para conservar archivos antiguos si no se reemplazan
+    // 3️⃣ Obtener datos actuales del usuario para conservar archivos antiguos
     const existingUser = await prisma.user.findUnique({
       where: { id: userId },
       select: { dniFile: true, passport: true, visa: true },
     });
 
-    // 5️⃣ Guardar archivos si existen nuevos
-    const saveFile = async (file: File | null, field: string) => {
-      if (!file) return null;
-      const bytes = await file.arrayBuffer();
-      const buffer = Buffer.from(bytes);
-      const ext = path.extname(file.name) || ".jpg";
-      const fileName = `${field}-${userId}-${Date.now()}${ext}`;
-      const filePath = path.join(uploadsDir, fileName);
-      await fs.writeFile(filePath, buffer);
-      return `/uploads/${fileName}`;
-    };
-
+    // 4️⃣ Subir archivos nuevos a Cloudinary si existen
     const [dniFileUrl, passportFileUrl, visaFileUrl] = await Promise.all([
-      saveFile(dniFile, "dni"),
-      saveFile(passportFile, "passport"),
-      saveFile(visaFile, "visa"),
+      uploadIfPresent(dniFile, "docs"),
+      uploadIfPresent(passportFile, "docs"),
+      uploadIfPresent(visaFile, "docs"),
     ]);
 
-    // 6️⃣ Construir objeto de actualización
+    // 5️⃣ Construir objeto de actualización
     const dataToUpdate: any = {};
 
     if (name) dataToUpdate.name = name;
@@ -91,10 +86,24 @@ export async function POST(req: Request) {
     dataToUpdate.passport = passportFileUrl || existingUser?.passport || null;
     dataToUpdate.visa = visaFileUrl || existingUser?.visa || null;
 
-    // 7️⃣ Actualizar usuario
+    // 6️⃣ Actualizar usuario
     const updatedUser = await prisma.user.update({
       where: { id: userId },
       data: dataToUpdate,
+      select: {
+        id: true,
+        name: true,
+        phone: true,
+        country: true,
+        gender: true,
+        lookingFor: true,
+        singleStatus: true,
+        affirmation: true,
+        birthday: true,
+        dniFile: true,
+        passport: true,
+        visa: true,
+      },
     });
 
     return NextResponse.json({ user: updatedUser });
