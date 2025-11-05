@@ -445,8 +445,9 @@ export default function UserProfile({ user }: { user: UserShape }) {
             <Image
               src="/favicon/finuser-28.svg"
               alt="Calendly"
-              width={16}
-              height={16}
+              width={170}
+              height={170}
+              className="mx-auto mt-3"
             />
           </div>
         )}

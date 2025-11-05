@@ -15,6 +15,17 @@ export async function GET() {
       orderBy: [{ popularityScore: "desc" }, { createdAt: "desc" }],
       take: 20,
       include: {
+        tripDates: {
+          where: { isActive: true },
+          orderBy: { startDate: "asc" },
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            notes: true,
+            capacity: true,
+          },
+        },
         reservations: {
           where: { status: { in: ["CONFIRMED", "TRAVELING"] } },
           include: {
@@ -34,6 +45,7 @@ export async function GET() {
       city: dest.city,
       description: dest.description,
       imageUrl: dest.imageUrl,
+
       // precios con descuento
       listUSDWithAirfare: Number(dest.priceUSDWithAirfare),
       discountUSDWithAirfarePercent: Number(dest.discountUSDWithAirfarePercent),
@@ -45,7 +57,17 @@ export async function GET() {
       discountCOPWithoutAirfarePercent: Number(dest.discountCOPWithoutAirfarePercent),
       price: Number(dest.price) || 0,
       discountPrice: Number(dest.discountPrice) || null,
-      // viajeros
+
+      // Fechas de viaje
+      tripDates: dest.tripDates.map(td => ({
+        id: td.id,
+        startDate: td.startDate,
+        endDate: td.endDate,
+        notes: td.notes,
+        capacity: td.capacity,
+      })),
+
+      // Viajeros (clientes asociados a reservas confirmadas o en viaje)
       travelers: dest.reservations
         .map(r => r.client?.user)
         .filter(u => u !== null),

@@ -55,22 +55,48 @@ export default function TravelersMatchList() {
 
         setDestinos(items);
 
-        const travelersData: Record<string, TravelerDTO[]> = {};
+       // 🔎 Normalizar texto para hacer coincidencias aproximadas
+const normalizeText = (text: string) =>
+  text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim();
 
-        for (const dest of items) {
-          const userRes = await fetch(
-            `/api/users?destino=${encodeURIComponent(
-              dest.name
-            )}&excludeUserId=${currentUser.id}`,
-            { cache: "no-store" }
-          );
-          if (userRes.ok) {
-            const { users } = await userRes.json();
-            travelersData[dest.id] = users || [];
-          } else {
-            travelersData[dest.id] = [];
-          }
-        }
+const travelersData: Record<string, TravelerDTO[]> = {};
+
+for (const dest of items) {
+  const userRes = await fetch(`/api/users?excludeUserId=${currentUser.id}`, {
+    cache: "no-store",
+  });
+
+  if (!userRes.ok) {
+    travelersData[dest.id] = [];
+    continue;
+  }
+
+  const { users } = await userRes.json();
+
+  // 📍 Filtramos los viajeros que coinciden con el destino (match aproximado)
+  const normalizedDest = normalizeText(dest.name);
+  const matchingTravelers = users.filter((trav: TravelerDTO) =>
+    trav.destino.some((d) => {
+      const nd = normalizeText(d);
+      // Coincide si comparten palabras clave
+      return (
+        nd.includes("cancun") && normalizedDest.includes("cancun") ||
+        nd.includes("temptation") && normalizedDest.includes("temptation") ||
+        nd.split(" ").some((word) => normalizedDest.includes(word))
+      );
+    })
+  );
+
+  travelersData[dest.id] = matchingTravelers;
+}
+
+setTravelersByDest(travelersData);
+
 
         setTravelersByDest(travelersData);
       } catch (err: any) {

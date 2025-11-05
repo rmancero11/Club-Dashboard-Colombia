@@ -17,6 +17,13 @@ export interface DestinationDTO {
   popularityScore: number;
   imageUrl?: string | null;
   category?: string | null;
+  tripDates?: {
+  id: string;
+  startDate: string;
+  endDate: string;
+  notes?: string | null;
+  capacity?: number | null;
+}[];
   membership: "STANDARD" | "PREMIUM" | "VIP"; // o los valores de tu enum
 
 

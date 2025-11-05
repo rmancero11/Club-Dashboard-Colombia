@@ -151,13 +151,33 @@ export default function DestinationsList({
         className="flex gap-6 p-4 overflow-x-auto touch-pan-x scrollbar-hidden"
       >
         {destinos.map((destino) => {
-          const usuariosConEseDestino = usuarios.filter(
-            (u) =>
-              Array.isArray(u.destino) &&
-              u.destino.some(
-                (d) => normalize(d).trim() === normalize(destino.name).trim()
-              )
-          );
+          // 🧠 Normalizar texto para comparar ignorando tildes, mayúsculas y símbolos
+const normalizeText = (text: string) =>
+  text
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9\s]/g, "")
+    .trim();
+
+// 🔍 Buscar coincidencias aproximadas entre los destinos del usuario y el destino actual
+const usuariosConEseDestino = usuarios.filter(
+  (u) =>
+    Array.isArray(u.destino) &&
+    u.destino.some((d) => {
+      const nd = normalizeText(d);
+      const normalizedDest = normalizeText(destino.name);
+
+      // Coincidencia flexible: comparte palabras clave o frases relevantes
+      const palabras = nd.split(" ").filter((w) => w.length > 3); // ignoramos palabras cortas
+      return (
+        nd.includes("cancun") && normalizedDest.includes("cancun") ||
+        nd.includes("temptation") && normalizedDest.includes("temptation") ||
+        palabras.some((p) => normalizedDest.includes(p))
+      );
+    })
+);
+
 
           const hasUSDWithAirfare =
             destino.listUSDWithAirfare &&
@@ -188,14 +208,39 @@ export default function DestinationsList({
               </div>
 
               <div className="p-5">
-                <h2 className="text-xl font-semibold text-gray-800 mb-1">
-                  {destino.name}
-                </h2>
-                <p className="text-sm text-gray-500 mb-2">
-                  {destino.city
-                    ? `${destino.city}, ${destino.country}`
-                    : destino.country}
-                </p>
+  {/* Nombre del destino */}
+  <h2 className="text-xl font-semibold text-gray-800 mb-1">
+    {destino.name}
+  </h2>
+
+  {/* 📅 Fechas de viaje */}
+  {destino.tripDates && destino.tripDates.length > 0 && (
+    <div className="text-sm text-gray-500 mb-2">
+      {destino.tripDates.map((trip) => {
+        const start = new Date(trip.startDate).toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "short",
+        });
+        const end = new Date(trip.endDate).toLocaleDateString("es-ES", {
+          day: "2-digit",
+          month: "short",
+        });
+        return (
+          <p key={trip.id} className="font-medium">
+            {start} - {end}
+          </p>
+        );
+      })}
+    </div>
+  )}
+
+  {/* Ciudad y país */}
+  <p className="text-sm text-gray-500 mb-2">
+    {destino.city
+      ? `${destino.city}, ${destino.country}`
+      : destino.country}
+  </p>
+
 
                 {destino.description && (
                   <p className="text-gray-600 mb-3 line-clamp-2">
