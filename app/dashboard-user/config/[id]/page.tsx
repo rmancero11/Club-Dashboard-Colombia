@@ -5,6 +5,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
+import UserNextReservation from "@/app/components/UserNextReservations";
 
 type UserShape = {
   id: string;
@@ -640,6 +641,7 @@ export default function EditProfilePage() {
                 </div>
               ))}
           </div>
+          <UserNextReservation />  {/* 👈 nuevo componente */}
         </div>
       </div>
 

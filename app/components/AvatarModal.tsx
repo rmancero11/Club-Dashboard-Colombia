@@ -81,38 +81,51 @@ export default function AvatarModal({
   )}
 
   {/* Preferencias */}
-  {preferences.length > 0 ? (
-    <ul className="flex items-center m-0 p-0 list-none">
-      {preferences.map((g, i) => {
-        const icons: string[] = [];
-        if (g.toLowerCase() === "playa") icons.push("/favicon/playa-club-solteros.svg");
-        if (g.toLowerCase() === "aventura") icons.push("/favicon/aventura-club-solteros.svg");
-        if (g.toLowerCase() === "cultura") icons.push("/favicon/cultura-club-solteros.svg");
-        if (g.toLowerCase() === "mixto")
-          icons.push(
-            "/favicon/playa-club-solteros.svg",
-            "/favicon/aventura-club-solteros.svg",
-            "/favicon/cultura-club-solteros.svg"
-          );
+{preferences.length > 0 ? (
+  <ul className="flex items-center m-0 p-0 list-none gap-3">
+    {preferences.map((g, i) => {
+      // Mapeo entre categorías e íconos
+      const iconsMap: Record<string, { src: string; label: string }> = {
+        playa: { src: "/favicon/playa-club-solteros.svg", label: "Playa" },
+        aventura: { src: "/favicon/aventura-club-solteros.svg", label: "Aventura" },
+        cultura: { src: "/favicon/cultura-club-solteros.svg", label: "Cultura" },
+      };
 
-        return (
-          <li key={i} className="flex items-center gap-1">
-            {icons.map((icon, idx) => (
+      // En caso de "mixto", mostrar las tres
+      let items: { src: string; label: string }[] = [];
+      if (g.toLowerCase() === "mixto") {
+        items = Object.values(iconsMap);
+      } else if (iconsMap[g.toLowerCase()]) {
+        items = [iconsMap[g.toLowerCase()]];
+      }
+
+      return (
+        <li key={i} className="flex items-center justify-center gap-2">
+          {items.map((item, idx) => (
+            <div
+              key={idx}
+              className="flex flex-col items-center text-center"
+            >
               <Image
-                key={idx}
-                src={icon}
-                alt={g}
-                width={28}
-                height={28}
+                src={item.src}
+                alt={item.label}
+                width={30}
+                height={30}
               />
-            ))}
-          </li>
-        );
-      })}
-    </ul>
-  ) : (
-    <p className="text-gray-300 text-sm">No especificado</p>
-  )}
+              <span className="text-xs mt-1 text-white drop-shadow font-medium">
+                {item.label}
+              </span>
+            </div>
+          ))}
+        </li>
+      );
+    })}
+  </ul>
+) : (
+  <p className="text-gray-300 text-sm">No especificado</p>
+)}
+
+
 </div>
 
 

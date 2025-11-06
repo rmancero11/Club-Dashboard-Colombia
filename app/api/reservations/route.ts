@@ -5,18 +5,25 @@ import { NextResponse } from "next/server";
 export async function GET() {
   const auth = await getAuth();
 
-  // Verificar que sea un usuario logueado y con rol USER
   if (!auth || auth.role !== "USER") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
   try {
-    // Buscar la próxima reserva del usuario
+    // Obtener el clientId asociado al usuario
+    const client = await prisma.client.findUnique({
+      where: { userId: auth.userId },
+      select: { id: true },
+    });
+
+    if (!client) {
+      return NextResponse.json({ reservations: [] });
+    }
+
+    // Buscar TODAS las reservas del usuario (excepto canceladas)
     const reservations = await prisma.reservation.findMany({
       where: {
-        client: {
-          userId: auth.userId, // referencia correcta al User asociado
-        },
+        clientId: client.id,
         status: { not: "CANCELED" },
       },
       include: {
@@ -25,21 +32,35 @@ export async function GET() {
             id: true,
             name: true,
             country: true,
+            city: true,
             imageUrl: true,
             description: true,
-            price: true,
+            membership: true,
+            priceUSDWithAirfare: true,
+            priceUSDWithoutAirfare: true,
+          },
+        },
+        tripDate: {
+          select: {
+            id: true,
+            startDate: true,
+            endDate: true,
+            notes: true,
+          },
+        },
+        documents: {
+          select: {
+            id: true,
+            type: true,
+            url: true,
+            uploadedAt: true,
           },
         },
       },
-      orderBy: {
-        startDate: "asc", // opcional: para traer la próxima por fecha
-      },
-      take: 1, // solo queremos la más próxima
+      orderBy: { startDate: "asc" },
     });
 
-    const nextDestination = reservations[0]?.destination ?? null;
-
-    return NextResponse.json({ nextDestination });
+    return NextResponse.json({ reservations });
   } catch (e) {
     console.error("Error al obtener reservas:", e);
     return NextResponse.json(
