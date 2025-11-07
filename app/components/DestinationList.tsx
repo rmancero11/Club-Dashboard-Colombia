@@ -77,36 +77,38 @@ export default function DestinationsList({
   }, [userDestino]);
 
   useEffect(() => {
-  const fetchCurrentUser = async () => {
-    try {
-      const res = await fetch("/api/auth/me", { cache: "no-store" });
-      if (!res.ok) throw new Error("No se pudo obtener el usuario");
-      const { user } = await res.json();
-      setCurrentUser(user);
-    } catch (err) {
-      console.error(err);
-    }
-  };
-  fetchCurrentUser();
-}, []);
+    const fetchCurrentUser = async () => {
+      try {
+        const res = await fetch("/api/auth/me", { cache: "no-store" });
+        if (!res.ok) throw new Error("No se pudo obtener el usuario");
+        const { user } = await res.json();
+        setCurrentUser(user);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    fetchCurrentUser();
+  }, []);
 
   // Fetch usuarios
   useEffect(() => {
-  if (!currentUser) return; // esperamos a tener el usuario
+    if (!currentUser) return; // esperamos a tener el usuario
 
-  const fetchUsuarios = async () => {
-    try {
-      const res = await fetch(`/api/users?excludeUserId=${currentUser.id}`, { cache: "no-store" });
-      if (!res.ok) throw new Error("Error al cargar usuarios");
-      const { users } = await res.json();
-      setUsuarios(users);
-    } catch (err) {
-      console.error("Error al obtener usuarios:", err);
-    }
-  };
+    const fetchUsuarios = async () => {
+      try {
+        const res = await fetch(`/api/users?excludeUserId=${currentUser.id}`, {
+          cache: "no-store",
+        });
+        if (!res.ok) throw new Error("Error al cargar usuarios");
+        const { users } = await res.json();
+        setUsuarios(users);
+      } catch (err) {
+        console.error("Error al obtener usuarios:", err);
+      }
+    };
 
-  fetchUsuarios();
-}, [currentUser]);
+    fetchUsuarios();
+  }, [currentUser]);
 
   const scroll = (direction: "left" | "right") => {
     if (!carouselRef.current) return;
@@ -152,32 +154,33 @@ export default function DestinationsList({
       >
         {destinos.map((destino) => {
           // 🧠 Normalizar texto para comparar ignorando tildes, mayúsculas y símbolos
-const normalizeText = (text: string) =>
-  text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .trim();
+          const normalizeText = (text: string) =>
+            text
+              .toLowerCase()
+              .normalize("NFD")
+              .replace(/[\u0300-\u036f]/g, "")
+              .replace(/[^a-z0-9\s]/g, "")
+              .trim();
 
-// 🔍 Buscar coincidencias aproximadas entre los destinos del usuario y el destino actual
-const usuariosConEseDestino = usuarios.filter(
-  (u) =>
-    Array.isArray(u.destino) &&
-    u.destino.some((d) => {
-      const nd = normalizeText(d);
-      const normalizedDest = normalizeText(destino.name);
+          // 🔍 Buscar coincidencias aproximadas entre los destinos del usuario y el destino actual
+          const usuariosConEseDestino = usuarios.filter(
+            (u) =>
+              Array.isArray(u.destino) &&
+              u.destino.some((d) => {
+                const nd = normalizeText(d);
+                const normalizedDest = normalizeText(destino.name);
 
-      // Coincidencia flexible: comparte palabras clave o frases relevantes
-      const palabras = nd.split(" ").filter((w) => w.length > 3); // ignoramos palabras cortas
-      return (
-        nd.includes("cancun") && normalizedDest.includes("cancun") ||
-        nd.includes("temptation") && normalizedDest.includes("temptation") ||
-        palabras.some((p) => normalizedDest.includes(p))
-      );
-    })
-);
-
+                // Coincidencia flexible: comparte palabras clave o frases relevantes
+                const palabras = nd.split(" ").filter((w) => w.length > 3); // ignoramos palabras cortas
+                return (
+                  (nd.includes("cancun") &&
+                    normalizedDest.includes("cancun")) ||
+                  (nd.includes("temptation") &&
+                    normalizedDest.includes("temptation")) ||
+                  palabras.some((p) => normalizedDest.includes(p))
+                );
+              })
+          );
 
           const hasUSDWithAirfare =
             destino.listUSDWithAirfare &&
@@ -208,39 +211,44 @@ const usuariosConEseDestino = usuarios.filter(
               </div>
 
               <div className="p-5">
-  {/* Nombre del destino */}
-  <h2 className="text-xl font-semibold text-gray-800 mb-1">
-    {destino.name}
-  </h2>
+                {/* Nombre del destino */}
+                <h2 className="text-xl font-semibold text-gray-800 mb-1">
+                  {destino.name}
+                </h2>
 
-  {/* 📅 Fechas de viaje */}
-  {destino.tripDates && destino.tripDates.length > 0 && (
-    <div className="text-sm text-gray-500 mb-2">
-      {destino.tripDates.map((trip) => {
-        const start = new Date(trip.startDate).toLocaleDateString("es-ES", {
-          day: "2-digit",
-          month: "short",
-        });
-        const end = new Date(trip.endDate).toLocaleDateString("es-ES", {
-          day: "2-digit",
-          month: "short",
-        });
-        return (
-          <p key={trip.id} className="font-medium">
-            {start} - {end}
-          </p>
-        );
-      })}
-    </div>
-  )}
+                {/* 📅 Fechas de viaje */}
+                {destino.tripDates && destino.tripDates.length > 0 && (
+                  <div className="text-sm text-gray-500 mb-2">
+                    {destino.tripDates.map((trip) => {
+                      const start = new Date(trip.startDate).toLocaleDateString(
+                        "es-ES",
+                        {
+                          day: "2-digit",
+                          month: "short",
+                        }
+                      );
+                      const end = new Date(trip.endDate).toLocaleDateString(
+                        "es-ES",
+                        {
+                          day: "2-digit",
+                          month: "short",
+                        }
+                      );
+                      return (
+                        <p key={trip.id} className="font-medium">
+                          {start} - {end}
+                        </p>
+                      );
+                    })}
+                  </div>
+                )}
 
-  {/* Ciudad y país */}
-  <p className="text-sm text-gray-500 mb-2">
-    {destino.city
-      ? `${destino.city}, ${destino.country}`
-      : destino.country}
-  </p>
-
+                {/* Ciudad y país */}
+                <p className="text-sm text-gray-500 mb-2">
+                  {destino.city
+                    ? `${destino.city}, ${destino.country}`
+                    : destino.country}
+                </p>
 
                 {destino.description && (
                   <p className="text-gray-600 mb-3 line-clamp-2">

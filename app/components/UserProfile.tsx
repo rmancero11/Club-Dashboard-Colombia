@@ -72,16 +72,36 @@ export default function UserProfile({ user }: { user: UserShape }) {
   }
 
   React.useEffect(() => {
-    const fetchReservation = async () => {
+    async function fetchReservation() {
       try {
-        const res = await fetch("/api/reservations");
-        if (!res.ok) throw new Error("No se pudieron cargar las reservas");
+        const res = await fetch("/api/reservations", {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("Error al obtener reserva");
+
         const data = await res.json();
-        setNextDestination(data.nextDestination ?? null);
-      } catch (err) {
-        console.error(err);
+
+        if (data.reservations?.length > 0) {
+          const firstReservation = data.reservations[0];
+          const dest = firstReservation.destination;
+
+          if (dest) {
+            setNextDestination({
+              id: dest.id,
+              name: dest.name,
+              country: dest.country,
+              imageUrl: dest.imageUrl,
+              description: dest.description,
+            });
+          }
+        }
+      } catch (error) {
+        console.error("Error al cargar reservas:", error);
+      } finally {
+        setLoading(false);
       }
-    };
+    }
+
     fetchReservation();
   }, []);
 
