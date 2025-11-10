@@ -22,43 +22,63 @@ export async function GET() {
 
     // Buscar TODAS las reservas del usuario (excepto canceladas)
     const reservations = await prisma.reservation.findMany({
-      where: {
-        clientId: client.id,
-        status: { not: "CANCELED" },
-      },
-      include: {
-        destination: {
+  where: {
+    clientId: client.id,
+    status: { not: "CANCELED" },
+  },
+  include: {
+    destination: {
+      select: {
+        id: true,
+        name: true,
+        country: true,
+        city: true,
+        imageUrl: true,
+        description: true,
+        membership: true,
+        priceUSDWithAirfare: true,
+        priceUSDWithoutAirfare: true,
+        // 👇 Agregamos relaciones nuevas
+        categories: {
           select: {
             id: true,
             name: true,
-            country: true,
-            city: true,
-            imageUrl: true,
-            description: true,
-            membership: true,
-            priceUSDWithAirfare: true,
-            priceUSDWithoutAirfare: true,
+            slug: true,
           },
         },
-        tripDate: {
+        tripDates: {
+          where: { isActive: true },
+          orderBy: { startDate: "asc" },
           select: {
             id: true,
             startDate: true,
             endDate: true,
             notes: true,
-          },
-        },
-        documents: {
-          select: {
-            id: true,
-            type: true,
-            url: true,
-            uploadedAt: true,
+            capacity: true,
           },
         },
       },
-      orderBy: { startDate: "asc" },
-    });
+    },
+    tripDate: {
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        notes: true,
+      },
+    },
+    documents: {
+      select: {
+        id: true,
+        type: true,
+        url: true,
+        uploadedAt: true,
+      },
+    },
+  },
+  orderBy: { startDate: "asc" },
+});
+
 
     return NextResponse.json({ reservations });
   } catch (e) {

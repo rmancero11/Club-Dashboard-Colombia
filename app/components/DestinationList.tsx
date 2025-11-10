@@ -256,11 +256,30 @@ export default function DestinationsList({
                   </p>
                 )}
 
-                {destino.category && (
-                  <span className="inline-block bg-purple-100 text-purple-700 text-xs font-medium px-3 py-1 rounded-full">
-                    {destino.category}
-                  </span>
-                )}
+              {destino.categories && destino.categories.length > 0 && (
+  <div className="flex flex-wrap gap-2 mb-3">
+    {destino.categories.map((cat) => {
+      const categoryColors: Record<string, string> = {
+        playa: "bg-yellow-100 text-yellow-800",
+        cultura: "bg-orange-100 text-orange-800",
+        aventura: "bg-green-100 text-green-800",
+      };
+
+      const colorClass =
+        categoryColors[cat.name] || "bg-purple-100 text-purple-700";
+
+      return (
+        <span
+          key={cat.id}
+          className={`inline-block text-xs font-medium px-3 py-1 rounded-full ${colorClass}`}
+        >
+          {cat.name}
+        </span>
+      );
+    })}
+  </div>
+)}
+
 
                 {/* 💵 Precios */}
                 <div className="mt-4 space-y-2">

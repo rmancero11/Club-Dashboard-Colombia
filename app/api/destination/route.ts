@@ -11,31 +11,39 @@ const calcDiscountedPrice = (price?: number | null, discount?: number | null) =>
 export async function GET() {
   try {
     const destinos = await prisma.destination.findMany({
+  where: { isActive: true },
+  orderBy: [{ popularityScore: "desc" }, { createdAt: "desc" }],
+  take: 20,
+  include: {
+    categories: {
+      select: {
+        id: true,
+        name: true,
+        slug: true,
+      },
+    },
+    tripDates: {
       where: { isActive: true },
-      orderBy: [{ popularityScore: "desc" }, { createdAt: "desc" }],
-      take: 20,
+      orderBy: { startDate: "asc" },
+      select: {
+        id: true,
+        startDate: true,
+        endDate: true,
+        notes: true,
+        capacity: true,
+      },
+    },
+    reservations: {
+      where: { status: { in: ["CONFIRMED", "TRAVELING"] } },
       include: {
-        tripDates: {
-          where: { isActive: true },
-          orderBy: { startDate: "asc" },
-          select: {
-            id: true,
-            startDate: true,
-            endDate: true,
-            notes: true,
-            capacity: true,
-          },
-        },
-        reservations: {
-          where: { status: { in: ["CONFIRMED", "TRAVELING"] } },
-          include: {
-            client: {
-              include: { user: true },
-            },
-          },
+        client: {
+          include: { user: true },
         },
       },
-    });
+    },
+  },
+});
+
 
     // Formateo para el front
     const items = destinos.map(dest => ({
@@ -45,7 +53,11 @@ export async function GET() {
       city: dest.city,
       description: dest.description,
       imageUrl: dest.imageUrl,
-
+      categories: dest.categories.map(c => ({
+  id: c.id,
+  name: c.name,
+  slug: c.slug,
+})),
       // precios con descuento
       listUSDWithAirfare: Number(dest.priceUSDWithAirfare),
       discountUSDWithAirfarePercent: Number(dest.discountUSDWithAirfarePercent),

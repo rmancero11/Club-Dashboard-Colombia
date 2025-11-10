@@ -641,8 +641,9 @@ export default function EditProfilePage() {
                 </div>
               ))}
           </div>
-          <UserNextReservation />  {/* 👈 nuevo componente */}
+            {/* 👈 nuevo componente */}
         </div>
+        <UserNextReservation />
       </div>
 
       {/* Modal editar campo */}

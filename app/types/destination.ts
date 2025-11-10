@@ -1,3 +1,9 @@
+interface Category {
+  id: number | string;
+  name: string;
+  slug: string;
+}
+
 export interface TravelerDTO {
   id: string;
   name: string | null;
@@ -16,7 +22,6 @@ export interface DestinationDTO {
   isActive: boolean;
   popularityScore: number;
   imageUrl?: string | null;
-  category?: string | null;
   tripDates?: {
   id: string;
   startDate: string;
@@ -25,7 +30,7 @@ export interface DestinationDTO {
   capacity?: number | null;
 }[];
   membership: "STANDARD" | "PREMIUM" | "VIP"; // o los valores de tu enum
-
+  categories: Category[];
 
   price?: string | null;
   discountPrice?: string | null;
