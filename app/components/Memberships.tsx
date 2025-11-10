@@ -49,7 +49,7 @@ export default function Memberships() {
               Acceso a comunidad real, conectividad básica y beneficios sobre viajes.
             </p>
             <a
-              href="https://wa.me/5491123456789?text=Hola!%20Quiero%20suscribirme%20a%20la%20Membres%C3%ADa%20Viajero"
+              href="https://wa.me/573123202192?text=Hola!%20Quiero%20suscribirme%20a%20la%20Membres%C3%ADa%20Viajero"
               target="_blank"
               rel="noopener noreferrer"
               className="font-montserrat inline-flex items-center justify-center w-full mt-4 px-6 py-3 text-white font-semibold bg-purple-600 hover:bg-purple-700 rounded-xl shadow-md transition duration-300"
@@ -90,7 +90,7 @@ export default function Memberships() {
               Acceso total, comunidad élite y verificación de perfil.
             </p>
             <a
-              href="https://wa.me/5491123456789?text=Hola!%20Quiero%20suscribirme%20a%20la%20Membres%C3%ADa%20Embajador"
+              href="https://wa.me/573123202192?text=Hola!%20Quiero%20suscribirme%20a%20la%20Membres%C3%ADa%20Embajador"
               target="_blank"
               rel="noopener noreferrer"
               className="font-montserrat inline-flex items-center justify-center w-full mt-4 px-6 py-3 text-white font-semibold bg-yellow-500 hover:bg-yellow-600 rounded-xl shadow-md transition duration-300"

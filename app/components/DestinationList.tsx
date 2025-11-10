@@ -442,7 +442,7 @@ export default function DestinationsList({
 
                   {/* Botón WhatsApp */}
                   <a
-                    href={`https://wa.me/5491122334455?text=${encodeURIComponent(
+                    href={`https://wa.me/573123202192?text=${encodeURIComponent(
                       `Hola, vengo de la aplicación de club de viajeros y me interesaría saber acerca del viaje "${destino.name}".`
                     )}`}
                     target="_blank"
