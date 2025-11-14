@@ -135,6 +135,32 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
     });
   };
 
+  useEffect(() => {
+  if (!currentUser) return;
+
+  const fetchMatchStatus = async () => {
+    try {
+      const res = await fetch(`/api/match/status?userId=${currentUser.id}`);
+      const data = await res.json();
+
+      // Guardar likes previos
+      const likes: Record<string, boolean> = {};
+      data.likesSent.forEach((id: string) => (likes[id] = true));
+      setLikedUsers(likes);
+
+      // Guardar matches previos
+      const matches: Record<string, boolean> = {};
+      data.matches.forEach((id: string) => (matches[id] = true));
+      setMatchedUsers(matches);
+    } catch (err) {
+      console.error("Error loading match status", err);
+    }
+  };
+
+  fetchMatchStatus();
+}, [currentUser]);
+
+
   // ❤️ Like / Unlike / Match
   const handleLike = async (targetId: string) => {
     if (!currentUser) return;

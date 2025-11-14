@@ -123,7 +123,7 @@ const isTripObject =
           onClick={handleRedirect}
           className="bg-primary hover:bg-primary text-white font-medium py-2 px-4 rounded-full transition duration-200"
         >
-          Conocé viajeros
+          Conocer viajeros
         </button>
       </div>
     </div>

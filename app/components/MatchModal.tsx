@@ -54,7 +54,7 @@ export function MatchModal({
 
             {/* TEXTO */}
             <p className="text-gray-700 text-lg mb-6">
-              Vos y <strong>{matchedUserName}</strong> hicieron match 🎉
+              Tu y <strong>{matchedUserName}</strong> hicieron match 🎉
             </p>
 
             {/* BOTÓN */}
