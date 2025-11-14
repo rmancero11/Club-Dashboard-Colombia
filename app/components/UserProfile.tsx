@@ -47,26 +47,16 @@ export default function UserProfile({ user }: { user: UserShape }) {
   const tabFromQuery = searchParams.get("tab");
   const [activeTab, setActiveTab] = React.useState(tabFromQuery ?? "destinos");
   const [isAvatarModalOpen, setIsAvatarModalOpen] = React.useState(false);
-  const [nextDestination, setNextDestination] = React.useState<{
-  id: string;
-  name: string;
-  country: string;
-  city?: string;
-  imageUrl?: string | null;
-  description?: string | null;
-  categories?: { id: string; name: string }[];
-  tripDates?: string[];
-}>({
-  id: "",
-  name: "",
-  country: "",
-  city: "",
-  imageUrl: "",
-  description: "",
-  categories: [],
-  tripDates: [],
-});
-
+  const [nextDestination, setNextDestination] = React.useState<null | {
+    id: string;
+    name: string;
+    country: string;
+    city?: string;
+    imageUrl?: string | null;
+    description?: string | null;
+    categories?: { id: string; name: string }[];
+    tripDates?: string[];
+  }>(null);
 
   async function handleSave(data: { gustos: string[]; destinos: string[] }) {
     const formData = new FormData();
@@ -84,43 +74,42 @@ export default function UserProfile({ user }: { user: UserShape }) {
   }
 
   React.useEffect(() => {
-  async function fetchReservation() {
-    try {
-      const res = await fetch("/api/reservations", {
-        credentials: "include",
-      });
-      if (!res.ok) throw new Error("Error al obtener reserva");
+    async function fetchReservation() {
+      try {
+        const res = await fetch("/api/reservations", {
+          credentials: "include",
+        });
+        if (!res.ok) throw new Error("Error al obtener reserva");
 
-      const data = await res.json();
+        const data = await res.json();
 
-      if (data.reservations?.length > 0) {
-        const firstReservation = data.reservations[0];
-        const dest = firstReservation.destination;
+        if (data.reservations?.length > 0) {
+          const firstReservation = data.reservations[0];
+          const dest = firstReservation.destination;
 
-        if (dest) {
-          setNextDestination({
-            id: dest.id,
-            name: dest.name,
-            country: dest.country,
-            city: dest.city,
-            imageUrl: dest.imageUrl,
-            description: dest.description,
-            // ✅ Nuevos campos del destino
-            categories: dest.categories || [],
-            tripDates: dest.tripDates || [],
-          });
+          if (dest) {
+            setNextDestination({
+              id: dest.id,
+              name: dest.name,
+              country: dest.country,
+              city: dest.city,
+              imageUrl: dest.imageUrl,
+              description: dest.description,
+              // ✅ Nuevos campos del destino
+              categories: dest.categories || [],
+              tripDates: dest.tripDates || [],
+            });
+          }
         }
+      } catch (error) {
+        console.error("Error al cargar reservas:", error);
+      } finally {
+        setLoading(false);
       }
-    } catch (error) {
-      console.error("Error al cargar reservas:", error);
-    } finally {
-      setLoading(false);
     }
-  }
 
-  fetchReservation();
-}, []);
-
+    fetchReservation();
+  }, []);
 
   const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -524,6 +513,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
               <h2 className="text-xl font-bold mb-4 font-montserrat">
                 Tu próximo destino
               </h2>
+
               {nextDestination ? (
                 <DestinationCard destino={nextDestination} />
               ) : (

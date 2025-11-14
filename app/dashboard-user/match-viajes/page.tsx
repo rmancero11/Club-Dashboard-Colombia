@@ -5,44 +5,58 @@ import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { createPortal } from "react-dom";
 import AvatarModal from "@/app/components/AvatarModal";
-import type { DestinationDTO } from "@/app/types/destination";
-import type { TravelerDTO } from "@/app/types/destination";
+import { MatchModal } from "@/app/components/MatchModal";
+
+import type { DestinationDTO, TravelerDTO } from "@/app/types/destination";
 import type { User } from "@/app/types/user";
 
 export default function TravelersMatchList() {
   const router = useRouter();
+
   const [destinos, setDestinos] = useState<DestinationDTO[]>([]);
   const [travelersByDest, setTravelersByDest] = useState<
     Record<string, TravelerDTO[]>
   >({});
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
   const carouselRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
   const [selectedTraveler, setSelectedTraveler] = useState<TravelerDTO | null>(
     null
   );
   const [mounted, setMounted] = useState(false);
+
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [likedUsers, setLikedUsers] = useState<Record<string, boolean>>({});
+  const [matchedUsers, setMatchedUsers] = useState<Record<string, boolean>>({});
+  const [showMatchModal, setShowMatchModal] = useState(false);
+const [matchedUserInfo, setMatchedUserInfo] = useState<{
+  avatar: string;
+  name: string;
+} | null>(null);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
       try {
         const res = await fetch("/api/auth/me", { cache: "no-store" });
         if (!res.ok) throw new Error("No se pudo obtener el usuario actual");
+
         const { user } = await res.json();
         setCurrentUser(user);
       } catch (err) {
         console.error(err);
       }
     };
+
     fetchCurrentUser();
   }, []);
 
   useEffect(() => setMounted(true), []);
 
-  // 🧠 Cargar destinos y sus viajeros
+  // 🧠 Cargar destinos + viajeros asociados
   useEffect(() => {
-    if (!currentUser) return; // Esperamos a tener usuario
+    if (!currentUser) return;
 
     const fetchData = async () => {
       try {
@@ -51,52 +65,50 @@ export default function TravelersMatchList() {
 
         const res = await fetch("/api/destination", { cache: "no-store" });
         if (!res.ok) throw new Error("Error al cargar destinos");
-        const { items } = await res.json();
 
+        const { items } = await res.json();
         setDestinos(items);
 
-       // 🔎 Normalizar texto para hacer coincidencias aproximadas
-const normalizeText = (text: string) =>
-  text
-    .toLowerCase()
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .replace(/[^a-z0-9\s]/g, "")
-    .trim();
+        const normalizeText = (text: string) =>
+          text
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s]/g, "")
+            .trim();
 
-const travelersData: Record<string, TravelerDTO[]> = {};
+        const travelersData: Record<string, TravelerDTO[]> = {};
 
-for (const dest of items) {
-  const userRes = await fetch(`/api/users?excludeUserId=${currentUser.id}`, {
-    cache: "no-store",
-  });
+        for (const dest of items) {
+          const userRes = await fetch(
+            `/api/users?excludeUserId=${currentUser.id}`,
+            { cache: "no-store" }
+          );
 
-  if (!userRes.ok) {
-    travelersData[dest.id] = [];
-    continue;
-  }
+          if (!userRes.ok) {
+            travelersData[dest.id] = [];
+            continue;
+          }
 
-  const { users } = await userRes.json();
+          const { users } = await userRes.json();
 
-  // 📍 Filtramos los viajeros que coinciden con el destino (match aproximado)
-  const normalizedDest = normalizeText(dest.name);
-  const matchingTravelers = users.filter((trav: TravelerDTO) =>
-    trav.destino.some((d) => {
-      const nd = normalizeText(d);
-      // Coincide si comparten palabras clave
-      return (
-        nd.includes("cancun") && normalizedDest.includes("cancun") ||
-        nd.includes("temptation") && normalizedDest.includes("temptation") ||
-        nd.split(" ").some((word) => normalizedDest.includes(word))
-      );
-    })
-  );
+          const normalizedDest = normalizeText(dest.name);
 
-  travelersData[dest.id] = matchingTravelers;
-}
+          const matchingTravelers = users.filter((trav: TravelerDTO) =>
+            trav.destino.some((d) => {
+              const nd = normalizeText(d);
 
-setTravelersByDest(travelersData);
+              return (
+                (nd.includes("cancun") && normalizedDest.includes("cancun")) ||
+                (nd.includes("temptation") &&
+                  normalizedDest.includes("temptation")) ||
+                nd.split(" ").some((word) => normalizedDest.includes(word))
+              );
+            })
+          );
 
+          travelersData[dest.id] = matchingTravelers;
+        }
 
         setTravelersByDest(travelersData);
       } catch (err: any) {
@@ -114,13 +126,99 @@ setTravelersByDest(travelersData);
   const scroll = (destinoId: string, direction: "left" | "right") => {
     const ref = carouselRefs.current[destinoId];
     if (!ref) return;
+
     const width = ref.clientWidth;
+
     ref.scrollBy({
       left: direction === "left" ? -width / 2 : width / 2,
       behavior: "smooth",
     });
   };
 
+  // ❤️ Like / Unlike / Match
+  const handleLike = async (targetId: string) => {
+    if (!currentUser) return;
+
+    // ⛔ Si ya hubo MATCH → no se puede tocar
+    if (matchedUsers[targetId]) return;
+
+    // 💔 Si ya le diste like → UNLIKE
+    if (likedUsers[targetId]) {
+      try {
+        const res = await fetch("/api/match/unlike", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            fromUserId: currentUser.id,
+            toUserId: targetId,
+          }),
+        });
+
+        if (!res.ok) {
+          const data = await res.json();
+          alert(data.error || "No se pudo remover el like");
+          return;
+        }
+
+        setLikedUsers((prev) => {
+          const newState = { ...prev };
+          delete newState[targetId];
+          return newState;
+        });
+
+        return;
+      } catch (err) {
+        console.error(err);
+        return;
+      }
+    }
+
+    // ❤️ Enviar nuevo LIKE
+    try {
+      const res = await fetch("/api/match/like", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          fromUserId: currentUser.id,
+          toUserId: targetId,
+        }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        alert(data.error || "No se pudo enviar el like");
+        return;
+      }
+
+      setLikedUsers((prev) => ({ ...prev, [targetId]: true }));
+
+      // 🎉 Si hubo MATCH
+      if (data.matched) {
+  setMatchedUsers((prev) => ({ ...prev, [targetId]: true }));
+
+  // Buscar datos del usuario que matcheó
+  const traveler = travelersByDest;
+  const matched = Object.values(travelersByDest)
+    .flat()
+    .find((t) => t.id === targetId);
+
+  if (matched) {
+    setMatchedUserInfo({
+      avatar: matched.avatar || "/images/default-avatar.png",
+      name: matched.name || "Viajero",
+    });
+  }
+
+  setShowMatchModal(true);
+}
+
+    } catch (error) {
+      console.error(error);
+    }
+  };
+
+  // UI render
   if (loading)
     return (
       <p className="text-gray-500 text-center mt-4">Cargando viajeros...</p>
@@ -137,7 +235,6 @@ setTravelersByDest(travelersData);
 
   return (
     <div className="relative p-6 space-y-10">
-      {/* 🔙 Botón Volver */}
       <button
         onClick={() => router.push("/dashboard-user")}
         className="absolute top-4 left-4 flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition text-sm font-medium shadow-sm"
@@ -145,7 +242,6 @@ setTravelersByDest(travelersData);
         ← Volver
       </button>
 
-      {/* Título principal */}
       <div className="w-full flex justify-center">
         <h1 className="relative text-xl md:text-2xl font-bold text-gray-800 mb-6 inline-block">
           Descubrir Match de viajes
@@ -160,29 +256,28 @@ setTravelersByDest(travelersData);
           <div key={destino.id} className="relative">
             <div className="mb-4">
               <h2 className="text-md font-semibold">
-                Destino: <span className="text-purple-800">{destino.name}</span>
+                Destino:{" "}
+                <span className="text-purple-800">{destino.name}</span>
               </h2>
             </div>
 
-            {/* Flechas de scroll */}
             {travelers.length > 1 && (
               <>
                 <button
                   onClick={() => scroll(destino.id, "left")}
                   className="hidden md:flex absolute left-0 top-1/2 -translate-y-1/2 z-10 bg-white shadow-md p-2 rounded-full hover:bg-gray-100 transition"
                 >
-                  &#8592;
+                  ←
                 </button>
                 <button
                   onClick={() => scroll(destino.id, "right")}
                   className="hidden md:flex absolute right-0 top-1/2 -translate-y-1/2 z-10 bg-white shadow-md p-2 rounded-full hover:bg-gray-100 transition"
                 >
-                  &#8594;
+                  →
                 </button>
               </>
             )}
 
-            {/* Carrusel */}
             <div
               ref={(el) => {
                 carouselRefs.current[destino.id] = el;
@@ -192,32 +287,52 @@ setTravelersByDest(travelersData);
               {travelers.length ? (
                 travelers.map((viajero) => (
                   <div
-                    key={viajero.id}
-                    onClick={() => setSelectedTraveler(viajero)}
-                    className="flex-shrink-0 w-64 rounded-xl overflow-hidden shadow-md hover:shadow-lg transition duration-300 cursor-pointer snap-center bg-white"
-                  >
-                    <div className="relative w-full h-56">
-                      <Image
-                        src={viajero.avatar || "/images/default-avatar.png"}
-                        alt={viajero.name || "Viajero"}
-                        fill
-                        className="object-cover"
-                      />
-                      <div className="absolute bottom-3 right-3 text-white rounded-full p-1.5 shadow">
-                        <Image
-                          src="/favicon/iconosclub-21.svg"
-                          alt="Ícono"
-                          width={30}
-                          height={30}
-                        />
-                      </div>
-                    </div>
-                    <div className="p-3 text-center bg-white">
-                      <p className="text-sm font-semibold text-gray-800">
-                        {viajero.name || "Viajero"}
-                      </p>
-                    </div>
-                  </div>
+  key={viajero.id}
+  onClick={() => setSelectedTraveler(viajero)}
+  className="flex-shrink-0 w-72 md:w-64 rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition duration-300 cursor-pointer snap-center bg-white"
+>
+  <div className="relative w-full h-72 md:h-56">
+    <Image
+      src={viajero.avatar || "/images/default-avatar.png"}
+      alt={viajero.name || "Viajero"}
+      fill
+      className="object-cover"
+    />
+
+    <button
+      onClick={(e) => {
+        e.stopPropagation();
+        handleLike(viajero.id);
+      }}
+      disabled={matchedUsers[viajero.id]}
+      className={`absolute bottom-4 right-4 shadow-md p-3 rounded-full transition ${
+        matchedUsers[viajero.id]
+          ? "bg-green-100 cursor-not-allowed"
+          : "bg-white hover:scale-110"
+      }`}
+    >
+      <Image
+        src={
+          matchedUsers[viajero.id]
+            ? "/favicon/iconosclub-22.svg"
+            : likedUsers[viajero.id]
+            ? "/favicon/iconosclub-23.svg"
+            : "/favicon/iconosclub-21.svg"
+        }
+        alt="Like"
+        width={34}
+        height={34}
+      />
+    </button>
+  </div>
+
+  <div className="p-4 text-center bg-white">
+    <p className="text-base md:text-sm font-semibold text-gray-800">
+      {viajero.name || "Viajero"}
+    </p>
+  </div>
+</div>
+
                 ))
               ) : (
                 <p className="text-gray-500 text-sm col-span-full">
@@ -229,7 +344,6 @@ setTravelersByDest(travelersData);
         );
       })}
 
-      {/* Modal de Avatar */}
       {mounted &&
         selectedTraveler &&
         createPortal(
@@ -244,6 +358,20 @@ setTravelersByDest(travelersData);
           />,
           document.body
         )}
+
+        {mounted &&
+  showMatchModal &&
+  createPortal(
+    <MatchModal
+      isOpen={showMatchModal}
+      onClose={() => setShowMatchModal(false)}
+      currentUserImg={currentUser?.avatar || "/images/default-avatar.png"}
+      matchedUserImg={matchedUserInfo?.avatar || "/images/default-avatar.png"}
+      matchedUserName={matchedUserInfo?.name || "Viajero"}
+    />,
+    document.body
+  )}
+
     </div>
   );
 }
