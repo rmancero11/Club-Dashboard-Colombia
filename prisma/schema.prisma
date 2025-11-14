@@ -86,41 +86,62 @@ enum AirfareOption {
   WITHOUT_AIRFARE
 }
 
+// ======= Estado de el Match ========
+enum MatchStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+}
+
 // ================== Usuarios ==================
 model User {
-  id             String     @id @default(uuid())
-  email          String     @unique
-  name           String?
-  phone          String?
-  country        String?
-  budget         String?
-  preference String[]
-  destino    String[]
-  password       String
-  role           Role       @default(USER)
-  status         UserStatus @default(ACTIVE)
-  verified       Boolean    @default(false)
-  createdAt      DateTime   @default(now())
-  avatar         String     @default("/images/default-avatar.png")
-  timezone       String?
-  commissionRate Decimal?   @db.Decimal(5, 2)
-  dniFile        String?
-  passport       String?
-  visa           String?
-  purchaseOrder        String?
-  flightTickets        String?
-  serviceVoucher       String?
+  id                    String     @id @default(uuid())
+  email                 String     @unique
+  name                  String?
+  phone                 String?
+  country               String?
+  budget                String?
+  preference            String[]
+  destino               String[]
+  password              String
+  role                  Role       @default(USER)
+  status                UserStatus @default(ACTIVE)
+  verified              Boolean    @default(false)
+  createdAt             DateTime   @default(now())
+  avatar                String     @default("/images/default-avatar.png")
+  timezone              String?
+  commissionRate        Decimal?   @db.Decimal(5, 2)
+  dniFile               String?
+  passport              String?
+  visa                  String?
+  purchaseOrder         String?
+  flightTickets         String?
+  serviceVoucher        String?
   medicalAssistanceCard String?
-  travelTips           String?
-  comment        String?
-  singleStatus   String?
-  affirmation    String?
-  acceptedTerms  Boolean?
-  flow           String?
-  birthday       DateTime?
-  gender         String?
-  lookingFor     String?
-  galleryImages  String[]   @default([])
+  travelTips            String?
+  comment               String?
+  singleStatus          String?
+  affirmation           String?
+  acceptedTerms         Boolean?
+  flow                  String?
+  birthday              DateTime?
+  gender                String?
+  lookingFor            String?
+  galleryImages         String[]   @default([])
+  online                Boolean    @default(false)
+
+  // ------------- Relaciones de Match & Chat ----------------
+
+  // Relaciones del Match
+  matchesAsUserA        Match[]   @relation("UserMatchesAsUserA")
+  matchesAsUserB        Match[]   @relation("UserMatchesAsUserB")
+
+  // Relación de Bloqueo
+  blockedUsers          BlockedUser[] @relation("UserBloched")
+
+  // Relaciones de mensajes
+  sentMessages          Message[] @relation("SentMessages")
+  receivedMessages      Message[] @relation("ReceivedMessages")
 
   // === Auto-asignación (aplica cuando role = SELLER)
   autoAssignable   Boolean  @default(true)
@@ -380,4 +401,68 @@ model PasswordResetToken {
   createdAt DateTime @default(now())
 
   @@index([userId, expiresAt])
+}
+
+model Match {
+  id        String   @id @default(uuid())
+  userAId   String
+  userBId   String
+  status    MatchStatus @default(PENDING)
+  createdAt DateTime @default(now())
+
+  // Relaciones con la tabla User
+  userA     User     @relation("UserMatchesAsUserA", fields: [userAId], references: [id])
+  userB     User     @relation("UserMatchesAsUserB", fields: [userBId], references: [id])
+
+  // Aseguramos que solo haya un match (pendiente/aceptado) entre dos usuarios
+  @@unique([userAId, userBId])
+  @@index([userAId, status])
+  @@index([userBId, status])
+}
+
+model BlockedUser {
+  id            String   @id @default(uuid())
+  blockerUserId String
+  blockedUserId String
+  createdAt     DateTime @default(now())
+
+  // Relaciones con la tabla User
+  blocker       User  @relation("UserBloched", fields: [blockerUserId], references: [id])
+
+  @@unique([blockerUserId, blockedUserId])
+}
+
+model Message {
+  id            String   @id @default(uuid())
+  senderId      String
+  receiverId    String
+  content       String?
+  imageUrl      String?
+  createdAt     DateTime @default(now())
+  readAt        DateTime?
+  deletedBy     Json?   // Para eliminación logica por usuario 
+
+  // Relaciones con la tabla User
+  sender        User  @relation("SentMessages", fields: [senderId], references: [id])
+  receiver      User  @relation("ReceivedMessages", fields: [receiverId], references: [id])
+
+  @@index([senderId, receiverId, createdAt])
+  @@index([receiverId, createdAt]) // Para cargar mensajes entrantes 
+}
+
+// modelos a remplazar : ------------------
+model ClientLike {
+  id         String
+  createdAt  DateTime
+  fromUserId String
+  toUserId   String
+
+  @@id([fromUserId, toUserId])
+}
+model ClientMatch {
+  id        String
+  createdAt DateTime
+  userAId   String
+  userBId   String
+  @@id([userAId, userBId])
 }
