@@ -35,7 +35,7 @@ io.on('connection', (socket) => {
             // Notificamos a todos que este usuario está Online (tiempo real)
             io.emit('user-status-change', { id: userId, online: true });
         })
-        .catch (err => console.error(`Error setting ONLINE for ${userId}:`, err));
+        .catch ((err: any) => console.error(`Error setting ONLINE for ${userId}:`, err));
     }
 
     // Manejo de ENVÍO de MENSAJES
@@ -84,7 +84,7 @@ io.on('connection', (socket) => {
                 // Notificamos a todos que este usuario está OFFLINE (tiempo real)
                 io.emit('user-status-change', { id: userId, online: false });
             })
-            .catch (err => console.error(`Error setting OFFLINE for ${userId}:`, err));
+            .catch ((err: any) => console.error(`Error setting OFFLINE for ${userId}:`, err));
         }
     });
 });
