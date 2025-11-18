@@ -4,9 +4,6 @@ import prisma from "@/app/lib/prisma";
 export async function POST(req: Request) {
   try {
     const body = await req.json();
-
-    console.log("📩 Body recibido:", body);
-
     const { fromUserId, toUserId } = body;
 
     if (!fromUserId || !toUserId) {
@@ -17,7 +14,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Cannot like yourself" }, { status: 400 });
     }
 
-    // Encontrar el CLIENT asociado al usuario que envía el like
+    // --- Verificar CLIENT + suscripción ---
     const fromClient = await prisma.client.findUnique({
       where: { userId: fromUserId },
     });
@@ -26,60 +23,60 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    // Solo Premium o VIP pueden likear
     if (!["PREMIUM", "VIP"].includes(fromClient.subscriptionPlan)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
     }
 
-    // Crear el like
-    await prisma.clientLike.upsert({
+    // --- Buscar si ya existe un match en ambas direcciones ---
+    const existingForward = await prisma.match.findUnique({
       where: {
-        fromUserId_toUserId: {
-          fromUserId,
-          toUserId,
+        userAId_userBId: {
+          userAId: fromUserId,
+          userBId: toUserId,
         },
       },
-      update: {},
-      create: { fromUserId, toUserId },
     });
 
-    // Verificar like recíproco
-    const reciprocal = await prisma.clientLike.findUnique({
+    const existingReverse = await prisma.match.findUnique({
       where: {
-        fromUserId_toUserId: {
-          fromUserId: toUserId,
-          toUserId: fromUserId,
+        userAId_userBId: {
+          userAId: toUserId,
+          userBId: fromUserId,
         },
       },
     });
 
     let matched = false;
 
-    if (reciprocal) {
-      // Ordenar siempre el menor primero para evitar duplicados
-      const [a, b] = [fromUserId, toUserId].sort();
-
-      await prisma.clientMatch.upsert({
+    if (existingReverse) {
+      // El otro usuario ya había "likeado": ES MATCH
+      await prisma.match.update({
         where: {
           userAId_userBId: {
-            userAId: a,
-            userBId: b,
+            userAId: toUserId,
+            userBId: fromUserId,
           },
         },
-        update: {},
-        create: {
-          userAId: a,
-          userBId: b,
-        },
+        data: { status: "ACCEPTED" },
       });
 
       matched = true;
+
+    } else if (!existingForward) {
+      // Nadie había likeado todavía: crear pendiente
+      await prisma.match.create({
+        data: {
+          userAId: fromUserId,
+          userBId: toUserId,
+          status: "PENDING",
+        },
+      });
     }
 
     return NextResponse.json({ ok: true, matched });
 
   } catch (error) {
-    console.log(error);
+    console.error(error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

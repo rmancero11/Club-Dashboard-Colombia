@@ -449,20 +449,3 @@ model Message {
   @@index([senderId, receiverId, createdAt])
   @@index([receiverId, createdAt]) // Para cargar mensajes entrantes 
 }
-
-// modelos a remplazar : ------------------
-model ClientLike {
-  id         String
-  createdAt  DateTime
-  fromUserId String
-  toUserId   String
-
-  @@id([fromUserId, toUserId])
-}
-model ClientMatch {
-  id        String
-  createdAt DateTime
-  userAId   String
-  userBId   String
-  @@id([userAId, userBId])
-}

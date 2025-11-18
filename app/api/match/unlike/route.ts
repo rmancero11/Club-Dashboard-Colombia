@@ -10,14 +10,46 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Missing IDs" }, { status: 400 });
     }
 
-    // borrar el like
-    await prisma.clientLike.delete({
+    // Ordenar IDs para respetar la key única
+    const [userAId, userBId] = [fromUserId, toUserId].sort();
+
+    const existingMatch = await prisma.match.findUnique({
       where: {
-        fromUserId_toUserId: { fromUserId, toUserId },
-      },
+        userAId_userBId: { userAId, userBId }
+      }
     });
 
-    return NextResponse.json({ ok: true });
+    if (!existingMatch) {
+      return NextResponse.json({ ok: true, deleted: false });
+    }
+
+    // Si aún es un like pendiente → se elimina
+    if (existingMatch.status === "PENDING") {
+      await prisma.match.delete({
+        where: {
+          userAId_userBId: { userAId, userBId }
+        }
+      });
+
+      return NextResponse.json({ ok: true, deleted: true });
+    }
+
+    // Si ya era un match aceptado
+    // podés decidir qué hacer:
+    // Opción A: no permitir borrar
+    return NextResponse.json(
+      { error: "Cannot remove an accepted match" },
+      { status: 403 }
+    );
+
+    // Opción B: marcar como REJECTED
+    /*
+    await prisma.match.update({
+      where: { userAId_userBId: { userAId, userBId } },
+      data: { status: "REJECTED" }
+    });
+    return NextResponse.json({ ok: true, deleted: true });
+    */
   } catch (error) {
     console.error(error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });

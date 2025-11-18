@@ -159,10 +159,8 @@ export default function UserPreferences({
             </button>
           </div>
         ) : destinos.length > 0 ? (
-          <ul
-            className="grid gap-3 text-sm text-gray-600 
-                         grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4"
-          >
+          // Nueva versión: se pueden eliminar todos los destinos, incluso los antiguos
+          <ul className="grid gap-3 text-sm text-gray-600 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
             {destinos.map((d, i) => (
               <li
                 key={i}
@@ -171,6 +169,16 @@ export default function UserPreferences({
                            break-words max-w-full shadow-sm hover:shadow-md transition-shadow font-montserrat"
               >
                 {d}
+                <button
+                  onClick={() => {
+                    const nuevosDestinos = destinos.filter((x) => x !== d);
+                    setDestinos(nuevosDestinos);
+                    onSave({ gustos, destinos: nuevosDestinos });
+                  }}
+                  className="ml-2 text-gray-500 hover:text-red-500 font-bold"
+                >
+                  ×
+                </button>
               </li>
             ))}
           </ul>
@@ -223,12 +231,18 @@ export default function UserPreferences({
             {opcionesGustos.map((g) => {
               if (!gustos.includes(g)) return null; // Mostrar solo gustos seleccionados
               let icon = "";
-              if (g.toLowerCase() === "playa") icon = "/favicon/playa-club-solteros.svg";
-              if (g.toLowerCase() === "aventura") icon = "/favicon/aventura-club-solteros.svg";
-              if (g.toLowerCase() === "cultura") icon = "/favicon/cultura-club-solteros.svg";
+              if (g.toLowerCase() === "playa")
+                icon = "/favicon/playa-club-solteros.svg";
+              if (g.toLowerCase() === "aventura")
+                icon = "/favicon/aventura-club-solteros.svg";
+              if (g.toLowerCase() === "cultura")
+                icon = "/favicon/cultura-club-solteros.svg";
 
               return (
-                <li key={g} className="flex flex-col items-center gap-1 font-montserrat">
+                <li
+                  key={g}
+                  className="flex flex-col items-center gap-1 font-montserrat"
+                >
                   <Image src={icon} alt={g} width={50} height={50} />
                   <span className="text-xs text-gray-700">{g}</span>
                 </li>

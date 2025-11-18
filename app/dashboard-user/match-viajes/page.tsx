@@ -6,7 +6,7 @@ import Image from "next/image";
 import { createPortal } from "react-dom";
 import AvatarModal from "@/app/components/AvatarModal";
 import { MatchModal } from "@/app/components/MatchModal";
-
+import { motion } from "framer-motion";
 import type { DestinationDTO, TravelerDTO } from "@/app/types/destination";
 import type { User } from "@/app/types/user";
 
@@ -59,65 +59,62 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
     if (!currentUser) return;
 
     const fetchData = async () => {
-      try {
-        setLoading(true);
-        setError(null);
+  try {
+    setLoading(true);
+    setError(null);
 
-        const res = await fetch("/api/destination", { cache: "no-store" });
-        if (!res.ok) throw new Error("Error al cargar destinos");
+    const res = await fetch("/api/destination", { cache: "no-store" });
+    if (!res.ok) throw new Error("Error al cargar destinos");
 
-        const { items } = await res.json();
-        setDestinos(items);
+    const { items } = await res.json();
+    setDestinos(items);
 
-        const normalizeText = (text: string) =>
-          text
-            .toLowerCase()
-            .normalize("NFD")
-            .replace(/[\u0300-\u036f]/g, "")
-            .replace(/[^a-z0-9\s]/g, "")
-            .trim();
+    const normalizeText = (text: string) =>
+      text
+        .toLowerCase()
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .replace(/[^a-z0-9\s]/g, "")
+        .trim();
 
-        const travelersData: Record<string, TravelerDTO[]> = {};
+    // ❗ 1 sola llamada para todos los usuarios
+    const userRes = await fetch(
+      `/api/users?excludeUserId=${currentUser.id}`,
+      { cache: "no-store" }
+    );
 
-        for (const dest of items) {
-          const userRes = await fetch(
-            `/api/users?excludeUserId=${currentUser.id}`,
-            { cache: "no-store" }
+    const { users } = await userRes.json();
+
+    const travelersData: Record<string, TravelerDTO[]> = {};
+
+    // Filtrar usuarios por cada destino
+    for (const dest of items) {
+      const normalizedDest = normalizeText(dest.name);
+
+      const matchingTravelers = users.filter((trav: TravelerDTO) =>
+        trav.destino.some((d) => {
+          const nd = normalizeText(d);
+
+          return (
+            (nd.includes("cancun") && normalizedDest.includes("cancun")) ||
+            (nd.includes("temptation") && normalizedDest.includes("temptation")) ||
+            nd.split(" ").some((word) => normalizedDest.includes(word))
           );
+        })
+      );
 
-          if (!userRes.ok) {
-            travelersData[dest.id] = [];
-            continue;
-          }
+      travelersData[dest.id] = matchingTravelers;
+    }
 
-          const { users } = await userRes.json();
+    setTravelersByDest(travelersData);
+  } catch (err: any) {
+    console.error("❌ Error:", err);
+    setError(err.message || "Error desconocido");
+  } finally {
+    setLoading(false);
+  }
+};
 
-          const normalizedDest = normalizeText(dest.name);
-
-          const matchingTravelers = users.filter((trav: TravelerDTO) =>
-            trav.destino.some((d) => {
-              const nd = normalizeText(d);
-
-              return (
-                (nd.includes("cancun") && normalizedDest.includes("cancun")) ||
-                (nd.includes("temptation") &&
-                  normalizedDest.includes("temptation")) ||
-                nd.split(" ").some((word) => normalizedDest.includes(word))
-              );
-            })
-          );
-
-          travelersData[dest.id] = matchingTravelers;
-        }
-
-        setTravelersByDest(travelersData);
-      } catch (err: any) {
-        console.error("❌ Error:", err);
-        setError(err.message || "Error desconocido");
-      } finally {
-        setLoading(false);
-      }
-    };
 
     fetchData();
   }, [currentUser]);
@@ -325,31 +322,35 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
       className="object-cover"
     />
 
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        handleLike(viajero.id);
-      }}
-      disabled={matchedUsers[viajero.id]}
-      className={`absolute bottom-4 right-4 shadow-md p-3 rounded-full transition ${
-        matchedUsers[viajero.id]
-          ? "bg-green-100 cursor-not-allowed"
-          : "bg-white hover:scale-110"
-      }`}
-    >
-      <Image
-        src={
-          matchedUsers[viajero.id]
-            ? "/favicon/iconosclub-22.svg"
-            : likedUsers[viajero.id]
-            ? "/favicon/iconosclub-23.svg"
-            : "/favicon/iconosclub-21.svg"
-        }
-        alt="Like"
-        width={34}
-        height={34}
-      />
-    </button>
+    <motion.button
+  onClick={(e) => {
+    e.stopPropagation();
+    handleLike(viajero.id);
+  }}
+  disabled={matchedUsers[viajero.id]}
+  whileTap={{ scale: 1.5 }} // animación al presionar
+  className={`absolute bottom-4 right-4 rounded-full border transition ${
+    matchedUsers[viajero.id]
+      ? "border-green-400 bg-green-100 cursor-not-allowed"
+      : likedUsers[viajero.id]
+      ? "border-pink-400 bg-pink-100 hover:bg-pink-200"
+      : "border-gray-300 bg-white hover:bg-gray-100"
+  }`}
+>
+  <Image
+    src={
+      matchedUsers[viajero.id]
+        ? "/favicon/iconosclub-22.svg"
+        : likedUsers[viajero.id]
+        ? "/favicon/iconosclub-23.svg"
+        : "/favicon/iconosclub-21.svg"
+    }
+    alt="Like"
+    width={34}
+    height={34}
+  />
+</motion.button>
+
   </div>
 
   <div className="p-4 text-center bg-white">
@@ -371,19 +372,21 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
       })}
 
       {mounted &&
-        selectedTraveler &&
-        createPortal(
-          <AvatarModal
-            isOpen={!!selectedTraveler}
-            onClose={() => setSelectedTraveler(null)}
-            avatar={selectedTraveler.avatar || "/images/default-avatar.png"}
-            name={selectedTraveler.name}
-            country={selectedTraveler.country}
-            preferences={selectedTraveler.preference}
-            destino={selectedTraveler.destino}
-          />,
-          document.body
-        )}
+  selectedTraveler &&
+  createPortal(
+    <AvatarModal
+       isOpen={!!selectedTraveler}
+  onClose={() => setSelectedTraveler(null)}
+  userId={selectedTraveler.id}
+  isMatchProfile={matchedUsers[selectedTraveler.id]}
+  
+  likedUsers={likedUsers}
+  matchedUsers={matchedUsers}
+  handleLike={handleLike}
+    />,
+    document.body
+  )}
+
 
         {mounted &&
   showMatchModal &&

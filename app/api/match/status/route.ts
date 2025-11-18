@@ -9,20 +9,34 @@ export async function GET(req: Request) {
     return NextResponse.json({ error: "Missing userId" }, { status: 400 });
   }
 
-  // Likes que YO envié
-  const likesSent = await prisma.clientLike.findMany({
-    where: { fromUserId: userId },
-  });
-
-  // Matches donde participo
-  const matches = await prisma.clientMatch.findMany({
+  // ============================
+  // Likes enviados : PENDING donde YO soy el iniciador
+  // ============================
+  const likesSent = await prisma.match.findMany({
     where: {
+      status: "PENDING",
+      userAId: userId, // Yo inicié el like
+    },
+  });
+  const likesReceived = await prisma.match.findMany({
+  where: {
+    status: "PENDING",
+    userBId: userId, // otro usuario me dio like a mí
+  },
+});
+  // ============================
+  // Matches aceptados
+  // ============================
+  const matches = await prisma.match.findMany({
+    where: {
+      status: "ACCEPTED",
       OR: [{ userAId: userId }, { userBId: userId }],
     },
   });
 
   return NextResponse.json({
-    likesSent: likesSent.map((l) => l.toUserId),
+    likesReceived: likesReceived.map(m => m.userAId),
+    likesSent: likesSent.map((m) => m.userBId),
     matches: matches.map((m) =>
       m.userAId === userId ? m.userBId : m.userAId
     ),
