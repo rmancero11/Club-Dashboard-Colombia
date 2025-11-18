@@ -8,7 +8,7 @@
     "start": "next start",
     "lint": "next lint",
     "socket:dev": "ts-node ./socket/socketServer.ts",
-    "socket:start": "node ./socket/start.js",
+    "socket:start": "npm run prisma:generate && node ./socket/start.js",
     "prisma:migrate": "npx prisma migrate dev",
     "prisma:generate": "npx prisma generate",
     "prisma:studio": "npx prisma studio",
