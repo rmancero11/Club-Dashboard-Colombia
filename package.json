@@ -7,7 +7,11 @@
     "build": "next build",
     "start": "next start",
     "lint": "next lint",
-    "postinstall": "prisma generate",
+    "socket:dev": "ts-node ./socket/socketServer.ts",
+    "socket:start": "node ./socket/start.js",
+    "prisma:migrate": "npx prisma migrate dev",
+    "prisma:generate": "npx prisma generate",
+    "prisma:studio": "npx prisma studio",
     "prisma:seed": "node prisma/seed.js"
   },
   "dependencies": {
@@ -38,13 +42,16 @@
     "recharts": "^3.2.1",
     "resend": "^6.1.2",
     "slick-carousel": "^1.8.1",
+    "socket.io": "^4.8.1",
+    "socket.io-client": "^4.8.1",
     "tailwind-scrollbar-hide": "^4.0.0",
-    "zod": "^3.22.4"
+    "zod": "^3.22.4",
+    "zustand": "^5.0.8"
   },
   "devDependencies": {
     "@types/formidable": "^3.4.6",
     "@types/jsonwebtoken": "^9.0.10",
-    "@types/node": "^20",
+    "@types/node": "^20.19.25",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/react-select-country-list": "^2.2.3",
@@ -56,6 +63,7 @@
     "prisma": "^6.16.3",
     "tailwindcss": "^3.3.0",
     "tailwindcss-animate": "^1.0.7",
-    "typescript": "^5.3.3"
+    "ts-node": "^10.9.2",
+    "typescript": "^5.9.3"
   }
 }
