@@ -29,3 +29,23 @@ export async function getAuth(): Promise<AuthContext | null> {
     return null;
   }
 }
+
+// Función para verificar un token que se le pasa directamente (ej: desde el header Authorization)
+export async function verifyJWT(token:string): Promise<AuthContext | null> {
+  if (!token) return null;
+  try {
+    const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
+
+    const userId =
+    (payload.sub as string | undefined) ||
+    ((payload as any)?.id as string | undefined);
+    
+    const role = (payload as any)?.role as AuthContext["role"] | undefined;
+
+    if (!userId || !role) return null;
+    return { userId, role };
+
+  } catch {
+    return null;
+  }
+}
