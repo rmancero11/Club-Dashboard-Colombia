@@ -372,20 +372,21 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
       })}
 
       {mounted &&
-  selectedTraveler &&
   createPortal(
     <AvatarModal
-       isOpen={!!selectedTraveler}
-  onClose={() => setSelectedTraveler(null)}
-  userId={selectedTraveler.id}
-  isMatchProfile={matchedUsers[selectedTraveler.id]}
-  
-  likedUsers={likedUsers}
-  matchedUsers={matchedUsers}
-  handleLike={handleLike}
+      isOpen={!!selectedTraveler}
+      onClose={() => setSelectedTraveler(null)}
+      userId={selectedTraveler?.id ?? ""}
+      isMatchProfile={
+        selectedTraveler ? !!matchedUsers[selectedTraveler.id] : false
+      }
+      likedUsers={likedUsers}
+      matchedUsers={matchedUsers}
+      handleLike={handleLike}
     />,
     document.body
   )}
+
 
 
         {mounted &&

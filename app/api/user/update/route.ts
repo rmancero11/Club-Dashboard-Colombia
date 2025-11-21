@@ -47,7 +47,7 @@ export async function POST(req: Request) {
     const singleStatus = (formData.get("singleStatus") as string)?.trim() || null;
     const affirmation = (formData.get("affirmation") as string)?.trim() || null;
     const security = (formData.get("security") as string)?.trim() || null;
-
+    const comment = (formData.get("comment") as string)?.trim() || null;
     const birthday = birthdayRaw ? new Date(birthdayRaw) : null;
 
     // 🔑 Archivos (vía Cloudinary)
@@ -80,7 +80,7 @@ export async function POST(req: Request) {
     if (affirmation) dataToUpdate.affirmation = affirmation;
     if (security) dataToUpdate.security = security;
     if (birthday) dataToUpdate.birthday = birthday;
-
+    if (comment !== null) dataToUpdate.comment = comment;
     // ✅ Mantener los archivos anteriores si no se subieron nuevos
     dataToUpdate.dniFile = dniFileUrl || existingUser?.dniFile || null;
     dataToUpdate.passport = passportFileUrl || existingUser?.passport || null;
@@ -103,6 +103,7 @@ export async function POST(req: Request) {
         dniFile: true,
         passport: true,
         visa: true,
+        comment: true,
       },
     });
 
