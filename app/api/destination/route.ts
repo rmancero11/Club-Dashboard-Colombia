@@ -13,7 +13,7 @@ export async function GET() {
     const destinos = await prisma.destination.findMany({
   where: { isActive: true },
   orderBy: [{ popularityScore: "desc" }, { createdAt: "desc" }],
-  take: 20,
+  take: 100,
   include: {
     categories: {
       select: {
