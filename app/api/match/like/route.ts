@@ -1,13 +1,22 @@
 import { NextResponse } from "next/server";
 import prisma from "@/app/lib/prisma";
+import { getAuth } from "@/app/lib/auth";
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { fromUserId, toUserId } = body;
+    // ---- Autenticación y obtención del ID del usuario que da LIKE ----
+    const authResult = await getAuth();
+    if (!authResult || !authResult.userId) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+    const fromUserId = authResult.userId;
 
-    if (!fromUserId || !toUserId) {
-      return NextResponse.json({ error: "Missing IDs" }, { status: 400 });
+    // ---- Obtener ID del usuario recibido ----
+    const body = await req.json();
+    const { toUserId } = body;
+
+    if (!toUserId) {
+      return NextResponse.json({ error: "Missing toUserId" }, { status: 400 });
     }
 
     if (fromUserId === toUserId) {
@@ -15,21 +24,26 @@ export async function POST(req: Request) {
     }
 
     // --- Verificar CLIENT + suscripción ---
+    // Buscamos el perfil de Cliente del usuario que intenta dar like
     const fromClient = await prisma.client.findUnique({
       where: { userId: fromUserId },
     });
 
     if (!fromClient) {
+      // Si no tiene perfil, no puede dar like
       return NextResponse.json({ error: "Client not found" }, { status: 404 });
     }
 
-    if (!["PREMIUM", "VIP"].includes(fromClient.subscriptionPlan)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 403 });
+    // --- Verificar suscripción del cliente ----
+    // Solo permitimos likes de clientes que tengan una suscripción Premium o VIP
+    if (!["PREMIUM", "VIP"].includes(fromClient.subscriptionPlan as any)) {
+      return NextResponse.json({ error: "Unauthorized: Requires Premium or VIP" }, { status: 403 });
     }
 
     // --- Buscar si ya existe un match en ambas direcciones ---
     const existingForward = await prisma.match.findUnique({
       where: {
+        // Like de A a B
         userAId_userBId: {
           userAId: fromUserId,
           userBId: toUserId,
@@ -39,9 +53,10 @@ export async function POST(req: Request) {
 
     const existingReverse = await prisma.match.findUnique({
       where: {
+        // Like de B a A
         userAId_userBId: {
-          userAId: toUserId,
-          userBId: fromUserId,
+          userAId: toUserId, // el otro usuario ya me dio like
+          userBId: fromUserId, // yo
         },
       },
     });
@@ -72,11 +87,11 @@ export async function POST(req: Request) {
         },
       });
     }
-
+    // Devolvemos true si hubo un match (doble like)
     return NextResponse.json({ ok: true, matched });
 
   } catch (error) {
-    console.error(error);
+    console.error('Error creating like:', error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }
