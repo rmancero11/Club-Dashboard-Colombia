@@ -1,15 +1,23 @@
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
+import { getAuth } from "@/app/lib/auth";
 
 const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { fromUserId, toUserId } = body;
+    // ---- Autenticación y obtención del ID del usuario que hace UNLIKE ----
+    const authResult = await getAuth();
+    if (!authResult || !authResult.userId) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+    const fromUserId = authResult.userId;
 
-    if (!fromUserId || !toUserId) {
-      return NextResponse.json({ error: "Missing IDs" }, { status: 400 });
+    const body = await req.json();
+    const { toUserId } = body;
+
+    if (!toUserId) {
+      return NextResponse.json({ error: "Missing toUserId" }, { status: 400 });
     }
 
     // Ordenar IDs para respetar la key única
@@ -40,7 +48,7 @@ export async function POST(req: Request) {
     // podés decidir qué hacer:
     // Opción A: no permitir borrar
     return NextResponse.json(
-      { error: "Cannot remove an accepted match" },
+      { error: "Cannot remove an accepted match. Use the 'Block' feature instead." },
       { status: 403 }
     );
 
@@ -53,7 +61,7 @@ export async function POST(req: Request) {
     return NextResponse.json({ ok: true, deleted: true });
     */
   } catch (error) {
-    console.error(error);
+    console.error("Error creating unlike:", error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

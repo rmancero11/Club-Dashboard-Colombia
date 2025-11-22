@@ -17,6 +17,8 @@ interface ChatStore {
   messages: MessageType[];
   onlineUsers: { [key: string]: boolean }; // Mapeo de userId a estado (true/false)
   matches: MatchContact[]; // Lista de contactos con los que se puede chatear
+  likesSent: string[]; // Lista de userIds que se han enviado likes
+  likesReceived: string[]; // Lista de userIds que se han recibido likes
 
   // Acciones de UI 
   setIsChatOpen: (isOpen: boolean) => void;
@@ -24,6 +26,8 @@ interface ChatStore {
 
   // Acciones de datos
   setMatches: (matchList: MatchContact[]) => void;
+  setLikesSent: (userIds: string[]) => void;
+  setLikesReceived: (userIds: string[]) => void;
   setMessages: (msgs: MessageType[]) => void;
   addMessage: (msg: MessageType) => void;
   updateUserStatus: (id: string, online: boolean) => void;
@@ -41,6 +45,8 @@ export const useChatStore = create<ChatStore>((set) => ({
   messages: [],
   onlineUsers: {},
   matches: [],
+  likesSent: [],
+  likesReceived: [],
 
   // ------- Acciones de UI -------
   setIsChatOpen: (isOpen) => set({ isChatOpen: isOpen }),
@@ -48,6 +54,8 @@ setActiveChat: (matchId) => set({ activeMatchId: matchId, isChatOpen: true }),
 
   // ------- Acciones de datos -------
   setMatches: (matchList) => set({ matches: matchList }),
+  setLikesSent: (userIds) => set({ likesSent: userIds }),
+  setLikesReceived: (userIds) => set({ likesReceived: userIds }),
   setMessages: (msgs) => set({ messages: msgs }),
   addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
   prependMessages: (msgs) => set((state) => ({ messages: [...msgs, ...state.messages ]})),
