@@ -4,6 +4,7 @@ import { Inter, Montserrat } from "next/font/google";
 import "./globals.css";
 import RegisterSW from "./components/RegisterSW";
 import Splash from "./components/Splash"; // Splash activado
+import { ChatProvider } from "./components/chat/ChatProvider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const montserrat = Montserrat({
@@ -45,7 +46,9 @@ export default function RootLayout({
       <body className="min-h-dvh bg-gray-50 text-gray-900 antialiased">
         <RegisterSW />
         <Splash /> {/* splash con animación */}
-        {children}
+        <ChatProvider>
+          {children}
+        </ChatProvider>
       </body>
     </html>
   );

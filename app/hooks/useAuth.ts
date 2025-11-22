@@ -17,9 +17,8 @@ export const useAuth = () => {
         // Llamamos al endpoint de sesión.
         const response = await fetch('/api/auth/me');
 
-        if (!response.ok) {
+        if (response.ok) {
           const data = await response.json();
-
           const userData = data.user;
 
           setUser({
