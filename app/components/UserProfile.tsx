@@ -12,6 +12,7 @@ import UserPreferences from "./UserPreferences";
 import { useSearchParams } from "next/navigation";
 import InstallAppButton from "./InstallAppButton";
 
+
 type Role = "ADMIN" | "SELLER" | "USER";
 
 type Destination = string | string[] | null;
@@ -27,6 +28,10 @@ type UserShape = {
   destino?: Destination;
   preference?: Preference;
   verified?: boolean;
+  clientProfile?: {
+  subscriptionPlan?: string;
+  travelPoints?: number;
+};
   vendedor?: {
     nombre: string;
     telefono?: string;
@@ -72,6 +77,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
       throw new Error(errData?.error || "Error al guardar preferencias");
     }
   }
+
 
   React.useEffect(() => {
     async function fetchReservation() {
@@ -396,13 +402,25 @@ export default function UserProfile({ user }: { user: UserShape }) {
           <h1 className="text-3xl font-bold text-black font-montserrat">
             Hola {user.name ?? "Viajero"}
           </h1>
-          <span className="mt-2 text-sm font-medium bg-purple-100 text-purple-700 px-3 py-1 rounded-md font-montserrat">
-            {user.role === "USER"
-              ? "Explorador"
-              : user.role === "SELLER"
-              ? "Vendedor"
-              : "Administrador"}
-          </span>
+          {/* BADGE DE ROL + PLAN + TRAVEL POINTS */}
+<div className="flex items-center gap-2 mt-2 font-montserrat">
+
+  {/* Subscription Plan del Client */}
+  {user.clientProfile?.subscriptionPlan && (
+    <span className="text-sm font-montserrat font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-md">
+      {user.clientProfile.subscriptionPlan}
+    </span>
+  )}
+
+  {/* Travel Points */}
+  {typeof user.clientProfile?.travelPoints === "number" && (
+    <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md">
+     🛩
+      {user.clientProfile.travelPoints}
+    </span>
+  )}
+</div>
+
 
           <UserPreferences
             gustosIniciales={gustos}

@@ -311,6 +311,7 @@ export default async function AdminClientDetailPage({
       notes: true,
       isArchived: true,
       createdAt: true,
+      travelPoints: true,
       /** <<<<<<<<<<<<<<<<<<<<<< AQUI: traemos el plan */
       subscriptionPlan: true,
       seller: { select: { id: true, name: true, email: true } },
@@ -419,6 +420,11 @@ export default async function AdminClientDetailPage({
               )}
             </div>
 
+            <div>
+              <span className="text-gray-500">Puntos: </span>
+              {client.travelPoints ?? 0}
+            </div>
+
             <div className="mt-2">
               <div className="text-gray-500">Tags:</div>
               <div className="mt-1 flex flex-wrap gap-1">
@@ -474,6 +480,7 @@ export default async function AdminClientDetailPage({
             currentSubscriptionPlan={
               client.subscriptionPlan as "STANDARD" | "PREMIUM" | "VIP"
             }
+            currentTravelPoints={client.travelPoints ?? 0}
             sellers={sellers}
           />
         </div>

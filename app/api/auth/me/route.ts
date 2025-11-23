@@ -76,6 +76,8 @@ export async function GET() {
         clientProfile: {
           select: {
             id: true,
+            travelPoints: true,
+            subscriptionPlan: true,
             seller: {
               select: {
                 id: true,
@@ -151,6 +153,14 @@ export async function GET() {
       birthday: user.birthday,
       gender: user.gender,
       lookingFor: user.lookingFor,
+
+      clientProfile: user.clientProfile
+  ? {
+      id: user.clientProfile.id,
+      travelPoints: user.clientProfile.travelPoints ?? 0,
+      subscriptionPlan: user.clientProfile.subscriptionPlan ?? null,
+    }
+  : null,
 
       // Archivos
       purchaseOrder: user.purchaseOrder,

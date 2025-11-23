@@ -12,6 +12,7 @@ export default function AdminClientEditForm({
   currentArchived,
   currentNotes,
   currentSubscriptionPlan,
+  currentTravelPoints,
   sellers,
   
 }: {
@@ -20,6 +21,7 @@ export default function AdminClientEditForm({
   currentArchived: boolean;
   currentNotes: string;
   currentSubscriptionPlan: SubscriptionPlan;
+  currentTravelPoints: number;
   sellers: Seller[];
  
 }) {
@@ -31,9 +33,8 @@ export default function AdminClientEditForm({
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-
-
-
+  const [addTravelPoints, setAddTravelPoints] = useState(0);
+  const [removeTravelPoints, setRemoveTravelPoints] = useState(0);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,6 +48,8 @@ export default function AdminClientEditForm({
       formData.append("isArchived", String(archived));
       formData.append("notes", notes ?? "");
       formData.append("subscriptionPlan", subscriptionPlan);
+      formData.append("addTravelPoints", String(addTravelPoints));
+      formData.append("removeTravelPoints", String(removeTravelPoints));
 
       const res = await fetch(`/api/admin/clients/${clientId}`, {
         method: "PATCH",
@@ -119,6 +122,38 @@ export default function AdminClientEditForm({
         </select>
       </label>
 
+      {/* SUMAR PUNTOS */}
+<div className="flex flex-col gap-1">
+  <label className="text-sm font-medium">Sumar TravelPoints al cliente</label>
+  <input
+    type="number"
+    min={0}
+    value={addTravelPoints}
+    onChange={(e) => setAddTravelPoints(Number(e.target.value))}
+    className="rounded-md border px-2 py-1"
+  />
+  <p className="text-xs text-gray-500">
+    Estos puntos se sumarán a los {currentTravelPoints} actuales.
+  </p>
+</div>
+
+{/* RESTAR PUNTOS */}
+<div className="flex flex-col gap-1">
+  <label className="text-sm font-medium">Restar TravelPoints al cliente</label>
+  <input
+    type="number"
+    min={0}
+    value={removeTravelPoints}
+    onChange={(e) => setRemoveTravelPoints(Number(e.target.value))}
+    className="rounded-md border px-2 py-1"
+  />
+  <p className="text-xs text-gray-500">
+    Estos puntos se restaran a los {currentTravelPoints} actuales.
+  </p>
+</div>
+
+
+
       {/* Archivar */}
       <label className="flex items-center gap-2 text-sm">
         <input
@@ -127,17 +162,6 @@ export default function AdminClientEditForm({
           onChange={(e) => setArchived(e.target.checked)}
         />
         <span>Archivar cliente</span>
-      </label>
-
-      {/* Notas */}
-      <label className="grid gap-1 text-sm">
-        <span className="font-medium">Notas</span>
-        <textarea
-          rows={4}
-          className="rounded-md border px-3 py-2"
-          value={notes}
-          onChange={(e) => setNotes(e.target.value)}
-        />
       </label>
 
 

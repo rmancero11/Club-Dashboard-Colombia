@@ -1,78 +1,122 @@
-import React from 'react';
-import { useChatStore } from '@/store/chatStore';
-import { Heart } from 'lucide-react';
+"use client";
+
+import React, { useState, useEffect } from "react";
+import { useChatStore } from "@/store/chatStore";
+import { Heart, ChevronUp, ChevronDown } from "lucide-react";
 
 interface ChatSidebarProps {
   currentUserId: string;
 }
 
 const ChatSidebar: React.FC<ChatSidebarProps> = ({ currentUserId }) => {
+  const onlineUsers = useChatStore((state) => state.onlineUsers);
+  const matches = useChatStore((state) => state.matches);
+  const likesReceived = useChatStore((state) => state.likesReceived);
+  const setActiveChat = useChatStore((state) => state.setActiveChat);
 
-  const onlineUsers = useChatStore(state => state.onlineUsers);
-  const matches = useChatStore(state => state.matches);
-  const likesReceived = useChatStore(state => state.likesReceived);
-  
-  const setActiveChat = useChatStore(state => state.setActiveChat);
+  const [open, setOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(false);
 
-  // No se muestra si no hay chats activos y no hay likes pendientes
-  if (matches.length === 0 && likesReceived.length === 0) {
+  // Detecta si es mobile
+  useEffect(() => {
+    const check = () => setIsMobile(window.innerWidth < 768);
+    check();
+    window.addEventListener("resize", check);
+    return () => window.removeEventListener("resize", check);
+  }, []);
+
+  // SI NO HAY MATCHES NI LIKES → IGUAL mostramos la barrita en mobile
+  const empty = matches.length === 0 && likesReceived.length === 0;
+
+  /* -------------------------- MOBILE VERSION ------------------------------- */
+  if (isMobile) {
     return (
-      <aside className="fixed right-0 top-0 h-full w-64 bg-gray-100 p-4 shadow-lg">
-        <h3 className="text-xl font-bold mb-4">Matches</h3>
-        <p className="text-sm text-gray-500">No hay matches ni likes pendientes.</p>
-      </aside>
+      <>
+        {/* BOTÓN/BARRA FIJA ABAJO */}
+        <div
+          className="
+            fixed bottom-0 left-0 w-full 
+            bg-white border-t border-gray-300 
+            shadow-lg z-40 
+            flex items-center justify-between 
+            p-3
+          "
+          onClick={() => setOpen(!open)}
+        >
+          <span className="font-semibold text-lg">Matches</span>
+
+          {/* Likes recibidos */}
+          {likesReceived.length > 0 && (
+            <span className="px-3 py-1 bg-red-500 text-white rounded-full text-sm flex items-center gap-1">
+              <Heart className="w-4 h-4 fill-white" />
+              {likesReceived.length}
+            </span>
+          )}
+
+          {open ? (
+            <ChevronDown className="w-5 h-5" />
+          ) : (
+            <ChevronUp className="w-5 h-5" />
+          )}
+        </div>
+
+        {/* PANEL DESPLEGABLE HACIA ARRIBA */}
+        <div
+          className={`
+            fixed left-0 w-full bg-white shadow-xl z-50 
+            transition-all duration-300 overflow-hidden
+            ${open ? "bottom-12 h-3/5" : "bottom-0 h-0"}
+          `}
+        >
+          <div className="p-4 overflow-y-auto h-full">
+            <h3 className="text-xl font-bold mb-4">Tus Matches</h3>
+
+            {empty && (
+              <p className="text-sm text-gray-500">No hay matches aún.</p>
+            )}
+
+            {!empty &&
+              matches.map((match) => (
+                <div
+                  key={match.id}
+                  className="flex items-center p-2 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors"
+                  onClick={() => setActiveChat(match.id)}
+                >
+                  <img
+                    src={match.avatar}
+                    alt={match.name ?? "Usuario"}
+                    className="w-10 h-10 rounded-full mr-3 object-cover"
+                  />
+
+                  <div className="flex-grow">
+                    <span className="font-medium block truncate">
+                      {match.name ||
+                        `Match ID: ${match.id.substring(0, 4)}...`}
+                    </span>
+                  </div>
+
+                  {onlineUsers[match.id] ? (
+                    <span
+                      className="w-3 h-3 bg-green-500 rounded-full border-2 border-white"
+                      title="Online"
+                    ></span>
+                  ) : (
+                    <span
+                      className="w-3 h-3 bg-gray-400 rounded-full border-2 border-white"
+                      title="Offline"
+                    ></span>
+                  )}
+                </div>
+              ))}
+          </div>
+        </div>
+      </>
     );
   }
 
-  return (
-    <aside className="fixed right-0 top-0 h-full w-64 bg-gray-100 p-4 shadow-lg overflow-y-auto">
-      {/* TÍTULO CON INDICADOR DE LIKES PENDIENTES */}
-      <h3 className="text-xl font-bold mb-4 flex items-center justify-between">
-      <span className="flex items-center">
-        Mis Chats ({matches.length})
-      </span>
-        {/* Badge de Likes Recibidos */}
-        {likesReceived.length > 0 && (
-          <span 
-          className="ml-2 px-3 py-1 text-sm font-semibold bg-red-500 text-white rounded-full flex items-center"
-          title={`Tienes ${likesReceived.length} likes pendientes`}
-          >
-            <Heart className="w-4 h-4 mr-1 fill-white" />
-            {likesReceived.length}
-          </span>
-        )}
-      </h3>
-      <hr className="mb-4" />
-
-      {/* Lista de Matches Activos */}
-      <div className="space-y-3">
-        {matches.map(match => (
-          <div 
-            key={match.id} 
-            className="flex items-center p-2 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors"
-            onClick={() => setActiveChat(match.id)} // Abrir el chat al hacer clic
-          >
-            {/* Avatar */}
-            <img 
-              src={match.avatar} 
-              alt={match.name || 'Usuario'} 
-              className="w-10 h-10 rounded-full mr-3 object-cover" 
-            />
-            <div className="flex-grow">
-              <span className="font-medium block truncate">
-                {match.name || `Match ID: ${match.id.substring(0, 4)}...`}
-              </span>
-            </div>
-            {/* Estado Online */}
-            {onlineUsers[match.id] ? (
-              <span className="w-3 h-3 bg-green-500 rounded-full border-2 border-white" title="Online"></span>
-            ) : (
-              <span className="w-3 h-3 bg-gray-400 rounded-full border-2 border-white" title="Offline"></span>
-            )}
-          </div>
-        ))}
-      </div>
-    </aside>
-  );
+  /* -------------------------- DESKTOP VERSION ----------------------------- */
+  return null;
+  
 };
+
 export default ChatSidebar;

@@ -93,6 +93,13 @@ enum MatchStatus {
   REJECTED
 }
 
+enum TravelPointsTransactionType {
+  ADMIN_GRANT     // admin o seller asigna puntos
+  TRANSFER        // un usuario transfiere a otro (requiere Match)
+  ADJUSTMENT      // correcciones manuales
+  REDEEM          // canje (futuro)
+}
+
 // ================== Usuarios ==================
 model User {
   id                    String     @id @default(uuid())
@@ -267,6 +274,11 @@ model Client {
   isArchived Boolean   @default(false)
 
   subscriptionPlan SubscriptionPlan @default(STANDARD)
+
+  travelPoints Int @default(0)
+
+  pointsSent     TravelPointsTransaction[] @relation("ClientPointsSent")
+  pointsReceived TravelPointsTransaction[] @relation("ClientPointsReceived")
 
   reservations Reservation[]
   activities  ActivityLog[] @relation("ClientActivities")
@@ -448,4 +460,26 @@ model Message {
 
   @@index([senderId, receiverId, createdAt])
   @@index([receiverId, createdAt]) // Para cargar mensajes entrantes 
+}
+
+model TravelPointsTransaction {
+  id        String   @id @default(uuid())
+
+  type      TravelPointsTransactionType
+  amount    Int
+  note      String?
+
+  // Desde qué cliente se envían los puntos
+  fromClientId String?
+  fromClient   Client? @relation("ClientPointsSent", fields: [fromClientId], references: [id], onDelete: SetNull)
+
+  // A qué cliente se le asignan puntos
+  toClientId String?
+  toClient   Client? @relation("ClientPointsReceived", fields: [toClientId], references: [id], onDelete: SetNull)
+
+  createdAt DateTime @default(now())
+
+  @@index([fromClientId])
+  @@index([toClientId])
+  @@index([type, createdAt])
 }
