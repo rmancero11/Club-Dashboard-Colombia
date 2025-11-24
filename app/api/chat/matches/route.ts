@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuth } from "@/app/lib/auth";
-import { PrismaClient } from "@prisma/client";
+import { MatchStatus, PrismaClient } from "@prisma/client";
 
 const prisma = new PrismaClient();
 export const dynamic = 'force-dynamic';
@@ -18,45 +18,75 @@ export async function GET(request: Request) {
 
     // ----- Obtenemos los matches ACEPTADOS -----
     // Buscamos donde currentUserId es userA o userB, y el status es ACCEPTED
-    const matchData = await prisma.match.findMany({
+    const matches = await prisma.match.findMany({
       where: {
         // El usuario actual de ser userA o userB
         OR: [
           { userAId: currentUserId },
           { userBId: currentUserId },
         ],
-        status: 'ACCEPTED',
+        status: MatchStatus.ACCEPTED,
       },
       // Incluimos la info del otro usuario (el match)
       select: {
+        id: true,
         userAId: true,
         userBId: true,
         userA: {
-          select: { id: true, name: true, avatar: true },
+          select: { id: true, name: true, avatar: true, online: true, country: true, birthday: true, gender: true },
         },
         userB: {
-          select: { id: true, name: true, avatar: true },
+          select: { id: true, name: true, avatar: true, online: true, country: true, birthday: true, gender: true },
         },
       },
     });
 
-    // Procesamos los datos para devolver solo el contacto del match
-    const matches = matchData.map(match => {
-      // Determinamos cual de los dos es el match (el usuario opuesto al actual)
-      const matchedUser = match.userAId === currentUserId
-      ? match.userB
-      : match.userA;
+    // Obtenemos el ultimo mensaje para cada match
+    const matchesWithLastMessage = await Promise.all(matches.map(async (match) => {
+      // Determinamos el ID del usuario con el que se tiene match
+      const matchedUser = match.userAId === currentUserId ? match.userB : match.userA;
+
+      const lastMessage = await prisma.message.findFirst({
+        where: {
+          OR: [
+            { senderId: currentUserId, receiverId: matchedUser.id },
+            { senderId: matchedUser.id, receiverId: currentUserId },
+          ],
+        },
+        orderBy: { createdAt: 'desc' },
+        select: {
+          content: true,
+          createdAt: true,
+          senderId: true,
+        },
+      });
 
       return {
         id: matchedUser.id,
         name: matchedUser.name,
         avatar: matchedUser.avatar,
+        online: matchedUser.online,
+        country: matchedUser.country,
+        birthday: matchedUser.birthday,
+        gender: matchedUser.gender,
+        lastMessageContent: lastMessage?.content ? (
+          lastMessage.senderId === currentUserId ? `Tu: ${lastMessage.content}` : lastMessage.content
+        ) : null,
+        lastMessageAt: lastMessage?.createdAt || null,
       };
+    }));
+
+    // Ordenamos la lista final por la hora del ultimo mensaje
+    matchesWithLastMessage.sort((a, b) => {
+      const dateA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
+      const dateB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
+      return dateB - dateA; // Orden descendiente (mas nuevos arriba)
     });
-    // Devolvemos la lista de matches (contactos)
-    return NextResponse.json(matches, { status: 200 });
+
+    return NextResponse.json(matchesWithLastMessage);    
 
   } catch (error) {
-    console.error({error: "Error fetching matches"}, {status: 500});
+    console.error("Error fetching matches", error);
+    return NextResponse.json({message: 'Internal Server Error'}, { status: 500 });
   }
 }
