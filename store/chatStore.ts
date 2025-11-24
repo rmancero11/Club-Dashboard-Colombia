@@ -2,16 +2,22 @@ import { create } from 'zustand';
 import { MessageStatus, MessageType, UserStatusChange } from '@/app/types/chat';
 
 // Definimos la estructura de un Match Contacto
-interface MatchContact {
+export interface MatchContact {
   id: string;
   name: string | null;
   avatar: string;
+  lastMessageContent: string | null;
+  lastMessageAt: Date | string | null;
+  online?: boolean;
+  country?: string | null;
+  birthday?: Date | string | null;
+  gender?: string | null; 
 }
 
 // Definimos la interfaz del estado de la tienda
-interface ChatStore {
+export interface ChatStore {
   // Estado de la UI
-  isChatOpen: boolean; // Controlamos si el chat está abierto o cerrado
+  isExpanded: boolean; // Controlamos si el modal está expandido. False si está minimizado
   activeMatchId: string | null; // ID del match que se está visiualizando (cuando se abre la ventana)
   // Datos
   messages: MessageType[];
@@ -21,7 +27,7 @@ interface ChatStore {
   likesReceived: string[]; // Lista de userIds que se han recibido likes
 
   // Acciones de UI 
-  setIsChatOpen: (isOpen: boolean) => void;
+  setIsExpanded: (isExpanded: boolean) => void;
   setActiveChat: (matchId: string | null) => void;
 
   // Acciones de datos
@@ -35,22 +41,33 @@ interface ChatStore {
   updateMessageStatus: (localId: string, newStatus: MessageStatus, prismaId?: string) => void;
   // Marcamos un mensaje como leído
   markMessageAsRead: (messageId: string) => void;
+  markMessagesAsRead: (readerId: string) => void;
   prependMessages: (msgs: MessageType[]) => void;
 }
 
-export const useChatStore = create<ChatStore>((set) => ({
-  // Estado inicial
-  isChatOpen: false,
+const initialChatState = {
+    // Estado inicial
+  isExpanded: false,
   activeMatchId: null,
   messages: [],
   onlineUsers: {},
   matches: [],
   likesSent: [],
   likesReceived: [],
+}
+
+export const useChatStore = create<ChatStore>()((set, get) => ({
+ ... initialChatState,
 
   // ------- Acciones de UI -------
-  setIsChatOpen: (isOpen) => set({ isChatOpen: isOpen }),
-setActiveChat: (matchId) => set({ activeMatchId: matchId, isChatOpen: true }),
+  setIsExpanded: (isExpanded) => set({ isExpanded }),
+  setActiveChat: (matchId) => {
+    if (matchId !== null) {
+      set({ activeMatchId: matchId, isExpanded: true });
+    } else {
+      set({ activeMatchId: null });
+    }
+  },
 
   // ------- Acciones de datos -------
   setMatches: (matchList) => set({ matches: matchList }),
@@ -85,11 +102,38 @@ setActiveChat: (matchId) => set({ activeMatchId: matchId, isChatOpen: true }),
 
   // ------- Gestión de Lectura de Mensajes -------
   markMessageAsRead: (messageId) => set((state) => ({
-    messages: state.messages.map(msg =>
-      msg.id === messageId
-      ? { ...msg, readAt: new Date().toISOString() }
-      : msg
-    ),
+    messages: state.messages.map(msg =>{
+      if (msg.id === messageId) {
+        return {
+          ...msg,
+          readAt: new Date().toISOString()
+        };
+      }
+      return msg;
+    })
   })),
 
+  markMessagesAsRead: (readerId) => set((state) => ({
+    messages: state.messages.map(msg => {
+      if (msg.receiverId === readerId && !msg.readAt) {
+        return {
+          ...msg,
+          readAt: new Date().toISOString()
+        };
+      }
+      return msg;
+    })
+  })),
+
+  resetChat: () => set({
+    messages: [],
+    matches: [],
+    onlineUsers: {},
+    activeMatchId: null,
+    isExpanded: false,
+    likesSent: [],
+    likesReceived: [],
+    
+  }),
+  
 }));
