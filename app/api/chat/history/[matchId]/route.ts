@@ -43,7 +43,7 @@ export async function GET(request: Request, { params }: { params: { matchId: str
       }),
       take: MESSAGES_PER_PAGE,
       orderBy: {
-        createdAt: 'asc', // Ordemanos cronologicamente (mas antiguos primero)
+        createdAt: 'desc', // Ordemanos cronologicamente (usamos el cursor-mas antiguos primero)
       },
       select: {
         id: true,

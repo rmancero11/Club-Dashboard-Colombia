@@ -32,7 +32,6 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
   
   // Acciones de la store
   const setMessages = useChatStore(state => state.setMessages);
-  // const { prependMessages } = useChatStore.getState();
   const prependMessages = useChatStore(state => state.prependMessages);
 
   // Estado local para la subida de imágenes
@@ -42,7 +41,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
 
   // Estado local para la paginación
   const [inputContent, setInputContent] = useState('');
-  const [ hasMore, setHasMore ] = useState(true);
+  const [ hasMore, setHasMore ] = useState(false);
   const [ isHistoryLoading, setIsHistoryLoading ] = useState(false);
 
   // Referencias para el scroll y Observador
@@ -50,8 +49,17 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const observerTargetRef = useRef<HTMLDivElement>(null);
   const lastScrollHeight = useRef(0);
+  // Usamos la Referencia para bloquear llamadas concurrentes
+  const isHistoryLoadingRef = useRef(false);
+  const hasMoreRef = useRef(true);
+  const setHasMoreRef = useRef(setHasMore);
 
-  // --- Lógica de Filtrado de Mensajes (¡USAR useMemo!) ---
+  // Aseguramos que la referencia del setter setHasMore esté actualizada
+  useEffect(() => {
+   setHasMoreRef.current = setHasMore;
+  }, [setHasMore]);
+
+  // --- Lógica de Filtrado de Mensajes ---
   const messages = useMemo(() => {
     return rawMessages
     .filter(msg => 
@@ -140,24 +148,48 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
 
   // Logica de carga de Historial
   const loadHistory = useCallback(async (isInitialLoad: boolean = true) => {
-    const { messages: currentMessages } = chatStoreGetState();
-    if (isHistoryLoading || (!isInitialLoad && !hasMore) || !matchId) return;
+    
+    if (isHistoryLoadingRef.current || (!isInitialLoad && !hasMoreRef.current) || !matchId) return;
 
+    console.log(`[CHAT] Iniciando carga para Match ID: ${matchId}, Carga Inicial: ${isInitialLoad}`);
+    // Actualizamos la referencia y el estado para la UI:
+    isHistoryLoadingRef.current = true;
     setIsHistoryLoading(true);
 
-    const lastMessageId = isInitialLoad ? '' : currentMessages[0]?.id;
-    const url = `/api/chat/${matchId}?lastMessageId=${lastMessageId}`;
+    const { messages: currentMessages } = chatStoreGetState();
+
+    // Filtramos para obtener solo los mensajes del match activo que SÍ tengan ID (o sea, guardados en DB)
+    const activeMatchMessages = currentMessages
+    .filter(msg => 
+      ((msg.senderId === currentUserId && msg.receiverId === matchId) ||
+      (msg.senderId === matchId && msg.receiverId === currentUserId))
+      && msg.id // Solo mensajes que tienen ID de la DB
+    );
+
+
+    const lastMessageId = isInitialLoad ? '' : activeMatchMessages[0]?.id || '';
+
+    const url = `/api/chat/history/${matchId}?lastMessageId=${lastMessageId}`;
 
     try {
       const response = await fetch(url);
-      if (!response.ok) throw new Error ('Failed to load chat history');
+      if (!response.ok) {
+        // Log para saber qué pasó si falla
+        console.error(`[CHAT ERROR] Falló la API: ${response.status} ${response.statusText}`);
+        throw new Error ('Failed to load chat history');
+      };
 
       const data = await response.json();
       const newMessages: MessageType[] = data.messages;
-      setHasMore(data.hasMore);
+      setHasMoreRef.current(data.hasMore);
+      hasMoreRef.current = data.hasMore;
+      console.log(`[CHAT] Data recibida. Mensajes: ${newMessages.length}, HasMore: ${data.hasMore}`);
 
       if (isInitialLoad) {
-        // Primera carga: reemplazamos el estado de mensajes
+        // Si no hay mensajes, setMessages([]) se llama, y la carga finaliza.
+      //   setMessages([]);
+      //   setHasMore(false);
+      // } else if (isInitialLoad) {
         setMessages(newMessages);
       } else {
         // Carga subsiguiente (scroll infinito): añadimos al principio
@@ -166,24 +198,34 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
 
     } catch (error) {
       console.error('Error loading chat history:', error);
+      // Establecemos hasMore a false en caso de error para detener reintentos de paginación
+      if (!isInitialLoad) {
+        setHasMoreRef.current(false);
+        hasMoreRef.current = false;
+      };
     } finally {
+      isHistoryLoadingRef.current = false;
       setIsHistoryLoading(false);
+      console.log(`[CHAT] Carga finalizada. isHistoryLoading: false`);
     }
-  }, [matchId, isHistoryLoading, hasMore, setMessages, prependMessages, chatStoreGetState]); 
+  }, [matchId, setMessages, prependMessages, chatStoreGetState, currentUserId]); 
 
   // --- Efecto de Carga Inicial ---
   useEffect(() => {
+    const store = chatStoreGetState();
     // Limpiamos los mensajes cada vez que cambia el matchId
-    setMessages([]); 
-    setHasMore(true); // Reiniciamos la paginación
-    loadHistory(true); 
+    store.setMessages([]); 
+    setHasMore(true);
+    hasMoreRef.current = true;
+
+    loadHistory(true); // Iniciamos la carga
 
     // Cuando se abre el chat, marcamos los mensajes entrantes como leídos
     if (matchId) {
-      markMessagesAsRead(matchId); 
+      store.markMessagesAsRead(matchId); 
     }
 
-  }, [matchId, loadHistory, setMessages, markMessagesAsRead]);
+  }, [matchId, loadHistory, chatStoreGetState]);
 
   // --- Efecto para el Scroll ---
   useEffect(() => {
@@ -231,7 +273,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
   // const isOnline = useChatStore(state => state.onlineUsers[matchId]);
 
   return (
-    <div className="flex flex-col w-96 h-[500px] bg-white rounded-xl shadow-2xl">
+    <div className="flex flex-col w-97 h-[500px] bg-white rounded-xl shadow-2xl">
       {/* Encabezado */}
       <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
         <div className="flex items-center space-x-3">
@@ -249,7 +291,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
           </div>
           <div>
             <h3 className="text-lg font-semibold truncate">{matchName || 'Chat'}</h3>
-            <span className={`text-xs ${isOnline ? 'text-green-500' : 'text-gray-500'}`}>
+            <span className={`text-xs ${isOnline ? 'text-green-500' : 'text-red-500'}`}>
               {isOnline ? 'En línea' : 'Desconectado'}
             </span>
           </div>
@@ -336,7 +378,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
       </div>
 
       {/* Input de Envío */}
-      <form onSubmit={handleSubmit} className="p-4 border-t">
+      <form onSubmit={handleSubmit} className="p-4 border-t flex-shrink-0">
         
         {/* VISTA PREVIA DE IMAGEN */}
         {imagePreviewUrl && (
@@ -360,7 +402,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
             </div>
         )}
         
-        <div className="flex space-x-2 items-end">
+        <div className="flex space-x-2 items-center">
             
             {/* BOTÓN/INPUT DE ARCHIVO */}
             <label className={`cursor-pointer ${isUploading ? 'opacity-50' : ''}`}>
@@ -371,7 +413,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
                     className="hidden"
                     disabled={isUploading}
                 />
-                <span className="p-3 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors flex items-center justify-center flex-shrink-0">
+                <span className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors flex items-center justify-center flex-shrink-0">
                     {/* Icono de Clip / Adjuntar */}
                     <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 7l-6 6M9 7l6 6M10 10l-4 4M14 10l4 4M15 7L9 13M9 7l6 6M10 10l-4 4M14 10l4 4"></path><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
                 </span>
@@ -381,13 +423,13 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
               value={inputContent}
               onChange={(e) => setInputContent(e.target.value)}
               placeholder="Escribe un mensaje..."
-              className="flex-grow border rounded-full p-3 focus:ring-blue-500 focus:border-blue-500"
+              className="flex-grow border rounded-full p-2 focus:ring-blue-500 focus:border-blue-500"
               disabled={isHistoryLoading || isUploading} // Deshabilitar si se está cargando el historial O si se está subiendo una imagen
             />
             
             <button 
               type="submit" 
-              className="bg-blue-600 text-white p-3 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center flex-shrink-0"
+              className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center flex-shrink-0"
               // Deshabilitado si no hay contenido de texto NI archivo, o si está cargando historial/subiendo imagen
               disabled={(!inputContent.trim() && !imageFile) || isHistoryLoading || isUploading} 
             >

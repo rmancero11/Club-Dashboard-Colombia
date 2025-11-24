@@ -9,6 +9,7 @@ import { MatchModal } from "@/app/components/MatchModal";
 import { motion } from "framer-motion";
 import type { DestinationDTO, TravelerDTO } from "@/app/types/destination";
 import type { User } from "@/app/types/user";
+import { getCode } from "country-list";
 
 export default function TravelersMatchList() {
   const router = useRouter();
@@ -35,6 +36,9 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
   avatar: string;
   name: string;
 } | null>(null);
+
+
+
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -241,6 +245,44 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
     }
   };
 
+  const normalizeCountry = (name: string) =>
+  name
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // saca tildes
+    .replace(/[^a-zA-Z\s]/g, "") // remueve caracteres raros
+    .trim()
+    .toLowerCase();
+
+    const manualCountryFix: Record<string, string> = {
+  mexico: "MX",
+  "estados unidos": "US",
+  "republica dominicana": "DO",
+  peru: "PE",
+  panama: "PA",
+};
+
+const handleNextTraveler = () => {
+  if (!selectedTraveler) return;
+
+  // Encontrar en qué destino está el usuario actual
+  const destinoId = Object.keys(travelersByDest).find((id) =>
+    travelersByDest[id].some((t) => t.id === selectedTraveler.id)
+  );
+
+  if (!destinoId) return;
+
+  const travelers = travelersByDest[destinoId];
+  const index = travelers.findIndex((t) => t.id === selectedTraveler.id);
+
+  if (index === -1) return;
+
+  // Si hay un siguiente...
+  if (index + 1 < travelers.length) {
+    setSelectedTraveler(travelers[index + 1]);
+  }
+};
+  
+
   // UI render
   if (loading)
     return (
@@ -258,13 +300,6 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
 
   return (
     <div className="relative p-6 space-y-10">
-      <button
-        onClick={() => router.push("/dashboard-user")}
-        className="absolute top-4 left-4 flex items-center gap-1 bg-gray-100 hover:bg-gray-200 text-gray-700 px-3 py-1.5 rounded-full transition text-sm font-medium shadow-sm"
-      >
-        ← Volver
-      </button>
-
       <div className="w-full flex justify-center">
         <h1 className="relative text-xl md:text-2xl font-bold text-gray-800 mb-6 inline-block">
           Descubrir Match de viajes
@@ -322,41 +357,37 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
       className="object-cover"
     />
 
-    <motion.button
-  onClick={(e) => {
-    e.stopPropagation();
-    handleLike(viajero.id);
-  }}
-  disabled={matchedUsers[viajero.id]}
-  whileTap={{ scale: 1.5 }} // animación al presionar
-  className={`absolute bottom-4 right-4 rounded-full border transition ${
-    matchedUsers[viajero.id]
-      ? "border-green-400 bg-green-100 cursor-not-allowed"
-      : likedUsers[viajero.id]
-      ? "border-pink-400 bg-pink-100 hover:bg-pink-200"
-      : "border-gray-300 bg-white hover:bg-gray-100"
-  }`}
->
-  <Image
-    src={
-      matchedUsers[viajero.id]
-        ? "/favicon/iconosclub-22.svg"
-        : likedUsers[viajero.id]
-        ? "/favicon/iconosclub-23.svg"
-        : "/favicon/iconosclub-21.svg"
-    }
-    alt="Like"
-    width={34}
-    height={34}
-  />
-</motion.button>
-
   </div>
 
   <div className="p-4 text-center bg-white">
-    <p className="text-base md:text-sm font-semibold text-gray-800">
-      {viajero.name || "Viajero"}
-    </p>
+    <div className="flex items-center justify-center gap-2">
+  {viajero.country && (() => {
+  const normalized = normalizeCountry(viajero.country);
+  const manualCode = manualCountryFix[normalized];
+
+  const code =
+    manualCode ||
+    getCode(viajero.country) ||
+    getCode(normalized) ||
+    null;
+
+  return code ? (
+    <Image
+      src={`https://flagcdn.com/${code.toLowerCase()}.svg`}
+      alt={viajero.country}
+      width={22}
+      height={16}
+      className="rounded-sm"
+    />
+  ) : null;
+})()}
+
+
+  <p className="text-base md:text-sm font-semibold text-gray-800">
+    {viajero.name || "Viajero"}
+  </p>
+</div>
+
   </div>
 </div>
 
@@ -381,6 +412,7 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
         selectedTraveler ? !!matchedUsers[selectedTraveler.id] : false
       }
       likedUsers={likedUsers}
+      onNextUser={handleNextTraveler}
       matchedUsers={matchedUsers}
       handleLike={handleLike}
     />,
