@@ -1,48 +1,19 @@
 import { io, Socket } from 'socket.io-client';
-import { useEffect } from 'react';
+import { use, useEffect } from 'react';
 import { MessageType, UserStatusChange, MessageData } from '../types/chat';
 import { useChatStore } from '@/store/chatStore';
 
 const SOCKET_SERVER_URL = process.env.NEXT_PUBLIC_SOCKET_SERVER_URL; 
 let socketInstance: Socket | null = null;
 
-export const sendMessage = (data: MessageData & { senderId: string }) => {
-  const addMessageAction = useChatStore.getState().addMessage; 
-
-  if (!socketInstance) {
-    console.error('⚠️ Socket no está conectado.');
-    return;
-  }
-  const localId = Date.now().toString(); // Generamos un ID temporal para la Optimistic UI
-
-  // Agregamos el mensaje al estado de Zunstand inmediatamente con status 'pending'
-  addMessageAction({
-    // Propiedades de MessageData
-    receiverId: data.receiverId,
-    content: data.content,
-    imageUrl: data.imageUrl ?? null,
-
-    // Propiedades de MessageType
-    id: localId, // Usamos el ID temporal como ID principal
-    localId: localId, // Y el ID temporal como ID secundario
-    senderId: data.senderId,
-    createdAt: new Date().toISOString(),
-    readAt: null,
-    deletedBy: null,
-    status: 'pending',
-  } as MessageType); // Usamos MessageType para tipado temporal
-
-  // Emitimos el mensaje al servidor (incluyendo el localId temporal)
-  socketInstance.emit('send-message', {
-    ...data,
-    senderId: data.senderId,
-    localId: localId, // Enviamos el ID temporal para que el servidor lo devuelva
-  });
+interface UseSocketReturn {
+  sendMessage: (data: MessageData) => void;
+  deleteMessage: (messageId: string, receiverId: string) => void;
+  blockUser: (blockedUserId: string) => void;
+  markMessagesAsRead: (matchId: string) => void;
 }
 
-export const useSocket = (userId: string) => {
-  // Solo extraemos el estado de la UI que es una dependencia potencial del efecto
-  // const isChatOpen = useChatStore((state) => state.isChatOpen);
+export const useSocket = (userId: string, isExpanded: boolean) => {
 
   useEffect(() => {
 
@@ -57,6 +28,11 @@ export const useSocket = (userId: string) => {
         forceNew: false,
       });
 
+      // --- Eventos de Conexión Básica ---
+      socketInstance.on('connect', () => console.log('✅ Socket conectado.'));
+      socketInstance.on('disconnect', () => console.log('❌ Socket desconectado.'));
+      socketInstance.on('connect_error', (err) => console.error('⚠️ Error de conexión:', err.message));
+
       // --- Listeners de chat ---
       const store = useChatStore.getState();
       
@@ -66,15 +42,24 @@ export const useSocket = (userId: string) => {
         store.addMessage({ ...message, status: 'sent' }); // Recibido es siempre 'sent'
         
         // Si el chat está abierto, emitimos evento para marcar como leído
-        if (useChatStore.getState().activeMatchId === message.senderId) {
-          socketInstance!.emit('message-read', { messageId: message.id, readerId: userId });
+        if (store.activeMatchId === message.senderId && store.isExpanded) {
+          socketInstance?.emit('message-read', { 
+            messageId: message.id, 
+            readerId: userId,
+            senderId: message.senderId
+          });
         }
       });
 
-      // --- Eventos de Conexión Básica ---
-      socketInstance.on('connect', () => console.log('✅ Socket conectado.'));
-      socketInstance.on('disconnect', () => console.log('❌ Socket desconectado.'));
-      socketInstance.on('connect_error', (err) => console.error('⚠️ Error de conexión:', err.message));
+      // Evento que notifica que los mensajes que enviaste han sido leídos por el receptor
+      socketInstance.on('messages-read-by-receiver', (data: { readerId: string, senderId: string }) => {
+      const markMessagesAsReadAction = useChatStore.getState().markMessagesAsRead;
+    
+        // Solo actualizamos si el que leyó es el match y el que envió soy yo (senderId)
+        if (data.senderId === userId) {
+          markMessagesAsReadAction(data.readerId);
+        }
+      });
       
       // Confirmación de lectura (cuando el otro usuario lo lee)
       socketInstance.on('message-marked-read', (data: { messageId: string }) => {
@@ -113,5 +98,76 @@ export const useSocket = (userId: string) => {
     
   }, [userId]); // Solo se reconecta si el usuario cambia (logout/login)
 
-  return {};
+  // Función publica para enviar mensajes
+  const sendMessage = (data: MessageData) => {
+    const addMessageAction = useChatStore.getState().addMessage; 
+
+    if (!socketInstance) {
+      console.error('⚠️ Socket no está conectado.');
+      return;
+    }
+    const localId = Date.now().toString(); // Generamos un ID temporal para la Optimistic UI
+
+    // Agregamos el mensaje al estado de Zunstand inmediatamente con status 'pending'
+    addMessageAction({
+      // Propiedades de MessageData
+      receiverId: data.receiverId,
+      content: data.content,
+      imageUrl: data.imageUrl ?? null,
+
+      // Propiedades de MessageType
+      id: localId, // Usamos el ID temporal como ID principal
+      localId: localId, // Y el ID temporal como ID secundario
+      senderId: userId,
+      createdAt: new Date().toISOString(),
+      readAt: null,
+      deletedBy: null,
+      status: 'pending',
+    } as MessageType); // Usamos MessageType para tipado temporal
+
+    // Emitimos el mensaje al servidor (incluyendo el localId temporal)
+    socketInstance.emit('send-message', {
+      ...data,
+      senderId: userId,
+      localId: localId, // Enviamos el ID temporal para que el servidor lo devuelva
+    });
+  }
+
+  // Función para eliminar un mensaje
+  const deleteMessage = (messageId: string, receiverId: string) => {
+    if (!socketInstance || !userId) return;
+
+    socketInstance.emit('delete-message', {
+      messageId: messageId,
+      userId: userId,
+      matchId: receiverId,
+    });
+  }
+
+  
+  // Función para notificar que los mensajes han sido leídos
+  const markMessageAsRead = (matchId: string) => {
+    if (socketInstance) {
+      socketInstance.emit('mark-messages-read', matchId);
+    }
+  };
+
+  // Función Marcar Leído Manual
+  const markMessagesAsRead = (matchId: string) => {
+    if (!socketInstance || !userId) return;
+    socketInstance.emit('mark-messages-read', matchId);
+  }
+
+  // Función para bloquear un usuario
+  const blockUser = (blockedUserId: string) => {
+    if (socketInstance) {
+      // Pedimos confirmación al usuario antes de bloquear
+      if (window.confirm(`¿Estás seguro de que quieres bloquear a este usuario? Ya no podrán enviarte mensajes.`)) {
+        socketInstance.emit('block-user', blockedUserId);
+      }
+    }
+    useChatStore.getState().setActiveChat(null);
+  };
+
+  return { sendMessage, deleteMessage, blockUser, markMessageAsRead, markMessagesAsRead };
 };
