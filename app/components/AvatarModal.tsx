@@ -10,6 +10,7 @@ import AvatarModalMatchView from "./AvatarModalMatchView";
 type AvatarModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  onNextUser?: () => void;
   userId: string;
   isMatchProfile?: boolean;
   currentUser?: User;
@@ -25,6 +26,7 @@ export default function AvatarModal({
   isMatchProfile = false,
   likedUsers = {},
   matchedUsers = {},
+  onNextUser,
   handleLike,
 }: AvatarModalProps) {
   const [isPremiumOpen, setIsPremiumOpen] = React.useState(false);
@@ -206,52 +208,60 @@ export default function AvatarModal({
                 )}
               </div>
 
-              {/* Botón Me gusta */}
-              <div className="flex justify-center w-full mt-4">
-                <motion.button
-                  onClick={() => handleLike?.(user.id)}
-                  disabled={matchedUsers[user.id]}
-                  whileTap={{ scale: 1.5 }}
-                  className={`transition rounded-full border ${
-                    matchedUsers[user.id]
-                      ? "border-green-400 bg-green-100 cursor-not-allowed"
-                      : likedUsers[user.id]
-                      ? "border-pink-400 bg-pink-100 hover:bg-pink-200"
-                      : "border-gray-300 bg-white hover:bg-gray-100"
-                  }`}
-                >
-                  <Image
-                    src={
-                      matchedUsers[user.id]
-                        ? "/favicon/iconosclub-22.svg"
-                        : likedUsers[user.id]
-                        ? "/favicon/iconosclub-23.svg"
-                        : "/favicon/iconosclub-21.svg"
-                    }
-                    alt="Like"
-                    width={40}
-                    height={40}
-                  />
-                </motion.button>
-              </div>
+              {/* BOTONES INFERIORES IZQUIERDA + DERECHA */}
+<div className="absolute bottom-4 left-4 right-4 flex justify-between items-center z-20">
+
+  {/* botón izquierdo (puedo poner icono o texto, por ahora placeholder) */}
+  <button
+  onClick={() => {
+    if (onNextUser) onNextUser(); // pasa al siguiente
+  }}
+  className="w-14 h-14 flex items-center justify-center"
+  style={{ background: "transparent", border: "none", boxShadow: "none" }}
+>
+  <Image
+    src="/favicon/iconosclub-13.svg"
+    alt="Acción izquierda"
+    width={70}
+    height={70}
+  />
+</button>
+
+
+
+  {/* botón Me gusta (derecha) */}
+  <motion.button
+  onClick={() => handleLike?.(user.id)}
+  disabled={matchedUsers[user.id]}
+  whileTap={{ scale: 1.2 }}
+  className="w-12 h-12 flex items-center justify-center"
+  style={{
+    background: "transparent",
+    border: "none",
+    boxShadow: "none",
+    cursor: matchedUsers[user.id] ? "not-allowed" : "pointer",
+  }}
+>
+  <Image
+    src={
+      matchedUsers[user.id]
+        ? "/favicon/iconosclub-22.svg"
+        : likedUsers[user.id]
+        ? "/favicon/iconosclub-23.svg"
+        : "/favicon/iconosclub-21.svg"
+    }
+    alt="Like"
+    width={40}
+    height={40}
+  />
+</motion.button>
+
+</div>
+
             </div>
 
-            {/* Premium Modal trigger */}
-            {!isMatchProfile ? (
-              <button
-                onClick={() => setIsPremiumOpen(true)}
-                className="absolute bottom-4 right-4 w-12 h-12 bg-white rounded-full shadow flex items-center justify-center border"
-              >
-                💬
-              </button>
-            ) : (
-              <button
-                onClick={() => window.location.assign(`/chat/${user.id}`)}
-                className="absolute bottom-4 right-4 w-12 h-12 bg-white rounded-full shadow flex items-center justify-center border"
-              >
-                💬
-              </button>
-            )}
+  
+    
 
             {/* Premium Modal */}
             <AnimatePresence>

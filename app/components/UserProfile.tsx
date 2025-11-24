@@ -12,7 +12,6 @@ import UserPreferences from "./UserPreferences";
 import { useSearchParams } from "next/navigation";
 import InstallAppButton from "./InstallAppButton";
 
-
 type Role = "ADMIN" | "SELLER" | "USER";
 
 type Destination = string | string[] | null;
@@ -29,9 +28,9 @@ type UserShape = {
   preference?: Preference;
   verified?: boolean;
   clientProfile?: {
-  subscriptionPlan?: string;
-  travelPoints?: number;
-};
+    subscriptionPlan?: string;
+    travelPoints?: number;
+  };
   vendedor?: {
     nombre: string;
     telefono?: string;
@@ -77,7 +76,6 @@ export default function UserProfile({ user }: { user: UserShape }) {
       throw new Error(errData?.error || "Error al guardar preferencias");
     }
   }
-
 
   React.useEffect(() => {
     async function fetchReservation() {
@@ -403,24 +401,28 @@ export default function UserProfile({ user }: { user: UserShape }) {
             Hola {user.name ?? "Viajero"}
           </h1>
           {/* BADGE DE ROL + PLAN + TRAVEL POINTS */}
-<div className="flex items-center gap-2 mt-2 font-montserrat">
+          <div className="flex items-center gap-2 mt-2 font-montserrat">
+            {/* Subscription Plan del Client */}
+            {user.clientProfile?.subscriptionPlan && (
+              <span className="text-sm font-montserrat font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-md">
+                {user.clientProfile.subscriptionPlan}
+              </span>
+            )}
 
-  {/* Subscription Plan del Client */}
-  {user.clientProfile?.subscriptionPlan && (
-    <span className="text-sm font-montserrat font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-md">
-      {user.clientProfile.subscriptionPlan}
-    </span>
-  )}
+            {/* Travel Points */}
+            {typeof user.clientProfile?.travelPoints === "number" && (
+  <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md">
+    <Image
+      src="/favicon/iconosclub-25.svg" // 👉 poné acá la ruta de tu imagen
+      alt="Travel Points"
+      width={18}
+      height={18}
+    />
+    {user.clientProfile.travelPoints}
+  </span>
+)}
 
-  {/* Travel Points */}
-  {typeof user.clientProfile?.travelPoints === "number" && (
-    <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md">
-     🛩
-      {user.clientProfile.travelPoints}
-    </span>
-  )}
-</div>
-
+          </div>
 
           <UserPreferences
             gustosIniciales={gustos}
@@ -496,64 +498,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
           </div>
         )}
       </div>
-
-      {/* TABS INFERIORES */}
-      <div className="mt-10">
-        <ul className="flex justify-around border-b">
-          {[
-            { key: "destinos", label: "Tus Destinos" },
-            { key: "membresias", label: "Membresías" },
-            { key: "descubrir", label: "Descubrir" },
-          ].map((tab) => (
-            <li
-              key={tab.key}
-              className={`py-2 font-medium text-sm transition relative font-montserrat cursor-pointer ${
-                activeTab === tab.key
-                  ? "text-yellow-600"
-                  : "text-gray-600 hover:text-gray-800"
-              }`}
-              onClick={() => setActiveTab(tab.key)}
-            >
-              {tab.label}
-              {activeTab === tab.key && (
-                <motion.div
-                  layoutId="underline"
-                  className="absolute bottom-0 left-0 right-0 h-0.5 bg-yellow-400"
-                />
-              )}
-            </li>
-          ))}
-        </ul>
-
-        <div className="mt-6">
-          {activeTab === "destinos" && (
-            <>
-              <h2 className="text-xl font-bold mb-4 font-montserrat">
-                Tu próximo destino
-              </h2>
-
-              {nextDestination ? (
-                <DestinationCard destino={nextDestination} />
-              ) : (
-                <div className="flex flex-col md:flex-row items-center justify-center space-y-4 md:space-y-0 md:space-x-4 h-full">
-                  <Image
-                    src="/favicon/iconoproximosdestinos.svg"
-                    alt=""
-                    width={280}
-                    height={280}
-                  />
-                  <p className="text-gray-500 font-montserrat text-center md:text-left">
-                    Todavía no has reservado un destino.
-                  </p>
-                </div>
-              )}
-            </>
-          )}
-
-          {activeTab === "membresias" && <Memberships />}
-          {activeTab === "descubrir" && <DestinationsList />}
-        </div>
-      </div>
+      <Memberships />
     </div>
   );
 }
