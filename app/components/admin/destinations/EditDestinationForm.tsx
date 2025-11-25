@@ -330,6 +330,12 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
       if (!sameStr(dest.description ?? "", description))
         setChange("description", trimOrEmpty(description));
 
+      // Imagen
+const imageFile = (e.target as HTMLFormElement).image?.files?.[0];
+if (imageFile) {
+  setChange("image", imageFile);
+}
+
       // Membresía
       if (dest.membership !== membership) setChange("membership", membership);
 
@@ -479,6 +485,31 @@ export default function EditDestinationForm({ dest }: { dest: Dest }) {
           className={inputBase}
         />
       </label>
+
+      {/* Imagen */}
+<label className={labelBase}>
+  <span className="font-medium">Imagen del destino</span>
+
+  {dest.imageUrl && (
+    <img
+      src={dest.imageUrl}
+      alt="Destino"
+      className="w-40 h-28 object-cover rounded border mb-2"
+    />
+  )}
+
+  <input
+    type="file"
+    name="image"
+    accept="image/*"
+    className={inputBase}
+  />
+
+  <span className="text-xs text-gray-500">
+    Puedes subir una imagen nueva para reemplazar la actual.
+  </span>
+</label>
+
 
       {/* País / Ciudad */}
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
