@@ -14,25 +14,36 @@ interface ConversationWindowProps {
   matchName: string | null;
 }
 
-// Renombrado de MessageWindow a ConversationWindow
+// Icono de Bloqueo (Círculo con línea)
+const BlockIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+);
+// Icono de Desbloqueo (Candado abierto)
+const UnblockIcon = (props: React.SVGProps<SVGSVGElement>) => (
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+);
+
 const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, matchId, matchName }) => {
 
   const isChatExpanded = useChatStore(state => state.isExpanded);
+  const reloadMatches = React.useCallback(() => {}, []);
+
   
   // Obtenemos la función de envío
-  const { sendMessage, deleteMessage, blockUser } = useSocket(currentUserId, isChatExpanded); 
+  const { sendMessage, deleteMessage: socketDeleteMessage, blockUser, unblockUser } = useSocket(currentUserId, isChatExpanded, reloadMatches); 
   
   const rawMessages = useChatStore(state => state.messages);
   const rawMatches = useChatStore(state => state.matches);
   const chatStoreGetState = useChatStore.getState;
 
   const setActiveChat = useChatStore(state => state.setActiveChat);
-  const markMessagesAsRead = useChatStore(state => state.markMessagesAsRead);
-  const markMessageAsRead = useChatStore(state => state.markMessageAsRead);
   
   // Acciones de la store
   const setMessages = useChatStore(state => state.setMessages);
   const prependMessages = useChatStore(state => state.prependMessages);
+  const removeMessage = useChatStore(state => state.removeMessage);
+  const markMessagesAsRead = useChatStore(state => state.markMessagesAsRead);
+  const updateBlockStatus = useChatStore(state => state.updateBlockStatus); 
 
   // Estado local para la subida de imágenes
     const [imageFile, setImageFile] = useState<File | null>(null);
@@ -43,6 +54,11 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
   const [inputContent, setInputContent] = useState('');
   const [ hasMore, setHasMore ] = useState(false);
   const [ isHistoryLoading, setIsHistoryLoading ] = useState(false);
+
+  // menu state
+  const [showHeaderMenu, setShowHeaderMenu] = useState(false);
+  const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(null);
+
 
   // Referencias para el scroll y Observador
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -72,12 +88,23 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [rawMessages, currentUserId, matchId]); // <-- Dependencias: Solo recalcula si cambian estos valores
 
-  // --- Lógica de Búsqueda de Detalles del Match (¡USAR useMemo!) ---
+  // --- Lógica de Búsqueda de Detalles del Match y Estado de Bloqueo ---
   const matchDetails = useMemo(() => {
     return rawMatches.find(m => m.id === matchId);
   }, [rawMatches, matchId]);
 
+  const isBlockedByMe = matchDetails?.isBlockedByMe; // Estado de Bloqueo
+
   const isOnline = useChatStore(state => state.onlineUsers[matchId]); // <-- Este selector está bien porque devuelve un primitivo (boolean)
+
+  // --- Manejador de Bloqueo/Desbloqueo --- 
+  const handleBlockUnblock = () => {
+    if (isBlockedByMe) {
+      unblockUser(matchId);
+    } else {
+      blockUser(matchId);
+    }
+  };
 
   // --- Lógica de Manejo de Archivo ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -96,6 +123,12 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         
+        // Si está bloqueado por mí, no enviar.
+        if (isBlockedByMe) {
+          console.log("No se puede enviar: El usuario está bloqueado por mí.");
+          return; 
+        }
+
         // El mensaje debe tener contenido de texto O una imagen
         if (!inputContent.trim() && !imageFile) return;
         
@@ -103,33 +136,33 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
         let finalImageUrl: string | undefined = undefined;
 
         if (imageFile) {
-            // 1. Subir la imagen a Cloudinary (o a tu servicio de almacenamiento)
-            const formData = new FormData();
-            formData.append('file', imageFile);
-            formData.append('upload_preset', 'chat_uploads'); // Usar tu preset de Cloudinary
-            
-            // Reemplaza esto con tu endpoint real de Cloudinary o tu propio API
-            const CLOUDINARY_URL = `https://api.cloudinary.com/v1_1/${process.env.NEXT_PUBLIC_CLOUDINARY_CLOUD_NAME}/image/upload`;
+          // 1. Subir la imagen a nuestro endpoint local
+          const formData = new FormData();
+          formData.append('file', imageFile);
+          
+          const UPLOAD_URL = `/api/chat/upload-image`;
 
-            try {
-                const uploadResponse = await fetch(CLOUDINARY_URL, {
-                    method: 'POST',
-                    body: formData,
-                });
+          try {
+            const uploadResponse = await fetch(UPLOAD_URL, {
+              method: 'POST',
+              body: formData,
+            });
 
-                if (!uploadResponse.ok) {
-                    throw new Error('Image upload failed');
-                }
-                
-                const data = await uploadResponse.json();
-                finalImageUrl = data.secure_url; // URL de la imagen subida
-            
-            } catch (error) {
-                console.error('Error uploading image:', error);
-                setIsUploading(false);
-                alert('No se pudo subir la imagen.');
-                return; 
+            if (!uploadResponse.ok) {
+              // Capturamos el error devuelto por la API
+              const errorData = await uploadResponse.json();
+              throw new Error(errorData.error || 'Image upload failed');
             }
+            
+            const data = await uploadResponse.json();
+            finalImageUrl = data.imageUrl; // URL de la imagen subida
+          
+          } catch (error) {
+            console.error('Error uploading image:', error);
+            setIsUploading(false);
+            alert(`No se pudo subir la imagen: ${(error as Error).message}`);
+            return;; 
+          }
         }
 
         // 2. Enviar mensaje a través del Socket
@@ -210,7 +243,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
     }
   }, [matchId, setMessages, prependMessages, chatStoreGetState, currentUserId]); 
 
-  // --- Efecto de Carga Inicial ---
+  // --- Efecto de Carga Inicial y Lectura de Mensajes ---
   useEffect(() => {
     const store = chatStoreGetState();
     // Limpiamos los mensajes cada vez que cambia el matchId
@@ -223,9 +256,10 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
     // Cuando se abre el chat, marcamos los mensajes entrantes como leídos
     if (matchId) {
       store.markMessagesAsRead(matchId); 
+      markMessagesAsRead(matchId);
     }
 
-  }, [matchId, loadHistory, chatStoreGetState]);
+  }, [matchId, loadHistory, chatStoreGetState, markMessagesAsRead]);
 
   // --- Efecto para el Scroll ---
   useEffect(() => {
@@ -268,16 +302,39 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
     return () => observer.disconnect();
   }, [loadHistory, isHistoryLoading, hasMore, messages.length]);
   
-  // // Obtenemos el match completo para acceder a la info detallada
-  // const matchDetails = useChatStore(state => state.matches.find(m => m.id === matchId));
-  // const isOnline = useChatStore(state => state.onlineUsers[matchId]);
+  // ---- Borrar conversación (solo local). 
+  const handleDeleteConversation = () => {
+    if (!matchId) return;
+    if (!confirm('¿Borrar toda la conversación del chat?')) return;
+
+    const filtered = rawMessages.filter(msg =>
+      !(
+        (msg.senderId === matchId && msg.receiverId === currentUserId) ||
+        (msg.senderId === currentUserId && msg.receiverId === matchId)
+      )
+    );
+    setMessages(filtered);
+    setShowHeaderMenu(false);
+  };
+
+  // ---- Borrar mensaje individual (usa store y emite por socket)
+  const handleDeleteMessage = (msgId?: string) => {
+    if (!msgId) return;
+    if (!confirm('¿Eliminar mensaje?')) return;
+
+    
+    socketDeleteMessage(msgId, matchId);
+    // Quitar localmente
+    removeMessage(msgId);
+    setOpenMessageMenuId(null);
+  };
 
   return (
     <div className="flex flex-col w-97 h-[500px] bg-white rounded-xl shadow-2xl">
       {/* Encabezado */}
       <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
         <div className="flex items-center space-x-3">
-          {/* Avatar del Match */}
+          {/* Avatar del Match y Estado Online/Offline */}
           <div className="relative">
             <img
               src={matchDetails?.avatar || '/default-avatar.png'} // Usar avatar si está disponible
@@ -291,24 +348,69 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
           </div>
           <div>
             <h3 className="text-lg font-semibold truncate">{matchName || 'Chat'}</h3>
-            <span className={`text-xs ${isOnline ? 'text-green-500' : 'text-red-500'}`}>
-              {isOnline ? 'En línea' : 'Desconectado'}
-            </span>
+            {/* Mostrar estado de Bloqueo o Online */}
+            {isBlockedByMe ? (
+              <span className="text-xs text-red-500 font-bold">
+                BLOQUEADO POR TI
+              </span>
+            ) : (
+              <span className={`text-xs ${isOnline ? 'text-green-500' : 'text-red-500'}`}>
+                {isOnline ? 'En línea' : 'Desconectado'}
+              </span>
+            )}
           </div>
         </div>
-        {/* Botón de Bloquear */}
-        <button
-            onClick={() => blockUser(matchId)}
-            className="text-red-500 hover:text-red-700 p-1 rounded-full hover:bg-gray-200 transition-colors"
-            title="Bloquear Usuario"
-        >
-            {/* Icono de Bloqueo */}
-            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
-        </button>
+        <div className="flex items-center gap-3 ml-auto">
+          {/* Botón de Bloquear/Desbloquear */}
+          {/* <button
+            onClick={handleBlockUnblock}
+            className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${
+              isBlockedByMe ? 'text-green-500 hover:text-green-700' : 'text-red-500 hover:text-red-700'
+            }`}
+            title={isBlockedByMe ? "Desbloquear Usuario" : "Bloquear Usuario"}
+          >
+            {isBlockedByMe ? <UnblockIcon /> : <BlockIcon />}
+          </button> */}
+
+          {/* Header menu toggle (⋮) */}
+          <div className="relative">
+            <button
+              onClick={() => setShowHeaderMenu(prev => !prev)}
+              className="p-1 rounded-full hover:bg-gray-200"
+              title="Opciones"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
+            </button>
+
+            {showHeaderMenu && (
+              <div className="absolute right-0 mt-2 w-44 bg-white rounded-md shadow-lg z-50">
+                <button
+                  onClick={handleDeleteConversation}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 text-red-600"
+                >
+                  Eliminar conversación
+                </button>
+                <button
+                  onClick={() => { updateBlockStatus(matchId!, !isBlockedByMe); setShowHeaderMenu(false); }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                >
+                  {isBlockedByMe ? 'Desbloquear' : 'Bloquear usuario'}
+                </button>
+                <button
+                  onClick={() => { setActiveChat(null); setShowHeaderMenu(false); }}
+                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
+                >
+                  Cerrar chat
+                </button>
+              </div>
+            )}
+          </div>
+        </div>  
         {/* Botón de Cerrar */}
         <button 
           onClick={() => setActiveChat(null)} 
           className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors"
+          title="Cerrar"
         >
           {/* Icono de cerrar (X) */}
           <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
@@ -320,6 +422,12 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
         ref={scrollContainerRef} 
         className="flex-grow overflow-y-auto p-4 flex flex-col space-y-3"
       >
+        {/* Indicador de Bloqueo en la ventana de chat */}
+        {isBlockedByMe && (
+          <div className="text-center bg-red-100 text-red-700 p-2 rounded-lg text-sm mb-4">
+            Has bloqueado a este usuario. Desbloquea para poder chatear de nuevo.
+          </div>
+        )}
         {/* Indicador de Carga y Scroll Infinito */}
         {isHistoryLoading && (
             <div className="text-center text-sm text-blue-500 py-2">Cargando historial...</div>
@@ -341,12 +449,35 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
           return (
             <div 
               key={msg.id || msg.localId} 
-              className={`flex ${isSender ? 'justify-end' : 'justify-start'} w-full`}
+              className={`flex ${isSender ? 'justify-end' : 'justify-start'} w-full relative`}
             >
               <div 
                 className={messageClasses}
                 ref={isObserverTarget ? observerTargetRef : null} // Asignamos la referencia al primer mensaje
               >
+                {/* BOTÓN MENÚ por mensaje (solo para tus mensajes) */}
+                {isSender && (
+                  <div className="flex items-center justify-end -top-2 -right-8">
+                    <button
+                      onClick={(e) => { e.stopPropagation(); setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id); }}
+                      className="p-1 rounded-full hover:bg-white/20"
+                      title="Opciones del mensaje"
+                    >
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="18" r="1"/></svg>
+                    </button>
+
+                    {openMessageMenuId === msg.id && (
+                      <div className="absolute right-8 top-0 bg-white rounded-md shadow z-50 w-37">
+                        <button
+                          onClick={() => handleDeleteMessage(msg.id)}
+                          className="w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          Eliminar mensaje
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                )}
                 {/* Contenido de Imagen */}
                 {msg.imageUrl && (
                     <img 
@@ -405,13 +536,13 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
         <div className="flex space-x-2 items-center">
             
             {/* BOTÓN/INPUT DE ARCHIVO */}
-            <label className={`cursor-pointer ${isUploading ? 'opacity-50' : ''}`}>
+            <label className={`cursor-pointer ${isUploading || isBlockedByMe ? 'opacity-50' : ''}`}>
                 <input
                     type="file"
                     accept="image/*"
                     onChange={handleFileChange}
                     className="hidden"
-                    disabled={isUploading}
+                    disabled={isUploading || isBlockedByMe}
                 />
                 <span className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors flex items-center justify-center flex-shrink-0">
                     {/* Icono de Clip / Adjuntar */}
@@ -419,12 +550,16 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
                 </span>
             </label>
 
-            <input 
+            <textarea 
               value={inputContent}
-              onChange={(e) => setInputContent(e.target.value)}
-              placeholder="Escribe un mensaje..."
-              className="flex-grow border rounded-full p-2 focus:ring-blue-500 focus:border-blue-500"
-              disabled={isHistoryLoading || isUploading} // Deshabilitar si se está cargando el historial O si se está subiendo una imagen
+              onChange={(e) => {
+                setInputContent(e.target.value);
+                e.target.style.height = "auto";
+                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+              }}
+              placeholder={isBlockedByMe ? "Desbloquea para escribir..." : "Escribe un mensaje..."}
+              className="w-full resize-none border rounded-lg p-2 text-sm max-h-32 overflow-y-auto"
+              disabled={isHistoryLoading || isUploading || isBlockedByMe} // Deshabilitar si se está cargando el historial o si se está subiendo una imagen y/o si está bloqueado por mí
             />
             
             <button 
