@@ -9,41 +9,36 @@ const httpServer = createServer();
 // Contenedor de Opciones de CORS (ServerOptions incluye el campo cors)
 let corsOptions: Partial<ServerOptions> = {};
 
-// Determinamos el origen del entorno
-// 3. Lógica para determinar el origen según el entorno
-if (PORT === 4000) {
-    // Entorno de Desarrollo (Local)
-    const allowedOriginsDev = process.env.ALLOWED_ORIGINS;
-    
-    if (!allowedOriginsDev) {
-        // En caso de error, siempre usar el puerto local como fallback seguro
-        console.warn('⚠️ WARNING: ALLOWED_ORIGINS no está configurado. Usando http://localhost:3000 por defecto.');
-        corsOptions = {
-            cors: { origin: ["http://localhost:3000"], methods: ["GET", "POST"] }
-        };
-    } else {
-        corsOptions = {
-            cors: {
-                origin: [allowedOriginsDev],
-                methods: ["GET", "POST"]
-            }
-        };
-    }
-} else {
-    // Entorno de Producción (o cualquier otro puerto)
-    const clientUrl = process.env.CLIENT_URL;
-    
-    if (!clientUrl) {
-        throw new Error('Error: CLIENT_URL debe estar configurado en producción.');
-    }
+// 1. Definir la lista de orígenes permitidos
+const allowedOriginsEnv = process.env.ALLOWED_ORIGINS;
+const clientUrlProd = process.env.CLIENT_URL;
 
-    corsOptions = {
-        cors: {
-            origin: [clientUrl],
-            methods: ["GET", "POST"]
-        }
-    };
+// Inicializamos con los orígenes del .env, separados por coma
+let origins = allowedOriginsEnv
+    ? allowedOriginsEnv.split(',').map(url => url.trim()).filter(url => url.length > 0)
+    : [];
+
+// 2. Agregar el CLIENT_URL (producción/dominio principal) si no está presente
+if (clientUrlProd && !origins.includes(clientUrlProd)) {
+    origins.push(clientUrlProd);
 }
+
+// 3. Fallback en desarrollo: si no hay orígenes definidos y estamos en el puerto 4000
+if (PORT === 4000 && origins.length === 0) {
+    console.warn('⚠️ WARNING: No hay orígenes configurados. Usando http://localhost:3000 por defecto.');
+    origins.push("http://localhost:3000");
+}
+console.log('✅ Socket CORS Allowed Origins:', origins); // Log para depurar en Render
+
+// 4. Aplicar opciones de CORS
+corsOptions = {
+    cors: {
+        // En producción, esto incluirá la url de producción
+        origin: origins,
+        methods: ["GET", "POST"],
+        credentials: true // Relevante si usas cookies de autenticación
+    }
+};
 
 const io = new Server(httpServer, corsOptions);
 
