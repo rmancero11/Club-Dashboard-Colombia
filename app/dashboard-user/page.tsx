@@ -6,6 +6,7 @@ import TabDestinos from "@/app/components/TabDestinations";
 import TabDescubrir from "@/app/components/TabDiscover";
 import BottomNav from "@/app/components/BottomNav";
 import TravelersMatchList from "./match-viajes/page";
+import { useChatStore } from "@/store/chatStore";
 
 
 export default function ProfilePage() {
@@ -13,6 +14,7 @@ export default function ProfilePage() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("perfil");
   const [nextDestination, setNextDestination] = useState(null);
+  const openModal = useChatStore(state => state.openModal);
 
   useEffect(() => {
     async function fetchUser() {
@@ -50,7 +52,11 @@ export default function ProfilePage() {
       {activeTab === "destinos" && <TabDestinos nextDestination={nextDestination} />}
       {activeTab === "descubrir" && <TabDescubrir />}
       {activeTab === "personas" && <TravelersMatchList />}
-      <BottomNav activeTab={activeTab} onChangeTab={setActiveTab} />
+      <BottomNav
+  activeTab={activeTab}
+  onChangeTab={setActiveTab}
+  onToggleChat={openModal}   // ← se conecta acá
+/>
     </div>
   );
 }

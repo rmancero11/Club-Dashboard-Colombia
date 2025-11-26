@@ -4,72 +4,61 @@ import React, { useEffect } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useSocket } from '@/app/hooks/useSocket';
 import { useChatStore, MatchContact } from '@/store/chatStore';
-import ChatModal from '../ChatModal'; 
+import ChatModal from '../ChatModal';
 import { usePathname } from 'next/navigation';
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   
   const pathname = usePathname();
 
-  const { user, isLoading } = useAuth(); // Obtenemos el usuario autenticado
+  const { user, isLoading } = useAuth();
   const currentUserId = user?.id;
 
-  // Extraemos el estado de expansión para pasarlo al hook de socket
+  // Nuevo: traemos el estado del modal
+  const isModalOpen = useChatStore(state => state.isModalOpen);
+
   const isExpanded = useChatStore(state => state.isExpanded);
   const setMatches = useChatStore(state => state.setMatches);
 
-  // ---- Conectamos al socket y pasamos el estado de expansión ----
+  // Socket
   useSocket(currentUserId || '', isExpanded); 
 
-  useEffect( () => {
+  useEffect(() => {
     if (user && user.id) {
 
-      // Función para cargar la data inicial (lista de Matches)
       const loadInitialChatData = async () => {
         try {
-          // Llamamos a la API REST (Esta API será modificada en el Objetivo 2.A)
           const response = await fetch(`/api/chat/matches`);
-    
-          if (!response.ok) {
-            throw new Error(`Failed to fetch matches: ${response.statusText}`);
-          }
-    
+          if (!response.ok) throw new Error(`Failed to fetch matches`);
+
           const matches: MatchContact[] = await response.json();
-    
-          // Establcemos la lista de matches en Zustand
+
           setMatches(matches);
-    
+
         } catch (error) {
           console.error('Error loading initial chat data:', error);
         }
       };
+
       loadInitialChatData();
     }
-
   }, [user, setMatches]);
 
   const BLOCKED_ROUTES = ['api/auth/login', 'api/auth/accept-register'];
   const isBlockedRoute = BLOCKED_ROUTES.includes(pathname);
 
-  if (isLoading) {
-    return <div>{children}</div>;
-  }
+  if (isLoading) return <>{children}</>;
+  if (isBlockedRoute) return <>{children}</>;
+  if (!currentUserId) return <>{children}</>;
 
-  if (isBlockedRoute) {
-    return <div>{children}</div>;
-  }
-
-  if (!currentUserId) {
-    return <div>{children}</div>;
-  }
-  
-  // Renderizamos el layout y el ChatModal
   return (
     <>
       {children}
-      
-      {/* El ChatModal Flotante, visible si hay usuario */}
-      <ChatModal currentUserId={currentUserId} /> 
+
+      {/* Nuevo: solo mostrar SI isModalOpen === true */}
+      {isModalOpen && (
+        <ChatModal currentUserId={currentUserId} />
+      )}
     </>
   );
 };
