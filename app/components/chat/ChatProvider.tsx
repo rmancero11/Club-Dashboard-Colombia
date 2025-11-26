@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect } from 'react';
+import React, { useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useSocket } from '@/app/hooks/useSocket';
 import { useChatStore, MatchContact } from '@/store/chatStore';
@@ -20,29 +20,40 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isExpanded = useChatStore(state => state.isExpanded);
   const setMatches = useChatStore(state => state.setMatches);
 
-  // Socket
-  useSocket(currentUserId || '', isExpanded); 
+  // Función para cargar la data inicial (lista de Matches)
+  const loadInitialChatData = useCallback(async () => {
+    if (!user || !user.id) return;
 
-  useEffect(() => {
+    try {
+      // Llamamos a la API REST
+      const response = await fetch(`/api/chat/matches`);
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch matches: ${response.statusText}`);
+      }
+
+      const matches: MatchContact[] = await response.json();
+
+      // Establcemos la lista de matches en Zustand
+      setMatches(matches);      
+
+    } catch (error) {
+      console.error('Error loading initial chat data:', error);
+    }
+  }, [user, setMatches]); // Dependencias: user (para verificar ID) y setMatches
+
+  // ---- Conectamos al socket, pasamos el estado de expansión y la función de recarga ----
+  // El hook useSocket ahora devolverá las funciones del socket.
+  // Por lo tanto, no necesitamos guardar el retorno.
+  useSocket(currentUserId || '', isExpanded, loadInitialChatData);
+  
+  // Efecto inicial para la PRIMERA carga de datos
+  useEffect( () => {
+    // Si hay usuario, cargamos la data.
     if (user && user.id) {
-
-      const loadInitialChatData = async () => {
-        try {
-          const response = await fetch(`/api/chat/matches`);
-          if (!response.ok) throw new Error(`Failed to fetch matches`);
-
-          const matches: MatchContact[] = await response.json();
-
-          setMatches(matches);
-
-        } catch (error) {
-          console.error('Error loading initial chat data:', error);
-        }
-      };
-
       loadInitialChatData();
     }
-  }, [user, setMatches]);
+  }, [user, loadInitialChatData]);
 
   const BLOCKED_ROUTES = ['api/auth/login', 'api/auth/accept-register'];
   const isBlockedRoute = BLOCKED_ROUTES.includes(pathname);

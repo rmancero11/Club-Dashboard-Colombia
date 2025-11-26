@@ -16,16 +16,35 @@ export async function GET(request: Request) {
 
     const currentUserId = authResult.userId;
 
-    // ----- Obtenemos los matches ACEPTADOS -----
-    // Buscamos donde currentUserId es userA o userB, y el status es ACCEPTED
+    // 1. OBTENEMOS USUARIOS QUE HAN BLOQUEADO AL USUARIO ACTUAL (Para FILTRADO)
+    const usersWhoBlockedMe = await prisma.blockedUser.findMany({
+      where: { blockedUserId: currentUserId }, // Yo soy el bloqueado
+      select: { blockerUserId: true }, // Obtenemos el ID de los que me bloquearon
+    });
+
+    const blockedByMeIds = usersWhoBlockedMe.map(b => b.blockerUserId);
+
+    // 2. OBTENEMOS USUARIOS QUE YO HE BLOQUEADO (Para el indicador isBlockedByMe)
+    const usersIBlocked = await prisma.blockedUser.findMany({
+      where: { blockerUserId: currentUserId }, // Yo soy el bloqueador
+      select: { blockedUserId: true },
+    });
+
+    const iBlockedThemIds = usersIBlocked.map(b => b.blockedUserId);
+
+    // 3. CONSULTAMOS LOS MATCHES ACEPTADOS, EXCLUYENDO A LOS QUE ME HAN BLOQUEADO
     const matches = await prisma.match.findMany({
       where: {
-        // El usuario actual de ser userA o userB
         OR: [
           { userAId: currentUserId },
           { userBId: currentUserId },
         ],
         status: MatchStatus.ACCEPTED,
+        // Si cualquiera de los IDs es un bloqueador, NO incluir el match
+        NOT: [
+          { userAId: { in: blockedByMeIds } }, 
+          { userBId: { in: blockedByMeIds } } 
+        ]
       },
       // Incluimos la info del otro usuario (el match)
       select: {
@@ -41,11 +60,14 @@ export async function GET(request: Request) {
       },
     });
 
-    // Obtenemos el ultimo mensaje para cada match
+    // 4. MAPEO FINAL Y AÑADIMOS ESTADO DE BLOQUEO
     const matchesWithLastMessage = await Promise.all(matches.map(async (match) => {
-      // Determinamos el ID del usuario con el que se tiene match
       const matchedUser = match.userAId === currentUserId ? match.userB : match.userA;
 
+      // Verificamos si yo he bloqueado a este usuario
+      const isBlockedByMe = iBlockedThemIds.includes(matchedUser.id);
+
+      // Obtenemos el último mensaje
       const lastMessage = await prisma.message.findFirst({
         where: {
           OR: [
@@ -69,8 +91,9 @@ export async function GET(request: Request) {
         country: matchedUser.country,
         birthday: matchedUser.birthday,
         gender: matchedUser.gender,
+        isBlockedByMe: isBlockedByMe,
         lastMessageContent: lastMessage?.content ? (
-          lastMessage.senderId === currentUserId ? `Tu: ${lastMessage.content}` : lastMessage.content
+          lastMessage.senderId === currentUserId ? `Tú: ${lastMessage.content}` : lastMessage.content
         ) : null,
         lastMessageAt: lastMessage?.createdAt || null,
       };
@@ -86,7 +109,7 @@ export async function GET(request: Request) {
     return NextResponse.json(matchesWithLastMessage);    
 
   } catch (error) {
-    console.error("Error fetching matches", error);
-    return NextResponse.json({message: 'Internal Server Error'}, { status: 500 });
+    console.error('Error in GET /api/chat/matches:', error);
+    return NextResponse.json({ message: 'Internal Server Error' }, { status: 500 });
   }
 }
