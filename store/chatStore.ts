@@ -12,6 +12,7 @@ export interface MatchContact {
   country?: string | null;
   birthday?: Date | string | null;
   gender?: string | null; 
+  isBlockedByMe: boolean;
 }
 
 // Definimos la interfaz del estado de la tienda
@@ -40,12 +41,16 @@ closeModal: () => void;
   setMessages: (msgs: MessageType[]) => void;
   addMessage: (msg: MessageType) => void;
   updateUserStatus: (id: string, online: boolean) => void;
+  updateBlockStatus: (blockedId: string, isBlocked: boolean) => void;
+
   // Actualizamos el estado de un mensaje (logica de Optimistic UI)
   updateMessageStatus: (localId: string, newStatus: MessageStatus, prismaId?: string) => void;
   // Marcamos un mensaje como leído
   markMessageAsRead: (messageId: string) => void;
   markMessagesAsRead: (readerId: string) => void;
   prependMessages: (msgs: MessageType[]) => void;
+  removeMessage: (messageId: string) => void;
+  removeConversation: (matchId: string) => void;
 }
 
 const initialChatState = {
@@ -57,6 +62,7 @@ const initialChatState = {
   matches: [],
   likesSent: [],
   likesReceived: [],
+  
 }
 
 export const useChatStore = create<ChatStore>()((set, get) => ({
@@ -87,6 +93,19 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
   prependMessages: (msgs) => set((state) => ({ messages: [...msgs, ...state.messages] })),
 
+
+  // ------- Gestión de borrado de mensajes -------
+  removeMessage: (messageId) => set((state) => ({
+    messages: state.messages.filter(msg => msg.id !== messageId)
+  })),
+
+  removeConversation: (matchId) => set((state) => ({
+    messages: state.messages.filter(msg =>
+      msg.senderId !== matchId && msg.receiverId !== matchId
+    )
+  })),
+
+  // ------- Gestión de estado de usuarios -------
   updateUserStatus: (id, online) => set((state) => ({
     onlineUsers: { ...state.onlineUsers, [id]: online }
   })),
@@ -115,15 +134,25 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     )
   })),
 
-  resetChat: () =>
-    set({
-      messages: [],
-      matches: [],
-      onlineUsers: {},
-      activeMatchId: null,
-      isExpanded: false,
-      likesSent: [],
-      likesReceived: [],
-      isModalOpen: false, // también lo reseteamos
-    }),
+  // ------- Gestión de Bloqueo/Desbloqueo (solo para el match que se ve) -------
+  updateBlockStatus: (blockedId, isBlocked) => set((state) => ({
+    matches: state.matches.map(match => 
+      match.id === blockedId ? { ...match, isBlockedByMe: isBlocked } : match
+    ),
+    // Al bloquear, se desactiva la conversación para forzar a volver a la lista
+    activeMatchId: isBlocked ? (state.activeMatchId === blockedId ? null : state.activeMatchId) : state.activeMatchId,
+  })),
+
+  resetChat: () => set({
+    messages: [],
+    matches: [],
+    onlineUsers: {},
+    activeMatchId: null,
+    isExpanded: false,
+    likesSent: [],
+    likesReceived: [],
+    isModalOpen: false, // también lo reseteamos
+    
+  }),
+  
 }));
