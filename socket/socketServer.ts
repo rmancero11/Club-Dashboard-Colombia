@@ -40,7 +40,13 @@ corsOptions = {
     }
 };
 
-const io = new Server(httpServer, corsOptions);
+// Aumentar el pingTimeout (tiempo que espera a un pong antes de desconectar)
+// y el pingInterval (frecuencia con la que envía un ping) para evitar desconexiones prematuras.
+const io = new Server(httpServer, {
+    pingTimeout: 60000, // 60 segundos (el valor predeterminado es 20000)
+    pingInterval: 25000, // 25 segundos (el valor predeterminado es 25000, podemos mantenerlo o ajustarlo)
+    ...corsOptions
+});
 
 io.on('connection', (socket) => {
     // Usamos el ID del usuariopasado en la query al conectar
