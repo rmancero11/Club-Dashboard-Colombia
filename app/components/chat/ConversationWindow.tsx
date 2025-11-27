@@ -70,6 +70,8 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
   const hasMoreRef = useRef(true);
   const setHasMoreRef = useRef(setHasMore);
 
+  
+
   // Aseguramos que la referencia del setter setHasMore esté actualizada
   useEffect(() => {
    setHasMoreRef.current = setHasMore;
@@ -82,8 +84,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
       // Debe ser un mensaje entre los dos usuarios
       ((msg.senderId === currentUserId && msg.receiverId === matchId) ||
       (msg.senderId === matchId && msg.receiverId === currentUserId))
-      // Y NO debe haber sido eliminado por el usuario actual
-      && !(msg.deletedBy && msg.deletedBy.includes(currentUserId))
+      
     )
     .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
   }, [rawMessages, currentUserId, matchId]); // <-- Dependencias: Solo recalcula si cambian estos valores
@@ -171,6 +172,20 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
             content: inputContent.trim() || '', // El contenido puede ser vacío si solo es una imagen
             imageUrl: finalImageUrl, // Pasamos la URL final
         });
+
+        // 🔥 ACTUALIZAR EL MATCH EN LA STORE
+        useChatStore.setState((state) => ({
+          matches: state.matches.map((m) =>
+            m.id === matchId
+              ? {
+                  ...m,
+                  lastMessageContent: inputContent.trim() || (finalImageUrl ? "📷 Foto" : ""),
+                  lastMessageAt: new Date().toISOString(),
+                }
+              : m
+          ),
+        }));
+
 
         // 3. Limpiar estado
         setInputContent('');
@@ -261,6 +276,13 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
 
   }, [matchId, loadHistory, chatStoreGetState, markMessagesAsRead]);
 
+  // 📌 Al abrir un chat → reset unread (ya lo hace tu store)
+  useEffect(() => {
+    setActiveChat(matchId);
+    markMessagesAsRead(matchId);
+  }, [matchId, setActiveChat, markMessagesAsRead]);
+
+
   // --- Efecto para el Scroll ---
   useEffect(() => {
     // Si estamos en la carga inicial, hacemos scroll al final
@@ -306,26 +328,57 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
   const handleDeleteConversation = () => {
     if (!matchId) return;
     if (!confirm('¿Borrar toda la conversación del chat?')) return;
-
-    const filtered = rawMessages.filter(msg =>
-      !(
-        (msg.senderId === matchId && msg.receiverId === currentUserId) ||
-        (msg.senderId === currentUserId && msg.receiverId === matchId)
-      )
-    );
-    setMessages(filtered);
+    const currentMessages = chatStoreGetState().messages || [];
+    const updated = currentMessages.map(msg => {
+      // si el mensaje pertenece a la conversación, marcamos como borrado por mí
+      if (msg.senderId === matchId || msg.receiverId === matchId) {
+        const existing = Array.isArray(msg.deletedBy) ? msg.deletedBy : (msg.deletedBy ? [msg.deletedBy] : []);
+        // evitar duplicados
+        const newDeletedBy = existing.includes(currentUserId) ? existing : [...existing, currentUserId];
+        return {
+          ...msg,
+          deletedBy: newDeletedBy,
+          content: '',
+          imageUrl: null,
+        };
+      }
+      return msg;
+    });
+    // const filtered = rawMessages.filter(msg =>
+    //   !(
+    //     (msg.senderId === matchId && msg.receiverId === currentUserId) ||
+    //     (msg.senderId === currentUserId && msg.receiverId === matchId)
+    //   )
+    // );
+    setMessages(updated);
     setShowHeaderMenu(false);
   };
 
-  // ---- Borrar mensaje individual (usa store y emite por socket)
+  // ---- Borrar mensaje individual 
+  // Lo marcamos localmente como eliminado para el user actual (soft delete)
   const handleDeleteMessage = (msgId?: string) => {
     if (!msgId) return;
     if (!confirm('¿Eliminar mensaje?')) return;
 
-    
     socketDeleteMessage(msgId, matchId);
-    // Quitar localmente
-    removeMessage(msgId);
+  
+    // marcar localmente como eliminado para mí
+    const currentMessages = chatStoreGetState().messages || [];
+    const updated = currentMessages.map(msg => {
+      const idMatch = (msg.id && msg.id === msgId) || (msg.localId && msg.localId === msgId);
+      if (idMatch) {
+        const existing = Array.isArray(msg.deletedBy) ? msg.deletedBy : (msg.deletedBy ? [msg.deletedBy] : []);
+        const newDeletedBy = existing.includes(currentUserId) ? existing : [...existing, currentUserId];
+        return {
+          ...msg,
+          deletedBy: newDeletedBy,
+          content: '',
+          imageUrl: null,
+        };
+      }
+      return msg;
+    });
+    setMessages(updated);
     setOpenMessageMenuId(null);
   };
 
@@ -445,63 +498,76 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
           const messageClasses = `max-w-[75%] p-3 rounded-xl shadow-md transition-all duration-300 ${
             isSender ? 'bg-blue-600 text-white self-end rounded-br-none' : 'bg-gray-200 text-black self-start rounded-tl-none'
           }`;
+          const isDeletedForMe = Array.isArray(msg.deletedBy) && msg.deletedBy.includes(currentUserId);
 
           return (
             <div 
               key={msg.id || msg.localId} 
               className={`flex ${isSender ? 'justify-end' : 'justify-start'} w-full relative`}
             >
-              <div 
-                className={messageClasses}
-                ref={isObserverTarget ? observerTargetRef : null} // Asignamos la referencia al primer mensaje
-              >
-                {/* BOTÓN MENÚ por mensaje (solo para tus mensajes) */}
-                {isSender && (
-                  <div className="flex items-center justify-end -top-2 -right-8">
-                    <button
-                      onClick={(e) => { e.stopPropagation(); setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id); }}
-                      className="p-1 rounded-full hover:bg-white/20"
-                      title="Opciones del mensaje"
-                    >
-                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="18" r="1"/></svg>
-                    </button>
-
-                    {openMessageMenuId === msg.id && (
-                      <div className="absolute right-8 top-0 bg-white rounded-md shadow z-50 w-37">
-                        <button
-                          onClick={() => handleDeleteMessage(msg.id)}
-                          className="w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
-                        >
-                          Eliminar mensaje
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-                {/* Contenido de Imagen */}
-                {msg.imageUrl && (
-                    <img 
-                        src={msg.imageUrl} 
-                        alt="Imagen enviada" 
-                        className="max-w-full h-auto rounded-lg mb-2" 
-                    />
-                )}
-                {/* Contenido de Texto */}
-                {msg.content && <p>{msg.content}</p>}
-
-                <div className="text-xs mt-1 text-right flex items-center justify-end space-x-1">
-                  {/* Estado del mensaje (solo para el remitente) */}
-                  {isSender && (
-                    <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
-                      {msg.status === 'pending' ? '...' : (msg.readAt ? '✔✔' : '✔')}
+              {/* Si el mensaje fue borrado por MI, mostramos bloque informativo */}
+              {isDeletedForMe ? (
+                <div className={`${messageClasses} flex items-center justify-center text-gray-500 italic`}>
+                  <div className="text-sm">
+                    🚫 Eliminaste este mensaje.{" "}
+                    <span className="block text-xs text-gray-400 mt-1">
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                     </span>
-                  )}
-                  {/* Hora */}
-                  <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
-                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <div 
+                  className={messageClasses}
+                  ref={isObserverTarget ? observerTargetRef : null} // Asignamos la referencia al primer mensaje
+                >
+                  {/* BOTÓN MENÚ por mensaje (solo para tus mensajes) */}
+                  {isSender && (
+                    <div className="flex items-center justify-end -top-2 -right-8">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id); }}
+                        className="p-1 rounded-full hover:bg-white/20"
+                        title="Opciones del mensaje"
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="18" r="1"/></svg>
+                      </button>
+
+                      {openMessageMenuId === msg.id && (
+                        <div className="absolute right-8 top-0 bg-white rounded-md shadow z-50 w-37">
+                          <button
+                            onClick={() => handleDeleteMessage(msg.id)}
+                            className="w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
+                          >
+                            Eliminar mensaje
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                  {/* Contenido de Imagen */}
+                  {msg.imageUrl && (
+                      <img 
+                          src={msg.imageUrl as string} 
+                          alt="Imagen enviada" 
+                          className="max-w-full h-auto rounded-lg mb-2" 
+                      />
+                  )}
+                  {/* Contenido de Texto */}
+                  {msg.content && <p>{msg.content}</p>}
+
+                  <div className="text-xs mt-1 text-right flex items-center justify-end space-x-1">
+                    {/* Estado del mensaje (solo para el remitente) */}
+                    {isSender && (
+                      <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
+                        {msg.status === 'pending' ? '...' : (msg.readAt ? '✔✔' : '✔')}
+                      </span>
+                    )}
+                    {/* Hora */}
+                    <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
+                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                    </span>
+                  </div>
+                </div>
+              )}
             </div>
           );
         })}
