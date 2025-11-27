@@ -13,6 +13,7 @@ export interface MatchContact {
   birthday?: Date | string | null;
   gender?: string | null; 
   isBlockedByMe: boolean;
+  unreadCount?: number;
 }
 
 // Definimos la interfaz del estado de la tienda
@@ -47,10 +48,14 @@ closeModal: () => void;
   updateMessageStatus: (localId: string, newStatus: MessageStatus, prismaId?: string) => void;
   // Marcamos un mensaje como leído
   markMessageAsRead: (messageId: string) => void;
-  markMessagesAsRead: (readerId: string) => void;
+  markMessagesAsRead: (matchId: string) => void;
   prependMessages: (msgs: MessageType[]) => void;
   removeMessage: (messageId: string) => void;
   removeConversation: (matchId: string) => void;
+
+  getUnreadCount: (matchId: string) => number;
+  getTotalUnread: () => number;
+  resetChat: () => void;
 }
 
 const initialChatState = {
@@ -77,31 +82,110 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
 
   // ------- Acciones de UI -------
   setIsExpanded: (isExpanded) => set({ isExpanded }),
+  // setActiveChat: (matchId) => {
+  //   if (matchId !== null) {
+  //     set({ activeMatchId: matchId, isExpanded: true });
+  //   } else {
+  //     set({ activeMatchId: null });
+  //   }
+  // },
+
   setActiveChat: (matchId) => {
+    const state = get();
+
     if (matchId !== null) {
-      set({ activeMatchId: matchId, isExpanded: true });
+      // 👉 Marcamos todos los mensajes de esa conversación como leídos
+      state.markMessagesAsRead(matchId);
+
+      // 👉 Reset de unreadCount solo de ese match
+      set({
+        activeMatchId: matchId,
+        isExpanded: true,
+        matches: state.matches.map(m =>
+          m.id === matchId ? { ...m, unreadCount: 0 } : m
+        )
+      });
     } else {
       set({ activeMatchId: null });
     }
   },
 
   // ------- Acciones de datos -------
-  setMatches: (matchList) => set({ matches: matchList }),
+  // setMatches: (matchList) => set({ matches: matchList }),
+
+  setMatches: (matchList) =>
+  set({
+    matches: matchList.map(m => ({
+      ...m,
+      unreadCount: m.unreadCount ?? 0 // 👉 asegurar campo
+    }))
+  }),
+
   setLikesSent: (userIds) => set({ likesSent: userIds }),
   setLikesReceived: (userIds) => set({ likesReceived: userIds }),
   setMessages: (msgs) => set({ messages: msgs }),
-  addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
   prependMessages: (msgs) => set((state) => ({ messages: [...msgs, ...state.messages] })),
+  // addMessage: (msg) => set((state) => ({ messages: [...state.messages, msg] })),
 
+  addMessage: (msg) =>
+  set((state) => {
+    const isIncoming =
+      msg.receiverId === state.activeMatchId ||
+      msg.senderId !== state.activeMatchId;
 
-  // ------- Gestión de borrado de mensajes -------
-  removeMessage: (messageId) => set((state) => ({
-    messages: state.messages.filter(msg => msg.id !== messageId)
+    const otherUser = msg.senderId;
+
+    let updatedMatches = state.matches;
+
+    if (msg.senderId !== state.activeMatchId) {
+      // 👉 Incrementar unread SOLO si chat NO está abierto
+      updatedMatches = state.matches.map((m) =>
+        m.id === otherUser
+          ? { ...m, unreadCount: (m.unreadCount ?? 0) + 1 }
+          : m
+      );
+    }
+
+    return {
+      messages: [...state.messages, msg],
+      matches: updatedMatches
+    };
+  }),
+
+  
+  // ------- Gestión de borrado de mensaje -------
+  removeMessage: (messageId) =>
+  set((state) => ({
+    messages: state.messages.map((msg) =>
+      msg.id === messageId
+      ? {
+          ...msg,
+          deletedBy: Array.isArray(msg.deletedBy)
+          ? [...msg.deletedBy, state.activeMatchId || '']
+          : [state.activeMatchId || ''],
+          content: '', // opcional: vaciar contenido
+          imageUrl: null, // opcional: eliminar imagen
+        }
+      : msg
+    ),
   })),
 
-  removeConversation: (matchId) => set((state) => ({
-    messages: state.messages.filter(msg =>
-      msg.senderId !== matchId && msg.receiverId !== matchId
+  removeConversation: (matchId) =>
+  set((state) => ({
+    messages: state.messages.map((msg) =>
+      (msg.senderId === matchId || msg.receiverId === matchId)
+      ? {
+          ...msg,
+          deletedBy: Array.isArray(msg.deletedBy)
+          ? [...msg.deletedBy, state.activeMatchId || '']
+          : [state.activeMatchId || ''],
+          content: '',
+          imageUrl: null,
+        }
+      : msg
+    ),
+    matches: state.matches.map(m =>
+      m.id === matchId ? { ...m, unreadCount: 0 } : m
     )
   })),
 
@@ -126,13 +210,25 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     )
   })),
 
-  markMessagesAsRead: (readerId) => set((state) => ({
+  markMessagesAsRead: (matchId) => set((state) => ({
     messages: state.messages.map(msg =>
-      msg.receiverId === readerId && !msg.readAt
+      msg.senderId === matchId && !msg.readAt
         ? { ...msg, readAt: new Date().toISOString() }
         : msg
     )
   })),
+
+  getUnreadCount: (matchId) => {
+    const match = get().matches.find((m) => m.id === matchId);
+    return match?.unreadCount ?? 0;
+  },
+
+  getTotalUnread: () => {
+    return get().matches.reduce(
+      (total, m) => total + (m.unreadCount ?? 0),
+      0
+    );
+  },
 
   // ------- Gestión de Bloqueo/Desbloqueo (solo para el match que se ve) -------
   updateBlockStatus: (blockedId, isBlocked) => set((state) => ({

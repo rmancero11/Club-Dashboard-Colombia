@@ -48,6 +48,7 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
 
   // Mensajes de la store (los usamos para calcular el último mensaje real)
   const allMessages = useChatStore(state => state.messages);
+  const getUnreadCount = useChatStore(state => state.getUnreadCount);
   
   // Lógica de búsqueda 
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -127,6 +128,7 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
 
           // hora: priorizamos la del lastMsg; si no, fallback a match.lastMessageAt
           const lastAt = lastMsg?.createdAt ?? match.lastMessageAt;
+          const unread = getUnreadCount(match.id);
 
           return (
           <div 
@@ -167,14 +169,23 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
                 </p>
             </div>
 
-            {/* Opcional: pequeño icono si está bloqueado */}
+            {/* 🔵 Badge de mensajes no leídos */}
+            {unread > 0 && (
+              <div className="ml-3 bg-blue-600 text-white text-xs font-semibold px-2 py-1 rounded-full"
+              title={`${unread} mensajes no leídos`}
+              >
+                {unread}
+              </div>
+            )}
+
+            {/* pequeño icono si está bloqueado */}
             {match.isBlockedByMe && (
               <div className="ml-2">
                 <BlockSmallIcon />
               </div>
             )}
 
-            {/* (Opcional) Botón borrar conversación: agregar aquí si querés */}
+            {/* Botón borrar conversación: agregar aquí si querés */}
             <div
               onClick={(e) => {
                 e.stopPropagation();
