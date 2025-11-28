@@ -110,6 +110,7 @@ export default function AvatarModal({
         isOpen={isOpen}
         onClose={onClose}
         user={user}
+        onNextUser={onNextUser}
       />
     );
   }
@@ -211,30 +212,37 @@ export default function AvatarModal({
               {/* BOTONES INFERIORES IZQUIERDA + DERECHA */}
 <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center z-20">
 
-  {/* botón izquierdo (puedo poner icono o texto, por ahora placeholder) */}
+  {/* BOTÓN IZQUIERDO (más grande) */}
   <button
-  onClick={() => {
-    if (onNextUser) onNextUser(); // pasa al siguiente
+    onClick={() => {
+      if (onNextUser) onNextUser();
+    }}
+    className="w-20 h-20 flex items-center justify-center"
+    style={{ background: "transparent", border: "none", boxShadow: "none" }}
+  >
+    <Image
+      src="/favicon/iconosclub-13.svg"
+      alt="Acción izquierda"
+      width={100}
+      height={100}
+    />
+  </button>
+
+  {/* BOTÓN ME GUSTA (más grande) */}
+<motion.button
+  onClick={async () => {
+    if (!matchedUsers[user.id]) {
+      await handleLike?.(user.id);
+
+      // pequeño delay para evitar el salto instantáneo
+      setTimeout(() => {
+        onNextUser?.();
+      }, 300);
+    }
   }}
-  className="w-14 h-14 flex items-center justify-center"
-  style={{ background: "transparent", border: "none", boxShadow: "none" }}
->
-  <Image
-    src="/favicon/iconosclub-13.svg"
-    alt="Acción izquierda"
-    width={70}
-    height={70}
-  />
-</button>
-
-
-
-  {/* botón Me gusta (derecha) */}
-  <motion.button
-  onClick={() => handleLike?.(user.id)}
   disabled={matchedUsers[user.id]}
   whileTap={{ scale: 1.2 }}
-  className="w-12 h-12 flex items-center justify-center"
+  className="w-16 h-16 flex items-center justify-center"
   style={{
     background: "transparent",
     border: "none",
@@ -251,10 +259,11 @@ export default function AvatarModal({
         : "/favicon/iconosclub-21.svg"
     }
     alt="Like"
-    width={40}
-    height={40}
+    width={60}
+    height={60}
   />
 </motion.button>
+
 
 </div>
 

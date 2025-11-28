@@ -9,10 +9,12 @@ export default function AvatarModalMatchView({
   isOpen,
   onClose,
   user,
+   onNextUser,
 }: {
   isOpen: boolean;
   onClose: () => void;
   user: any;
+  onNextUser?: () => void;
 }) {
   if (!isOpen) return null;
 
@@ -117,6 +119,7 @@ export default function AvatarModalMatchView({
       exit="exit"
       viewport={{ once: true, amount: 0.6 }}
       className="
+      relative
         h-screen w-full snap-start 
         bg-gradient-to-b from-white to-purple-100
         flex flex-col justify-center items-center px-6 text-black
@@ -205,6 +208,28 @@ export default function AvatarModalMatchView({
           )}
         </motion.div>
       </motion.div>
+      {/* Indicador de scroll hacia abajo */}
+<motion.div
+  className="absolute bottom-6 left-0 right-0 flex justify-center"
+  initial={{ opacity: 0, y: 10 }}
+  animate={{ opacity: [0.4, 1, 0.4], y: [10, 0, 10] }}
+  transition={{
+    duration: 1.8,
+    repeat: Infinity,
+    ease: "easeInOut",
+  }}
+>
+  <motion.span
+    className="text-purple-600 font-bold"
+    style={{ fontSize: "2.5rem", lineHeight: "2.5rem" }} // ← flecha más grande
+    animate={{ y: [0, 6, 0] }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+  >
+    ↓
+  </motion.span>
+</motion.div>
+
+
     </motion.section>
   );
 
@@ -433,14 +458,52 @@ export default function AvatarModalMatchView({
           }}
           className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex"
         >
+          {/* Botón siguiente (arriba izquierda) */}
+{/* Botón siguiente (arriba izquierda) */}
+<motion.button
+  onClick={() => {
+    if (onNextUser) onNextUser();
+  }}
+  className="absolute top-4 left-4 z-20 flex items-center gap-2 
+             bg-purple-600/70 hover:bg-purple-700/80 
+             text-white font-semibold px-4 py-2 rounded-full 
+             backdrop-blur-md border border-purple-300/30 shadow-md"
+  whileTap={{ scale: 0.9 }}
+  initial={{ opacity: 0, x: -20 }}
+  animate={{ opacity: 1, x: 0 }}
+  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+>
+  {/* Flecha */}
+  <motion.span
+    animate={{ x: [0, 5, 0] }}
+    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+  >
+    ➜
+  </motion.span>
+
+  {/* Texto parpadeando */}
+  <motion.span
+    animate={{ opacity: [1, 0.4, 1] }}
+    transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
+  >
+    Seguir explorando
+  </motion.span>
+</motion.button>
+
+
           {/* Botón cerrar */}
-          <motion.button
-            onClick={onClose}
-            className="absolute top-4 right-4 z-20 bg-black/50 hover:bg-black/70 text-white font-bold w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm"
-            whileTap={{ scale: 0.9 }}
-          >
-            ✕
-          </motion.button>
+         {/* Botón cerrar */}
+<motion.button
+  onClick={onClose}
+  className="absolute top-4 right-4 z-20 
+             bg-purple-600/80 hover:bg-purple-700/80 
+             text-white font-bold w-8 h-8 rounded-full 
+             flex items-center justify-center backdrop-blur-sm shadow-md"
+  whileTap={{ scale: 0.9 }}
+>
+  ✕
+</motion.button>
+
 
           {/* Contenedor scroll con animación de salida */}
           <motion.div
