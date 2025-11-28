@@ -9,13 +9,20 @@ const httpServer = createServer();
 // Endpoint de Health Check para evitar Dormancia en Render
 httpServer.on('request', (req, res) => {
     // Detectamos si la petición es para /api/health
-    if (req.url === '/api/health' && req.method === 'GET') {
+    if (req.url === '/api/health' && (req.method === 'GET' || req.method === 'HEAD')) {
+        
         res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify({
-            status: 'ok',
-            service: 'socket-server-keepalive',
-            timestamp: new Date().toISOString()
-        }));
+        
+        if ( req.method === 'HEAD') {
+            res.end();
+        
+        } else {
+            res.end(JSON.stringify({
+                status: 'ok',
+                service: 'socket-server-keepalive',
+                timestamp: new Date().toISOString()
+            }));
+        }
     }
 });
 
