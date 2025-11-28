@@ -6,6 +6,19 @@ const PORT = process.env.PORT || 4000;
 const prisma = new PrismaClient(); 
 const httpServer = createServer();
 
+// Endpoint de Health Check para evitar Dormancia en Render
+httpServer.on('request', (req, res) => {
+    // Detectamos si la petición es para /api/health
+    if (req.url === '/api/health' && req.method === 'GET') {
+        res.writeHead(200, { 'Content-Type': 'application/json' });
+        res.end(JSON.stringify({
+            status: 'ok',
+            service: 'socket-server-keepalive',
+            timestamp: new Date().toISOString()
+        }));
+    }
+});
+
 // Contenedor de Opciones de CORS (ServerOptions incluye el campo cors)
 let corsOptions: Partial<ServerOptions> = {};
 
@@ -49,7 +62,7 @@ const io = new Server(httpServer, {
 });
 
 io.on('connection', (socket) => {
-    // Usamos el ID del usuariopasado en la query al conectar
+    // Usamos el ID del usuario pasado en la query al conectar
     const userId = socket.handshake.query.userId as string;
     
     if (userId) {
@@ -248,4 +261,6 @@ io.on('connection', (socket) => {
 
 httpServer.listen(PORT, () => {
     console.log(`🚀 Socket Server escuchando en puerto ${PORT}`);
+    // Log para confirmar que el health check está activo
+    console.log(`🩺 Health check listo en: /api/health`);
 });
