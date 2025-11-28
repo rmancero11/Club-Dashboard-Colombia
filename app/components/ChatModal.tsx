@@ -47,7 +47,17 @@ const ChatModal: React.FC<ChatModalProps> = ({ currentUserId }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-0 md:p-4 transition-opacity duration-300">
+    <div className="
+  fixed 
+  left-0 right-0 top-0 
+  bottom-[70px]    /* ← deja libre la barra inferior */
+  bg-black bg-opacity-50 
+  flex justify-center items-center 
+  z-[60] 
+  p-0 md:p-4 
+  transition-opacity duration-300
+">
+
       <div className="bg-white w-full h-full md:h-[500px] md:max-w-md flex flex-col shadow-xl overflow-hidden font-montserrat transition-transform duration-300">
 
         {/* Encabezado solo si NO hay ConversationWindow */}

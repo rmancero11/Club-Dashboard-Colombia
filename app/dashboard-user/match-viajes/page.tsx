@@ -32,13 +32,10 @@ export default function TravelersMatchList() {
   const [likedUsers, setLikedUsers] = useState<Record<string, boolean>>({});
   const [matchedUsers, setMatchedUsers] = useState<Record<string, boolean>>({});
   const [showMatchModal, setShowMatchModal] = useState(false);
-const [matchedUserInfo, setMatchedUserInfo] = useState<{
-  avatar: string;
-  name: string;
-} | null>(null);
-
-
-
+  const [matchedUserInfo, setMatchedUserInfo] = useState<{
+    avatar: string;
+    name: string;
+  } | null>(null);
 
   useEffect(() => {
     const fetchCurrentUser = async () => {
@@ -63,62 +60,62 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
     if (!currentUser) return;
 
     const fetchData = async () => {
-  try {
-    setLoading(true);
-    setError(null);
+      try {
+        setLoading(true);
+        setError(null);
 
-    const res = await fetch("/api/destination", { cache: "no-store" });
-    if (!res.ok) throw new Error("Error al cargar destinos");
+        const res = await fetch("/api/destination", { cache: "no-store" });
+        if (!res.ok) throw new Error("Error al cargar destinos");
 
-    const { items } = await res.json();
-    setDestinos(items);
+        const { items } = await res.json();
+        setDestinos(items);
 
-    const normalizeText = (text: string) =>
-      text
-        .toLowerCase()
-        .normalize("NFD")
-        .replace(/[\u0300-\u036f]/g, "")
-        .replace(/[^a-z0-9\s]/g, "")
-        .trim();
+        const normalizeText = (text: string) =>
+          text
+            .toLowerCase()
+            .normalize("NFD")
+            .replace(/[\u0300-\u036f]/g, "")
+            .replace(/[^a-z0-9\s]/g, "")
+            .trim();
 
-    // ❗ 1 sola llamada para todos los usuarios
-    const userRes = await fetch(
-      `/api/users?excludeUserId=${currentUser.id}`,
-      { cache: "no-store" }
-    );
+        // ❗ 1 sola llamada para todos los usuarios
+        const userRes = await fetch(
+          `/api/users?excludeUserId=${currentUser.id}`,
+          { cache: "no-store" }
+        );
 
-    const { users } = await userRes.json();
+        const { users } = await userRes.json();
 
-    const travelersData: Record<string, TravelerDTO[]> = {};
+        const travelersData: Record<string, TravelerDTO[]> = {};
 
-    // Filtrar usuarios por cada destino
-    for (const dest of items) {
-      const normalizedDest = normalizeText(dest.name);
+        // Filtrar usuarios por cada destino
+        for (const dest of items) {
+          const normalizedDest = normalizeText(dest.name);
 
-      const matchingTravelers = users.filter((trav: TravelerDTO) =>
-        trav.destino.some((d) => {
-          const nd = normalizeText(d);
+          const matchingTravelers = users.filter((trav: TravelerDTO) =>
+            trav.destino.some((d) => {
+              const nd = normalizeText(d);
 
-          return (
-            (nd.includes("cancun") && normalizedDest.includes("cancun")) ||
-            (nd.includes("temptation") && normalizedDest.includes("temptation")) ||
-            nd.split(" ").some((word) => normalizedDest.includes(word))
+              return (
+                (nd.includes("cancun") && normalizedDest.includes("cancun")) ||
+                (nd.includes("temptation") &&
+                  normalizedDest.includes("temptation")) ||
+                nd.split(" ").some((word) => normalizedDest.includes(word))
+              );
+            })
           );
-        })
-      );
 
-      travelersData[dest.id] = matchingTravelers;
-    }
+          travelersData[dest.id] = matchingTravelers;
+        }
 
-    setTravelersByDest(travelersData);
-  } catch (err: any) {
-    console.error("❌ Error:", err);
-    setError(err.message || "Error desconocido");
-  } finally {
-    setLoading(false);
-  }
-};
-
+        setTravelersByDest(travelersData);
+      } catch (err: any) {
+        console.error("❌ Error:", err);
+        setError(err.message || "Error desconocido");
+      } finally {
+        setLoading(false);
+      }
+    };
 
     fetchData();
   }, [currentUser]);
@@ -137,30 +134,29 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
   };
 
   useEffect(() => {
-  if (!currentUser) return;
+    if (!currentUser) return;
 
-  const fetchMatchStatus = async () => {
-    try {
-      const res = await fetch(`/api/match/status?userId=${currentUser.id}`);
-      const data = await res.json();
+    const fetchMatchStatus = async () => {
+      try {
+        const res = await fetch(`/api/match/status?userId=${currentUser.id}`);
+        const data = await res.json();
 
-      // Guardar likes previos
-      const likes: Record<string, boolean> = {};
-      data.likesSent.forEach((id: string) => (likes[id] = true));
-      setLikedUsers(likes);
+        // Guardar likes previos
+        const likes: Record<string, boolean> = {};
+        data.likesSent.forEach((id: string) => (likes[id] = true));
+        setLikedUsers(likes);
 
-      // Guardar matches previos
-      const matches: Record<string, boolean> = {};
-      data.matches.forEach((id: string) => (matches[id] = true));
-      setMatchedUsers(matches);
-    } catch (err) {
-      console.error("Error loading match status", err);
-    }
-  };
+        // Guardar matches previos
+        const matches: Record<string, boolean> = {};
+        data.matches.forEach((id: string) => (matches[id] = true));
+        setMatchedUsers(matches);
+      } catch (err) {
+        console.error("Error loading match status", err);
+      }
+    };
 
-  fetchMatchStatus();
-}, [currentUser]);
-
+    fetchMatchStatus();
+  }, [currentUser]);
 
   // ❤️ Like / Unlike / Match
   const handleLike = async (targetId: string) => {
@@ -222,66 +218,64 @@ const [matchedUserInfo, setMatchedUserInfo] = useState<{
 
       // 🎉 Si hubo MATCH
       if (data.matched) {
-  setMatchedUsers((prev) => ({ ...prev, [targetId]: true }));
+        setMatchedUsers((prev) => ({ ...prev, [targetId]: true }));
 
-  // Buscar datos del usuario que matcheó
-  const traveler = travelersByDest;
-  const matched = Object.values(travelersByDest)
-    .flat()
-    .find((t) => t.id === targetId);
+        // Buscar datos del usuario que matcheó
+        const traveler = travelersByDest;
+        const matched = Object.values(travelersByDest)
+          .flat()
+          .find((t) => t.id === targetId);
 
-  if (matched) {
-    setMatchedUserInfo({
-      avatar: matched.avatar || "/images/default-avatar.png",
-      name: matched.name || "Viajero",
-    });
-  }
+        if (matched) {
+          setMatchedUserInfo({
+            avatar: matched.avatar || "/images/default-avatar.png",
+            name: matched.name || "Viajero",
+          });
+        }
 
-  setShowMatchModal(true);
-}
-
+        setShowMatchModal(true);
+      }
     } catch (error) {
       console.error(error);
     }
   };
 
   const normalizeCountry = (name: string) =>
-  name
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "") // saca tildes
-    .replace(/[^a-zA-Z\s]/g, "") // remueve caracteres raros
-    .trim()
-    .toLowerCase();
+    name
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "") // saca tildes
+      .replace(/[^a-zA-Z\s]/g, "") // remueve caracteres raros
+      .trim()
+      .toLowerCase();
 
-    const manualCountryFix: Record<string, string> = {
-  mexico: "MX",
-  "estados unidos": "US",
-  "republica dominicana": "DO",
-  peru: "PE",
-  panama: "PA",
-};
+  const manualCountryFix: Record<string, string> = {
+    mexico: "MX",
+    "estados unidos": "US",
+    "republica dominicana": "DO",
+    peru: "PE",
+    panama: "PA",
+  };
 
-const handleNextTraveler = () => {
-  if (!selectedTraveler) return;
+  const handleNextTraveler = () => {
+    if (!selectedTraveler) return;
 
-  // Encontrar en qué destino está el usuario actual
-  const destinoId = Object.keys(travelersByDest).find((id) =>
-    travelersByDest[id].some((t) => t.id === selectedTraveler.id)
-  );
+    // Encontrar en qué destino está el usuario actual
+    const destinoId = Object.keys(travelersByDest).find((id) =>
+      travelersByDest[id].some((t) => t.id === selectedTraveler.id)
+    );
 
-  if (!destinoId) return;
+    if (!destinoId) return;
 
-  const travelers = travelersByDest[destinoId];
-  const index = travelers.findIndex((t) => t.id === selectedTraveler.id);
+    const travelers = travelersByDest[destinoId];
+    const index = travelers.findIndex((t) => t.id === selectedTraveler.id);
 
-  if (index === -1) return;
+    if (index === -1) return;
 
-  // Si hay un siguiente...
-  if (index + 1 < travelers.length) {
-    setSelectedTraveler(travelers[index + 1]);
-  }
-};
-  
+    // Si hay un siguiente...
+    if (index + 1 < travelers.length) {
+      setSelectedTraveler(travelers[index + 1]);
+    }
+  };
 
   // UI render
   if (loading)
@@ -314,8 +308,7 @@ const handleNextTraveler = () => {
           <div key={destino.id} className="relative">
             <div className="mb-4">
               <h2 className="text-md font-semibold">
-                Destino:{" "}
-                <span className="text-purple-800">{destino.name}</span>
+                Destino: <span className="text-purple-800">{destino.name}</span>
               </h2>
             </div>
 
@@ -345,52 +338,51 @@ const handleNextTraveler = () => {
               {travelers.length ? (
                 travelers.map((viajero) => (
                   <div
-  key={viajero.id}
-  onClick={() => setSelectedTraveler(viajero)}
-  className="flex-shrink-0 w-72 md:w-64 rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition duration-300 cursor-pointer snap-center bg-white"
->
-  <div className="relative w-full h-72 md:h-56">
-    <Image
-      src={viajero.avatar || "/images/default-avatar.png"}
-      alt={viajero.name || "Viajero"}
-      fill
-      className="object-cover"
-    />
+                    key={viajero.id}
+                    onClick={() => setSelectedTraveler(viajero)}
+                    className="flex-shrink-0 w-72 md:w-64 rounded-2xl overflow-hidden shadow-md hover:shadow-lg transition duration-300 cursor-pointer snap-center bg-white"
+                  >
+                    <div className="relative w-full h-72 md:h-56">
+                      <Image
+                        src={viajero.avatar || "/images/default-avatar.png"}
+                        alt={viajero.name || "Viajero"}
+                        fill
+                        className="object-cover"
+                      />
+                    </div>
 
-  </div>
+                    <div className="p-4 text-center bg-white">
+                      <div className="flex items-center justify-center gap-2">
+                        {viajero.country &&
+                          (() => {
+                            const normalized = normalizeCountry(
+                              viajero.country
+                            );
+                            const manualCode = manualCountryFix[normalized];
 
-  <div className="p-4 text-center bg-white">
-    <div className="flex items-center justify-center gap-2">
-  {viajero.country && (() => {
-  const normalized = normalizeCountry(viajero.country);
-  const manualCode = manualCountryFix[normalized];
+                            const code =
+                              manualCode ||
+                              getCode(viajero.country) ||
+                              getCode(normalized) ||
+                              null;
 
-  const code =
-    manualCode ||
-    getCode(viajero.country) ||
-    getCode(normalized) ||
-    null;
+                            return code ? (
+                              <Image
+                                src={`https://flagcdn.com/${code.toLowerCase()}.svg`}
+                                alt={viajero.country}
+                                width={22}
+                                height={16}
+                                className="rounded-sm"
+                              />
+                            ) : null;
+                          })()}
 
-  return code ? (
-    <Image
-      src={`https://flagcdn.com/${code.toLowerCase()}.svg`}
-      alt={viajero.country}
-      width={22}
-      height={16}
-      className="rounded-sm"
-    />
-  ) : null;
-})()}
-
-
-  <p className="text-base md:text-sm font-semibold text-gray-800">
-    {viajero.name || "Viajero"}
-  </p>
-</div>
-
-  </div>
-</div>
-
+                        <p className="text-base md:text-sm font-semibold text-gray-800">
+                          {viajero.name || "Viajero"}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
                 ))
               ) : (
                 <p className="text-gray-500 text-sm col-span-full">
@@ -403,37 +395,37 @@ const handleNextTraveler = () => {
       })}
 
       {mounted &&
-  createPortal(
-    <AvatarModal
-      isOpen={!!selectedTraveler}
-      onClose={() => setSelectedTraveler(null)}
-      userId={selectedTraveler?.id ?? ""}
-      isMatchProfile={
-        selectedTraveler ? !!matchedUsers[selectedTraveler.id] : false
-      }
-      likedUsers={likedUsers}
-      onNextUser={handleNextTraveler}
-      matchedUsers={matchedUsers}
-      handleLike={handleLike}
-    />,
-    document.body
-  )}
+        createPortal(
+          <AvatarModal
+            isOpen={!!selectedTraveler}
+            onClose={() => setSelectedTraveler(null)}
+            userId={selectedTraveler?.id ?? ""}
+            isMatchProfile={
+              selectedTraveler ? !!matchedUsers[selectedTraveler.id] : false
+            }
+            likedUsers={likedUsers}
+            onNextUser={handleNextTraveler}
+            matchedUsers={matchedUsers}
+            handleLike={handleLike}
+          />,
+          document.body
+        )}
 
-
-
-        {mounted &&
-  showMatchModal &&
-  createPortal(
-    <MatchModal
-      isOpen={showMatchModal}
-      onClose={() => setShowMatchModal(false)}
-      currentUserImg={currentUser?.avatar || "/images/default-avatar.png"}
-      matchedUserImg={matchedUserInfo?.avatar || "/images/default-avatar.png"}
-      matchedUserName={matchedUserInfo?.name || "Viajero"}
-    />,
-    document.body
-  )}
-
+      {mounted &&
+        showMatchModal &&
+        createPortal(
+          <MatchModal
+            isOpen={showMatchModal}
+            onClose={() => setShowMatchModal(false)}
+            currentUserImg={currentUser?.avatar || "/images/default-avatar.png"}
+            matchedUserImg={
+              matchedUserInfo?.avatar || "/images/default-avatar.png"
+            }
+            matchedUserName={matchedUserInfo?.name || "Viajero"}
+            
+          />,
+          document.body
+        )}
     </div>
   );
 }

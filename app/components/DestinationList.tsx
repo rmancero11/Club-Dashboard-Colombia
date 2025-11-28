@@ -489,9 +489,6 @@ export default function DestinationsList({
                         <div
                           key={user.id}
                           className="relative group cursor-pointer"
-                          onClick={() =>
-                            router.push(`/dashboard-user/match-viajes`)
-                          }
                         >
                           <Image
                             src={user.avatar || "/images/default-avatar.png"}
