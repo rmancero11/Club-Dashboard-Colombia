@@ -382,271 +382,264 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({ currentUserId, 
     setOpenMessageMenuId(null);
   };
 
-  return (
-    <div className="flex flex-col w-97 h-[500px] bg-white rounded-xl shadow-2xl">
-      {/* Encabezado */}
-      <div className="flex justify-between items-center p-4 border-b bg-gray-50 rounded-t-xl">
-        <div className="flex items-center space-x-3">
-          {/* Avatar del Match y Estado Online/Offline */}
-          <div className="relative">
-            <img
-              src={matchDetails?.avatar || '/default-avatar.png'} // Usar avatar si está disponible
-              alt={matchName || 'Match'}
-              className="w-10 h-10 rounded-full object-cover"
-            />
-            {/* Indicador de Estado Online/Offline */}
-            {isOnline && (
-              <span className="absolute bottom-0 right-0 block w-3 h-3 bg-green-500 rounded-full ring-2 ring-white"></span>
-            )}
-          </div>
-          <div>
-            <h3 className="text-lg font-semibold truncate">{matchName || 'Chat'}</h3>
-            {/* Mostrar estado de Bloqueo o Online */}
-            {isBlockedByMe ? (
-              <span className="text-xs text-red-500 font-bold">
-                BLOQUEADO POR TI
-              </span>
-            ) : (
-              <span className={`text-xs ${isOnline ? 'text-green-500' : 'text-red-500'}`}>
-                {isOnline ? 'En línea' : 'Desconectado'}
-              </span>
-            )}
-          </div>
+return (
+  <div className="flex flex-col w-full h-screen bg-white shadow-2xl">
+    {/* Header */}
+    <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-purple-400 to-purple-600 text-white sticky top-0 z-50">
+      <div className="flex items-center space-x-3">
+        {/* Avatar */}
+        <div className="relative">
+          <img
+            src={matchDetails?.avatar || '/default-avatar.png'}
+            alt={matchName || 'Match'}
+            className="w-10 font-montserrat h-10 rounded-full object-cover border-2 border-white"
+          />
+          {isOnline && (
+            <span className="absolute bottom-0 right-0 block w-3 h-3 bg-green-400 rounded-full ring-2 ring-white"></span>
+          )}
         </div>
-        <div className="flex items-center gap-3 ml-auto">
-          {/* Botón de Bloquear/Desbloquear */}
-          {/* <button
-            onClick={handleBlockUnblock}
-            className={`p-1 rounded-full hover:bg-gray-200 transition-colors ${
-              isBlockedByMe ? 'text-green-500 hover:text-green-700' : 'text-red-500 hover:text-red-700'
-            }`}
-            title={isBlockedByMe ? "Desbloquear Usuario" : "Bloquear Usuario"}
+
+        <div>
+          <h3 className=" font-montserrat text-lg font-semibold truncate">{matchName || 'Chat'}</h3>
+          <span className={`text-xs ${isOnline ? 'text-green-200' : 'text-red-200'}`}>
+            {isOnline ? 'En línea' : 'Desconectado'}
+          </span>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-3 ml-auto">
+        {/* Botón menú header */}
+        <div className="relative">
+          <button
+            onClick={() => setShowHeaderMenu(prev => !prev)}
+            className="p-1 rounded-full hover:bg-white/20"
+            title="Opciones"
           >
-            {isBlockedByMe ? <UnblockIcon /> : <BlockIcon />}
-          </button> */}
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <circle cx="12" cy="5" r="1" />
+              <circle cx="12" cy="12" r="1" />
+              <circle cx="12" cy="19" r="1" />
+            </svg>
+          </button>
 
-          {/* Header menu toggle (⋮) */}
-          <div className="relative">
-            <button
-              onClick={() => setShowHeaderMenu(prev => !prev)}
-              className="p-1 rounded-full hover:bg-gray-200"
-              title="Opciones"
-            >
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="5" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="19" r="1"/></svg>
-            </button>
+          {showHeaderMenu && (
+  <div className="absolute right-0 mt-2 w-44 bg-white rounded-md shadow-lg z-50">
+    <button
+      onClick={handleDeleteConversation}
+      className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 font-montserrat"
+    >
+      Eliminar conversación
+    </button>
+    <button
+      onClick={() => { updateBlockStatus(matchId!, !isBlockedByMe); setShowHeaderMenu(false); }}
+      className="w-full text-left px-3 py-2 text-sm text-black hover:bg-gray-100 font-montserrat"
+    >
+      {isBlockedByMe ? 'Desbloquear' : 'Bloquear usuario'}
+    </button>
+    <button
+      onClick={() => { setActiveChat(null); setShowHeaderMenu(false); }}
+      className="w-full text-left px-3 py-2 text-sm text-black hover:bg-gray-100 font-montserrat"
+    >
+      Cerrar chat
+    </button>
+  </div>
+)}
 
-            {showHeaderMenu && (
-              <div className="absolute right-0 mt-2 w-44 bg-white rounded-md shadow-lg z-50">
-                <button
-                  onClick={handleDeleteConversation}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-red-50 text-red-600"
-                >
-                  Eliminar conversación
-                </button>
-                <button
-                  onClick={() => { updateBlockStatus(matchId!, !isBlockedByMe); setShowHeaderMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
-                >
-                  {isBlockedByMe ? 'Desbloquear' : 'Bloquear usuario'}
-                </button>
-                <button
-                  onClick={() => { setActiveChat(null); setShowHeaderMenu(false); }}
-                  className="w-full text-left px-3 py-2 text-sm hover:bg-gray-100"
-                >
-                  Cerrar chat
-                </button>
+        </div>
+      </div> 
+
+      {/* Botón de Cerrar */}
+      <button 
+        onClick={() => setActiveChat(null)} 
+        className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors"
+        title="Cerrar"
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+          <line x1="18" y1="6" x2="6" y2="18"></line>
+          <line x1="6" y1="6" x2="18" y2="18"></line>
+        </svg>
+      </button>
+    </div>
+
+    {/* Contenedor de Mensajes */}
+    <div 
+      ref={scrollContainerRef} 
+      className="flex-grow overflow-y-auto p-4 flex flex-col space-y-3"
+    >
+      {isBlockedByMe && (
+        <div className="text-center bg-red-100 text-red-700 p-2 rounded-lg text-sm mb-4">
+          Has bloqueado a este usuario. Desbloquea para poder chatear de nuevo.
+        </div>
+      )}
+      {isHistoryLoading && (
+        <div className="text-center text-sm text-blue-500 py-2">Cargando historial...</div>
+      )}
+      {!hasMore && (
+        <div className="text-center text-xs text-gray-500 mt-2">Fin del historial</div>
+      )}
+
+      {messages.map((msg, index) => {
+        const isObserverTarget = index === 0 && hasMore;
+        const isSender = msg.senderId === currentUserId;
+        const messageClasses = `max-w-[75%] p-3 pr-10 rounded-xl shadow-md transition-all duration-300 ${
+          isSender 
+            ? 'bg-purple-500 text-white self-end rounded-br-none' 
+            : 'bg-purple-100 text-purple-900 self-start rounded-tl-none'
+        } relative`; 
+
+        const isDeletedForMe = Array.isArray(msg.deletedBy) && msg.deletedBy.includes(currentUserId);
+
+        return (
+          <div 
+            key={msg.id || msg.localId} 
+            className={`flex ${isSender ? 'justify-end' : 'justify-start'} w-full relative`}
+          >
+            {isDeletedForMe ? (
+              <div className={`${messageClasses} flex items-center justify-center text-gray-500 italic`}>
+                <div className="text-sm">
+                  🚫 Eliminaste este mensaje.{" "}
+                  <span className="block text-xs text-gray-400 mt-1">
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
+              </div>
+            ) : (
+              <div 
+                className={messageClasses}
+                ref={isObserverTarget ? observerTargetRef : null}
+              >
+                {msg.imageUrl && (
+                  <img 
+                    src={msg.imageUrl as string} 
+                    alt="Imagen enviada" 
+                    className="max-w-full h-auto rounded-lg mb-2" 
+                  />
+                )}
+
+                {/* Contenedor flex para texto + botón */}
+                {msg.content && (
+                  <div className="flex justify-between">
+                    <p className="flex-1">{msg.content}</p>
+                    {isSender && (
+  <div className="relative">
+    <p className="pr-6 mr-2">{msg.content}</p> {/* padding-right para no tapar el botón */}
+    <button
+      onClick={(e) => { e.stopPropagation(); setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id); }}
+      className="absolute top-1/2 -translate-y-1/2 right-2 p-1 rounded-full hover:bg-white/20"
+      title="Opciones del mensaje"
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <circle cx="12" cy="6" r="1"/>
+        <circle cx="12" cy="12" r="1"/>
+        <circle cx="12" cy="18" r="1"/>
+      </svg>
+    </button>
+  </div>
+)}
+
+                  </div>
+                )}
+
+                {openMessageMenuId === msg.id && (
+                  <div className="absolute right-1 top-7 bg-white rounded-md shadow z-50 w-36">
+                    <button
+                      onClick={() => handleDeleteMessage(msg.id)}
+                      className="w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
+                    >
+                      Eliminar mensaje
+                    </button>
+                  </div>
+                )}
+
+                <div className="text-xs mt-1 text-right flex items-center justify-end space-x-1">
+                  {isSender && (
+                    <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
+                      {msg.status === 'pending' ? '...' : (msg.readAt ? '✔✔' : '✔')}
+                    </span>
+                  )}
+                  <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
+                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  </span>
+                </div>
               </div>
             )}
           </div>
-        </div>  
-        {/* Botón de Cerrar */}
+        );
+      })}
+      <div ref={messagesEndRef} />
+    </div>
+
+    {/* Input de Envío */}
+    <form onSubmit={handleSubmit} className="p-4 border-t flex-shrink-0">
+      {imagePreviewUrl && (
+        <div className="mb-3 relative max-w-[150px] border rounded-lg p-1 bg-gray-50">
+          <img 
+            src={imagePreviewUrl} 
+            alt="Vista previa" 
+            className="max-w-full h-auto rounded-md"
+          />
+          <button 
+            type="button" 
+            onClick={() => { setImageFile(null); setImagePreviewUrl(null); }}
+            className="absolute top-[-5px] right-[-5px] bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold"
+          >
+            X
+          </button>
+          <p className="text-xs text-gray-600 mt-1 truncate">
+            {imageFile?.name}
+          </p>
+        </div>
+      )}
+
+      <div className="flex space-x-2 items-center">
+        <label className={`cursor-pointer ${isUploading || isBlockedByMe ? 'opacity-50' : ''}`}>
+          <input
+            type="file"
+            accept="image/*"
+            onChange={handleFileChange}
+            className="hidden"
+            disabled={isUploading || isBlockedByMe}
+          />
+          <span className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors flex items-center justify-center flex-shrink-0">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M15 7l-6 6M9 7l6 6M10 10l-4 4M14 10l4 4M15 7L9 13M9 7l6 6M10 10l-4 4M14 10l4 4"></path>
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path>
+              <polyline points="14 2 14 8 20 8"></polyline>
+            </svg>
+          </span>
+        </label>
+
+        <textarea 
+          value={inputContent}
+          onChange={(e) => {
+            setInputContent(e.target.value);
+            e.target.style.height = "auto";
+            e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
+          }}
+          placeholder={isBlockedByMe ? "Desbloquea para escribir..." : "Escribe un mensaje..."}
+          className="w-full resize-none border rounded-lg p-2 text-sm max-h-32 overflow-y-auto"
+          disabled={isHistoryLoading || isUploading || isBlockedByMe}
+        />
+
         <button 
-          onClick={() => setActiveChat(null)} 
-          className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors"
-          title="Cerrar"
+          type="submit" 
+          className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center flex-shrink-0"
+          disabled={(!inputContent.trim() && !imageFile) || isHistoryLoading || isUploading} 
         >
-          {/* Icono de cerrar (X) */}
-          <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+          {isUploading ? (
+            <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+          ) : (
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="22" y1="2" x2="11" y2="13"></line>
+              <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
+            </svg>
+          )}
         </button>
       </div>
+    </form>
+  </div>
+);
 
-      {/* Contenedor de Mensajes */}
-      <div 
-        ref={scrollContainerRef} 
-        className="flex-grow overflow-y-auto p-4 flex flex-col space-y-3"
-      >
-        {/* Indicador de Bloqueo en la ventana de chat */}
-        {isBlockedByMe && (
-          <div className="text-center bg-red-100 text-red-700 p-2 rounded-lg text-sm mb-4">
-            Has bloqueado a este usuario. Desbloquea para poder chatear de nuevo.
-          </div>
-        )}
-        {/* Indicador de Carga y Scroll Infinito */}
-        {isHistoryLoading && (
-            <div className="text-center text-sm text-blue-500 py-2">Cargando historial...</div>
-        )}
-        
-        {!hasMore && (
-            <div className="text-center text-xs text-gray-500 mt-2">Fin del historial</div>
-        )}
-
-        {messages.map((msg, index) => {
-          // Si es el primer mensaje, le asignamos la ref para el IntersectionObserver
-          const isObserverTarget = index === 0 && hasMore;
-
-          const isSender = msg.senderId === currentUserId;
-          const messageClasses = `max-w-[75%] p-3 rounded-xl shadow-md transition-all duration-300 ${
-            isSender ? 'bg-blue-600 text-white self-end rounded-br-none' : 'bg-gray-200 text-black self-start rounded-tl-none'
-          }`;
-          const isDeletedForMe = Array.isArray(msg.deletedBy) && msg.deletedBy.includes(currentUserId);
-
-          return (
-            <div 
-              key={msg.id || msg.localId} 
-              className={`flex ${isSender ? 'justify-end' : 'justify-start'} w-full relative`}
-            >
-              {/* Si el mensaje fue borrado por MI, mostramos bloque informativo */}
-              {isDeletedForMe ? (
-                <div className={`${messageClasses} flex items-center justify-center text-gray-500 italic`}>
-                  <div className="text-sm">
-                    🚫 Eliminaste este mensaje.{" "}
-                    <span className="block text-xs text-gray-400 mt-1">
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-              ) : (
-                <div 
-                  className={messageClasses}
-                  ref={isObserverTarget ? observerTargetRef : null} // Asignamos la referencia al primer mensaje
-                >
-                  {/* BOTÓN MENÚ por mensaje (solo para tus mensajes) */}
-                  {isSender && (
-                    <div className="flex items-center justify-end -top-2 -right-8">
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setOpenMessageMenuId(openMessageMenuId === msg.id ? null : msg.id); }}
-                        className="p-1 rounded-full hover:bg-white/20"
-                        title="Opciones del mensaje"
-                      >
-                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="6" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="18" r="1"/></svg>
-                      </button>
-
-                      {openMessageMenuId === msg.id && (
-                        <div className="absolute right-8 top-0 bg-white rounded-md shadow z-50 w-37">
-                          <button
-                            onClick={() => handleDeleteMessage(msg.id)}
-                            className="w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
-                          >
-                            Eliminar mensaje
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                  {/* Contenido de Imagen */}
-                  {msg.imageUrl && (
-                      <img 
-                          src={msg.imageUrl as string} 
-                          alt="Imagen enviada" 
-                          className="max-w-full h-auto rounded-lg mb-2" 
-                      />
-                  )}
-                  {/* Contenido de Texto */}
-                  {msg.content && <p>{msg.content}</p>}
-
-                  <div className="text-xs mt-1 text-right flex items-center justify-end space-x-1">
-                    {/* Estado del mensaje (solo para el remitente) */}
-                    {isSender && (
-                      <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
-                        {msg.status === 'pending' ? '...' : (msg.readAt ? '✔✔' : '✔')}
-                      </span>
-                    )}
-                    {/* Hora */}
-                    <span className={`text-xs ${isSender ? 'text-blue-200' : 'text-gray-500'}`}>
-                      {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-          );
-        })}
-        <div ref={messagesEndRef} />
-      </div>
-
-      {/* Input de Envío */}
-      <form onSubmit={handleSubmit} className="p-4 border-t flex-shrink-0">
-        
-        {/* VISTA PREVIA DE IMAGEN */}
-        {imagePreviewUrl && (
-            <div className="mb-3 relative max-w-[150px] border rounded-lg p-1 bg-gray-50">
-                <img 
-                    src={imagePreviewUrl} 
-                    alt="Vista previa" 
-                    className="max-w-full h-auto rounded-md"
-                />
-                {/* Botón para cancelar la imagen */}
-                <button 
-                    type="button" 
-                    onClick={() => { setImageFile(null); setImagePreviewUrl(null); }}
-                    className="absolute top-[-5px] right-[-5px] bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold"
-                >
-                    X
-                </button>
-                <p className="text-xs text-gray-600 mt-1 truncate">
-                    {imageFile?.name}
-                </p>
-            </div>
-        )}
-        
-        <div className="flex space-x-2 items-center">
-            
-            {/* BOTÓN/INPUT DE ARCHIVO */}
-            <label className={`cursor-pointer ${isUploading || isBlockedByMe ? 'opacity-50' : ''}`}>
-                <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleFileChange}
-                    className="hidden"
-                    disabled={isUploading || isBlockedByMe}
-                />
-                <span className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors flex items-center justify-center flex-shrink-0">
-                    {/* Icono de Clip / Adjuntar */}
-                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M15 7l-6 6M9 7l6 6M10 10l-4 4M14 10l4 4M15 7L9 13M9 7l6 6M10 10l-4 4M14 10l4 4"></path><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline></svg>
-                </span>
-            </label>
-
-            <textarea 
-              value={inputContent}
-              onChange={(e) => {
-                setInputContent(e.target.value);
-                e.target.style.height = "auto";
-                e.target.style.height = `${Math.min(e.target.scrollHeight, 120)}px`;
-              }}
-              placeholder={isBlockedByMe ? "Desbloquea para escribir..." : "Escribe un mensaje..."}
-              className="w-full resize-none border rounded-lg p-2 text-sm max-h-32 overflow-y-auto"
-              disabled={isHistoryLoading || isUploading || isBlockedByMe} // Deshabilitar si se está cargando el historial o si se está subiendo una imagen y/o si está bloqueado por mí
-            />
-            
-            <button 
-              type="submit" 
-              className="bg-blue-600 text-white p-2.5 rounded-full hover:bg-blue-700 disabled:opacity-50 transition-colors flex items-center justify-center flex-shrink-0"
-              // Deshabilitado si no hay contenido de texto NI archivo, o si está cargando historial/subiendo imagen
-              disabled={(!inputContent.trim() && !imageFile) || isHistoryLoading || isUploading} 
-            >
-              {/* Icono de Carga/Enviar */}
-              {isUploading ? (
-                  // Spinner si isUploading es true
-                  <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-              ) : (
-                  // Icono de Enviar
-                  <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
-              )}
-            </button>
-        </div>
-      </form>
-    </div>
-  );
 };
 
 export default ConversationWindow;

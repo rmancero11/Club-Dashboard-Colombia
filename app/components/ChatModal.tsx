@@ -11,6 +11,7 @@ const MinimizeIcon = (props: React.SVGProps<SVGSVGElement>) => (
     <path d="M5 12h14M12 5l7 7-7 7" />
   </svg>
 );
+
 const CloseIcon = (props: React.SVGProps<SVGSVGElement>) => (
   <svg {...props} xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
     <line x1="18" y1="6" x2="6" y2="18" />
@@ -32,12 +33,10 @@ const ChatModal: React.FC<ChatModalProps> = ({ currentUserId }) => {
   const setActiveChat = useChatStore(state => state.setActiveChat);
   const setIsExpanded = useChatStore(state => state.setIsExpanded);
 
-  if (!isModalOpen) return null; // No mostrar nada si está cerrado
+  if (!isModalOpen) return null;
 
-  // Match activo
   const activeMatch = activeMatchId ? matches.find(m => m.id === activeMatchId) : null;
 
-  // Toggle expandido / minimizado dentro del modal
   const toggleExpanded = () => {
     if (isExpanded) {
       setActiveChat(null);
@@ -48,35 +47,29 @@ const ChatModal: React.FC<ChatModalProps> = ({ currentUserId }) => {
   };
 
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-4">
-      <div className="bg-white w-full max-w-md h-[500px] flex flex-col rounded-lg shadow-xl overflow-hidden">
-        {/* Encabezado */}
-        <div className="p-4 border-b flex justify-between items-center">
-          <h3 className="text-lg font-semibold text-gray-800">
-            {activeMatchId ? activeMatch?.name || 'Chat' : 'Mensajes'}
-          </h3>
-          <div className="flex items-center space-x-2">
-            {activeMatchId && (
-              <button
-                onClick={() => setActiveChat(null)}
-                className="p-1 rounded-full hover:bg-gray-200"
-                title="Volver a la lista"
-              >
-                <MinimizeIcon className="w-5 h-5" style={{ transform: 'rotate(180deg)' }} />
-              </button>
-            )}
-            <button
-              onClick={closeModal}
-              className="p-1 rounded-full hover:bg-red-200"
-              title="Cerrar chat"
-            >
-              <CloseIcon className="w-5 h-5" />
-            </button>
-          </div>
-        </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50 p-0 md:p-4 transition-opacity duration-300">
+      <div className="bg-white w-full h-full md:h-[500px] md:max-w-md flex flex-col shadow-xl overflow-hidden font-montserrat transition-transform duration-300">
 
-        {/* Contenido: Lista de chats o conversación */}
-        <div className="flex-grow overflow-y-auto">
+        {/* Encabezado solo si NO hay ConversationWindow */}
+        {!activeMatchId && (
+          <div className="p-4 border-b flex justify-between items-center bg-purple-50">
+            <h3 className="text-lg font-semibold text-purple-700">
+              Mensajes
+            </h3>
+            <div className="flex items-center space-x-2">
+              <button
+                onClick={closeModal}
+                className="p-1 rounded-full hover:bg-red-200 transition-colors"
+                title="Cerrar chat"
+              >
+                <CloseIcon className="w-5 h-5 text-red-600" />
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Contenido */}
+        <div className="flex-grow overflow-y-auto bg-white">
           {activeMatchId ? (
             <ConversationWindow
               currentUserId={currentUserId}
