@@ -11,6 +11,8 @@ import { div } from "framer-motion/client";
 import UserPreferences from "./UserPreferences";
 import { useSearchParams } from "next/navigation";
 import InstallAppButton from "./InstallAppButton";
+import { useChatStore } from "@/store/chatStore";
+import { closeSocket } from "../utils/socket";
 
 type Role = "ADMIN" | "SELLER" | "USER";
 
@@ -61,6 +63,9 @@ export default function UserProfile({ user }: { user: UserShape }) {
     categories?: { id: string; name: string }[];
     tripDates?: string[];
   }>(null);
+
+  // Obtenemos la acción resetChat del store
+  const resetChat = useChatStore(state => state.resetChat);
 
   async function handleSave(data: { gustos: string[]; destinos: string[] }) {
     const formData = new FormData();
@@ -142,6 +147,12 @@ export default function UserProfile({ user }: { user: UserShape }) {
   };
 
   const logout = async () => {
+    // Limpiamos el estado de Zustand (Borra los chats)
+    resetChat();
+
+    // Cerramos la conexión de Socket (Detiene listeners y eventos)
+    closeSocket();
+
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch {}
