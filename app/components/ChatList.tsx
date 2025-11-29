@@ -37,6 +37,7 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
   const setActiveChat = useChatStore(state => state.setActiveChat);
   const activeMatchId = useChatStore(state => state.activeMatchId);
   const allMessages = useChatStore(state => state.messages);
+  const deleteConversationAndMatch = useChatStore(state => state.deleteConversationAndMatch);
   const getUnreadCount = useChatStore(state => state.getUnreadCount);
 
   const [searchTerm, setSearchTerm] = React.useState('');
@@ -91,11 +92,46 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
           const lastMsg = lastMessageByMatch[match.id];
           let briefText = 'Iniciar conversación...';
           if (match.isBlockedByMe) briefText = 'Usuario bloqueado.';
-          else if (lastMsg) {
-            if (lastMsg.content && lastMsg.content.trim().length > 0) briefText = lastMsg.content;
-            else if (lastMsg.imageUrl) briefText = '📷 Foto';
-          } else if (match.lastMessageContent) briefText = match.lastMessageContent;
+          if (lastMsg) {
+            const wasDeleted =
+              Array.isArray(lastMsg.deletedBy) && lastMsg.deletedBy.length > 0;
+            const deletedForMe = lastMsg.deletedBy?.includes(currentUserId);
+            const deletedByOther = wasDeleted && !deletedForMe;
 
+            // Caso 1: Mensaje eliminado → siempre mostrar texto especial
+            if (wasDeleted) {
+              briefText = deletedForMe
+                ? "Eliminaste este mensaje"
+                : "Este mensaje fue eliminado";
+            }
+            // Caso 2: Tiene contenido válido → usarlo
+            else if (lastMsg.content && lastMsg.content.trim().length > 0) {
+              briefText = lastMsg.content;
+            }
+            // Caso 3: Es una imagen
+            else if (lastMsg.imageUrl) {
+              briefText = "📷 Foto";
+            }
+            // ❗ Caso 4: Mensaje está vacío y NO está eliminado → IGNORARLO
+            else {
+              // Si el match ya tenía contenido previo, usarlo
+              if (match.lastMessageContent) {
+                briefText = match.lastMessageContent;
+              } else {
+                briefText = "Iniciar conversación...";
+              }
+            }
+            // if (wasDeleted) {
+            //   // Preview del mensaje eliminado
+            //   briefText = deletedForMe
+            //     ? "Eliminaste este mensaje"
+            //     : "Este mensaje fue eliminado";
+            // } else if (lastMsg.content && lastMsg.content.trim().length > 0) {
+            //   briefText = lastMsg.content;
+            // } else if (lastMsg.imageUrl) {
+            //   briefText = "📷 Foto";
+            // }
+          }
           const lastAt = lastMsg?.createdAt ?? match.lastMessageAt;
           const unread = getUnreadCount(match.id);
 
@@ -148,11 +184,14 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
               )}
 
               <div
-                onClick={(e) => {
+                onClick={async (e) => {
                   e.stopPropagation();
-                  if (confirm('¿Borrar toda la conversación?')) {
-                    useChatStore.getState().removeConversation(match.id);
-                  }
+                  if (confirm('¿Estás seguro de que quieres eliminar toda la conversación? Esto no se puede deshacer.')) {
+                    const success = await deleteConversationAndMatch(match.id, currentUserId);
+                    
+                  }else {
+                      alert('Error al borrar conversación. Intentalo de nuevo.');
+                    }
                 }}
                 className="ml-2 px-2 py-1 text-gray-500 hover:text-red-500 rounded cursor-pointer"
                 title="Borrar conversación"

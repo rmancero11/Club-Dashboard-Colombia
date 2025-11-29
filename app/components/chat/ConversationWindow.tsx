@@ -71,6 +71,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     deleteMessage: socketDeleteMessage,
     blockUser,
     unblockUser,
+    markMessagesAsRead: socketMarkMessagesAsRead,
   } = useSocket(currentUserId, isChatExpanded, reloadMatches);
 
   const rawMessages = useChatStore((state) => state.messages);
@@ -116,6 +117,39 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   useEffect(() => {
     setHasMoreRef.current = setHasMore;
   }, [setHasMore]);
+
+  // --- Helper: merge/upsert messages into global store (dedupe by id/localId) ---
+  const mergeMessages = useCallback(
+    (incoming: MessageType[]) => {
+      const existing = chatStoreGetState().messages || [];
+      const map = new Map<string, MessageType>();
+
+      // add existing messages (prefer earlier stored)
+      for (const m of existing) {
+        const key = m.id ?? m.localId;
+        if (!key) continue;
+        map.set(key, m);
+      }
+
+      
+      // merge incoming (overwrite/complete fields)
+      for (const m of incoming) {
+        const key = m.id ?? m.localId;
+        if (!key) continue;
+        const prev = map.get(key);
+        // prefer fields from incoming when available; preserve previous otherwise
+        map.set(key, { ...(prev || {}), ...m });
+      }
+
+      // create sorted array (asc by createdAt)
+      const merged = Array.from(map.values()).sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+
+      setMessages(merged);
+    },
+    [setMessages, chatStoreGetState]
+  );
 
   // --- Lógica de Filtrado de Mensajes ---
   const messages = useMemo(() => {
@@ -215,7 +249,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
       imageUrl: finalImageUrl, // Pasamos la URL final
     });
 
-    // 🔥 ACTUALIZAR EL MATCH EN LA STORE
+    // ACTUALIZAR EL MATCH EN LA STORE
     useChatStore.setState((state) => ({
       matches: state.matches.map((m) =>
         m.id === matchId
@@ -280,9 +314,9 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
         }
 
         const data = await response.json();
-        const newMessages: MessageType[] = data.messages;
-        setHasMoreRef.current(data.hasMore);
-        hasMoreRef.current = data.hasMore;
+        const newMessages: MessageType[] = data.messages ?? [];
+        setHasMoreRef.current = data.hasMore ?? false;
+        hasMoreRef.current = data.hasMore ?? false;
         console.log(
           `[CHAT] Data recibida. Mensajes: ${newMessages.length}, HasMore: ${data.hasMore}`
         );
@@ -292,10 +326,11 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
           //   setMessages([]);
           //   setHasMore(false);
           // } else if (isInitialLoad) {
-          setMessages(newMessages);
+          mergeMessages(newMessages);
         } else {
           // Carga subsiguiente (scroll infinito): añadimos al principio
-          prependMessages(newMessages);
+          const existing = chatStoreGetState().messages || [];
+          mergeMessages(newMessages.concat(existing));
         }
       } catch (error) {
         console.error("Error loading chat history:", error);
@@ -310,14 +345,14 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
         console.log(`[CHAT] Carga finalizada. isHistoryLoading: false`);
       }
     },
-    [matchId, setMessages, prependMessages, chatStoreGetState, currentUserId]
+    [matchId, mergeMessages, chatStoreGetState, currentUserId]
   );
 
   // --- Efecto de Carga Inicial y Lectura de Mensajes ---
   useEffect(() => {
     const store = chatStoreGetState();
     // Limpiamos los mensajes cada vez que cambia el matchId
-    store.setMessages([]);
+    // store.setMessages([]);
     setHasMore(true);
     hasMoreRef.current = true;
 
@@ -325,10 +360,12 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
 
     // Cuando se abre el chat, marcamos los mensajes entrantes como leídos
     if (matchId) {
-      store.markMessagesAsRead(matchId);
       markMessagesAsRead(matchId);
+      // markMessagesAsRead(matchId);
+      socketMarkMessagesAsRead(matchId);
     }
-  }, [matchId, loadHistory, chatStoreGetState, markMessagesAsRead]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [matchId, loadHistory]);
 
   // 📌 Al abrir un chat → reset unread (ya lo hace tu store)
   useEffect(() => {
@@ -603,10 +640,9 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     }
     relative
   `;
-
-          const isDeletedForMe =
-            Array.isArray(msg.deletedBy) &&
-            msg.deletedBy.includes(currentUserId);
+          const wasDeleted = Array.isArray(msg.deletedBy) && msg.deletedBy.length > 0;
+          const deletedForMe = msg.deletedBy?.includes(currentUserId);
+          const deletedByOther = wasDeleted && !deletedForMe;
 
           return (
             <div
@@ -615,18 +651,20 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
                 isSender ? "justify-end" : "justify-start"
               } w-full relative`}
             >
-              {isDeletedForMe ? (
+              {wasDeleted ? (
                 <div
-                  className={`${messageClasses} flex items-center justify-center text-gray-300 italic`}
+                  className={`${messageClasses} flex items-center justify-center text-gray-400 italic`}
                 >
-                  <div className="text-sm">
-                    Eliminaste este mensaje.
-                    <span className="block text-xs text-gray-400 mt-1">
+                  <div className="text-sm text-center px-2">
+                    {deletedForMe
+                    ? "Eliminaste este mensaje"
+                    : "Este mensaje fue eliminado"}
+                    <span className="block text-xs text-gray-300 mt-1">
                       {new Date(msg.createdAt).toLocaleTimeString([], {
                         hour: "2-digit",
                         minute: "2-digit",
                       })}
-                    </span>
+                    </span> 
                   </div>
                 </div>
               ) : (
