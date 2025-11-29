@@ -45,8 +45,10 @@ export async function PATCH(request: Request, { params }: { params: { matchId: s
     // la lógica de append, *debemos* mantener el Promise.all, pero limpiándolo.
     
     await Promise.all(messages.map(async (msg) => {
-      const existing = Array.isArray(msg.deletedBy) ? msg.deletedBy : [];
-      const alreadyDeleted = existing.some((e: any) => e && e.userId === currentUserId);
+    // const existing = Array.isArray(msg.deletedBy) ? msg.deletedBy : [];
+    const existing = (msg.deletedBy || []) as { userId: string, deletedAt: string }[];
+  
+    const alreadyDeleted = existing.some(e => e.userId === currentUserId);
       
       // Si ya está marcado por este usuario, no hacemos nada.
       if (alreadyDeleted) return null;
@@ -56,10 +58,11 @@ export async function PATCH(request: Request, { params }: { params: { matchId: s
       return prisma.message.update({
         where: { id: msg.id },
         data: {
-          deletedBy: newDeletedBy,
+          deletedBy: newDeletedBy as any,
         },
       });
-    }));
+    }).filter(p => p !== undefined)
+);
 
     return NextResponse.json({ success: true, message: "Conversation deleted for this user" });
   } catch (error) {
