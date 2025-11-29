@@ -41,6 +41,8 @@ export interface ChatStore {
   setMessages: (msgs: MessageType[]) => void;
   prependMessages: (msgs: MessageType[]) => void;
   addMessage: (msg: MessageType) => void;
+  upsertMessages: (msgs: MessageType[]) => void;
+
   
   // Actualizamos el estado de un mensaje (logica de Optimistic UI)
   updateMessageStatus: (localId: string, newStatus: MessageStatus, prismaId?: string) => void;
@@ -52,6 +54,7 @@ export interface ChatStore {
   // Reacciones al realtime de borrado
   deleteMessageRealtime: (messageId: string, userId: string) => void;
   deleteConversationRealtime: (matchId: string, userId: string) => void;
+  deleteConversationAndMatch: (matchId: string, currentUserId: string) => void;
 
   setLikesSent: (userIds: string[]) => void;
   setLikesReceived: (userIds: string[]) => void;
@@ -122,6 +125,24 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
 
   prependMessages: (msgs) => set((state) => ({ messages: [...msgs, ...state.messages] })),
 
+  upsertMessages: (newMessages: MessageType[]) =>
+  set((state) => {
+    const merged = [...state.messages];
+
+    newMessages.forEach((msg) => {
+      const exists = merged.some((m) => m.id === msg.id);
+      if (!exists) merged.push(msg);
+    });
+
+    merged.sort(
+      (a, b) =>
+        new Date(a.createdAt).getTime() -
+        new Date(b.createdAt).getTime()
+    );
+
+    return { messages: merged };
+  }),
+
   addMessage: (msg) =>
     set((state) => {
       const isChatOpen = state.activeMatchId === msg.senderId;
@@ -138,26 +159,6 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
       matches: updatedMatches
     };
   }),
-  // const isIncoming =
-  //   msg.receiverId === state.activeMatchId ||
-  //   msg.senderId !== state.activeMatchId;
-  // const otherUser = msg.senderId;
-
-  // let updatedMatches = state.matches;
-
-  // if (msg.senderId !== state.activeMatchId) {
-  //   // 👉 Incrementar unread SOLO si chat NO está abierto
-  //   updatedMatches = state.matches.map((m) =>
-  //     m.id === otherUser
-  //       ? { ...m, unreadCount: (m.unreadCount ?? 0) + 1 }
-  //       : m
-  //   );
-  // }
-
-  // return {
-  //   messages: [...state.messages, msg],
-  //   matches: updatedMatches
-  // };
     
   updateMessageStatus: (localId, newStatus, prismaId) => set((state) => ({
     messages: state.messages.map((msg) =>
@@ -216,40 +217,40 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   
   removeConversation: (matchId, userId) => get().deleteConversationRealtime(matchId, userId),
 
-  // removeMessage: (messageId) =>
-  // set((state) => ({
-  //   messages: state.messages.map((msg) =>
-  //     msg.id === messageId
-  //     ? {
-  //         ...msg,
-  //         deletedBy: Array.isArray(msg.deletedBy)
-  //         ? [...msg.deletedBy, state.activeMatchId || '']
-  //         : [state.activeMatchId || ''],
-  //         content: '', // opcional: vaciar contenido
-  //         imageUrl: null, // opcional: eliminar imagen
-  //       }
-  //     : msg
-  //   ),
-  // })),
+  deleteConversationAndMatch: async (matchId: string, currentUserId: string) => {
+    try {
+        // 1. Llamada a la API de borrado
+        const response = await fetch(`/api/chat/history/${matchId}/delete`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+        });
 
-  // removeConversation: (matchId) =>
-  // set((state) => ({
-  //   messages: state.messages.map((msg) =>
-  //     (msg.senderId === matchId || msg.receiverId === matchId)
-  //     ? {
-  //         ...msg,
-  //         deletedBy: Array.isArray(msg.deletedBy)
-  //         ? [...msg.deletedBy, state.activeMatchId || '']
-  //         : [state.activeMatchId || ''],
-  //         content: '',
-  //         imageUrl: null,
-  //       }
-  //     : msg
-  //   ),
-  //   matches: state.matches.map(m =>
-  //     m.id === matchId ? { ...m, unreadCount: 0 } : m
-  //   )
-  // })),
+        if (!response.ok) {
+            console.error('Error al borrar conversación en el servidor');
+            // Aquí podrías agregar un toast o manejar el error
+            return false;
+        }
+
+        // 2. Borrado local: Marca los mensajes como borrados (Soft Delete)
+        get().removeConversation(matchId, currentUserId);
+
+        // 3. Borrado del match de la lista: Esto resuelve el problema de que el chat reaparezca.
+        set(state => ({
+            matches: state.matches.filter(m => m.id !== matchId)
+        }));
+
+        // 4. Reset del chat activo si estábamos en él
+        if (get().activeMatchId === matchId) {
+            set({ activeMatchId: null, messages: [] });
+        }
+
+        return true;
+
+    } catch (error) {
+        console.error('Error durante la solicitud de borrado:', error);
+        return false;
+    }
+  },
   
   // ------- Gestión de estado de usuarios -------
   updateUserStatus: (id, online) => set((state) => ({
@@ -275,13 +276,6 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   },
 
   getTotalUnread: () => get().matches.reduce((t, m) => t + (m.unreadCount ?? 0), 0),
-
-  // getTotalUnread: () => {
-  //   return get().matches.reduce(
-  //     (total, m) => total + (m.unreadCount ?? 0),
-  //     0
-  //   );
-  // },
 
   setLikesSent: (userIds) => set({ likesSent: userIds }),
   setLikesReceived: (userIds) => set({ likesReceived: userIds }),
