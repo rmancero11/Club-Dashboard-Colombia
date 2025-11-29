@@ -13,6 +13,7 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ currentUserId }) => {
   const matches = useChatStore((state) => state.matches);
   const likesReceived = useChatStore((state) => state.likesReceived);
   const setActiveChat = useChatStore((state) => state.setActiveChat);
+  const messages = useChatStore(state => state.messages);
 
   const [open, setOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
@@ -27,6 +28,21 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ currentUserId }) => {
 
   // SI NO HAY MATCHES NI LIKES → IGUAL mostramos la barrita en mobile
   const empty = matches.length === 0 && likesReceived.length === 0;
+
+  // Helper: obtener el último mensaje entre currentUser y otherId
+  const getLastMessageForMatch = (otherId: string) => {
+    // Recorremos desde el final (mensajes más recientes)
+    for (let i = messages.length - 1; i >= 0; i--) {
+      const m = messages[i];
+      if (
+        (m.senderId === currentUserId && m.receiverId === otherId) ||
+        (m.senderId === otherId && m.receiverId === currentUserId)
+      ) {
+        return m;
+      }
+    }
+    return null;
+  };
 
   /* -------------------------- MOBILE VERSION ------------------------------- */
   if (isMobile) {
@@ -76,38 +92,66 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ currentUserId }) => {
             )}
 
             {!empty &&
-              matches.map((match) => (
-                <div
-                  key={match.id}
-                  className="flex items-center p-2 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors"
-                  onClick={() => setActiveChat(match.id)}
-                >
-                  <img
-                    src={match.avatar}
-                    alt={match.name ?? "Usuario"}
-                    className="w-10 h-10 rounded-full mr-3 object-cover"
-                  />
+              matches.map((match) => {
+                const lastMessage = getLastMessageForMatch(match.id);
 
-                  <div className="flex-grow">
-                    <span className="font-medium block truncate">
-                      {match.name ||
-                        `Match ID: ${match.id.substring(0, 4)}...`}
-                    </span>
+                // Construir el texto breve (si fue borrado o foto, etc)
+                let briefText = "Iniciar conversación...";
+                if (match.isBlockedByMe) briefText = "Usuario bloqueado.";
+                else if (lastMessage) {
+                  if (Array.isArray(lastMessage.deletedBy) && lastMessage.deletedBy.length > 0) {
+                    // Si el último mensaje fue borrado (por alguien), mostramos texto adecuado
+                    const deletedByMe = lastMessage.deletedBy.includes(currentUserId);
+                    briefText = deletedByMe ? "Eliminaste este mensaje." : "Este mensaje fue eliminado.";
+                  } else if (lastMessage.content && lastMessage.content.trim().length > 0) {
+                    briefText = lastMessage.content;
+                  } else if (lastMessage.imageUrl) {
+                    briefText = "📷 Foto";
+                  }
+                } else if (match.lastMessageContent) {
+                  briefText = match.lastMessageContent;
+                }
+                return (
+                  <div
+                    key={match.id}
+                    className="flex items-center p-2 rounded-lg hover:bg-gray-200 cursor-pointer transition-colors"
+                    onClick={() => setActiveChat(match.id)}
+                  >
+                    <img
+                      src={match.avatar}
+                      alt={match.name ?? "Usuario"}
+                      className="w-10 h-10 rounded-full mr-3 object-cover"
+                    />
+
+                    <div className="flex-grow min-w-0">
+                      <span className="font-medium block truncate">
+                        {match.name ||
+                          `Match ID: ${match.id.substring(0, 4)}...`}
+                      </span>
+                      <span className="text-sm text-gray-600 block truncate">
+                        {briefText}
+                      </span>
+
+                      {/* preview del último mensaje real */}
+                      {/* <span className="text-sm text-gray-600 block truncate">
+                        {lastMessage?.content ?? "Iniciar conversación..."}
+                      </span> */}
+                    </div>
+
+                    {onlineUsers[match.id] ? (
+                      <span
+                        className="w-3 h-3 bg-green-500 rounded-full border-2 border-white"
+                        title="Online"
+                      ></span>
+                    ) : (
+                      <span
+                        className="w-3 h-3 bg-gray-400 rounded-full border-2 border-white"
+                        title="Offline"
+                      ></span>
+                    )}
                   </div>
-
-                  {onlineUsers[match.id] ? (
-                    <span
-                      className="w-3 h-3 bg-green-500 rounded-full border-2 border-white"
-                      title="Online"
-                    ></span>
-                  ) : (
-                    <span
-                      className="w-3 h-3 bg-gray-400 rounded-full border-2 border-white"
-                      title="Offline"
-                    ></span>
-                  )}
-                </div>
-              ))}
+                );
+              })}
           </div>
         </div>
       </>

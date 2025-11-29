@@ -6,6 +6,20 @@ import { useSocket } from '@/app/hooks/useSocket';
 import { useChatStore, MatchContact } from '@/store/chatStore';
 import ChatModal from '../ChatModal';
 import { usePathname } from 'next/navigation';
+import { MessageType } from '@/app/types/chat';
+
+const normalizeMessage = (msg: any): MessageType => ({
+  id: msg.id ?? crypto.randomUUID(),
+  senderId: msg.senderId ?? "",
+  receiverId: msg.receiverId ?? "",
+  content: msg.content ?? "",
+  createdAt: msg.createdAt ? new Date(msg.createdAt) : new Date(),
+  // updatedAt: msg.updatedAt ? new Date(msg.updatedAt) : new Date(),
+  imageUrl: msg.imageUrl ?? null,
+  readAt: msg.readAt ?? null,
+  deletedBy: msg.deletedBy ?? [],
+  status: msg.status ?? "sent",
+});
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   
@@ -19,10 +33,11 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const isExpanded = useChatStore(state => state.isExpanded);
   const setMatches = useChatStore(state => state.setMatches);
+  const upsertMessages = useChatStore(state => state.upsertMessages);
 
   // Función para cargar la data inicial (lista de Matches)
   const loadInitialChatData = useCallback(async () => {
-    if (!user || !user.id) return;
+    if (!user || !user?.id) return;
 
     try {
       // Llamamos a la API REST
@@ -37,10 +52,31 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
       // Establcemos la lista de matches en Zustand
       setMatches(matches);      
 
+      // -------------------------------
+      //  📌  Insertamos SOLO previews
+      // -------------------------------
+      const previewMessages = matches
+        .filter(m => m.lastMessageContent)
+        .map(m =>
+        normalizeMessage({
+          id: `preview-${m.id}`,
+          senderId: m.lastMessageContent?.startsWith("Tú:") ? currentUserId! : m.id,
+          receiverId: m.lastMessageContent?.startsWith("Tú:") ? m.id : currentUserId!,
+          content: m.lastMessageContent?.replace("Tú: ", ""),
+          createdAt: m.lastMessageAt,
+          updatedAt: m.lastMessageAt,
+        })
+      );
+
+      // Upsert SOLO previews → sin mezclar mensajes reales
+      if (previewMessages.length > 0) {
+        upsertMessages(previewMessages);
+      }
+
     } catch (error) {
       console.error('Error loading initial chat data:', error);
     }
-  }, [user, setMatches]); // Dependencias: user (para verificar ID) y setMatches
+  }, [user, setMatches, upsertMessages, currentUserId]);// Dependencias: user (para verificar ID) y setMatches
 
   // ---- Conectamos al socket, pasamos el estado de expansión y la función de recarga ----
   // El hook useSocket ahora devolverá las funciones del socket.
@@ -50,7 +86,7 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // Efecto inicial para la PRIMERA carga de datos
   useEffect( () => {
     // Si hay usuario, cargamos la data.
-    if (user && user.id) {
+    if (user && user?.id) {
       loadInitialChatData();
     }
   }, [user, loadInitialChatData]);
@@ -58,9 +94,10 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const BLOCKED_ROUTES = ['api/auth/login', 'api/auth/accept-register'];
   const isBlockedRoute = BLOCKED_ROUTES.includes(pathname);
 
-  if (isLoading) return <>{children}</>;
-  if (isBlockedRoute) return <>{children}</>;
-  if (!currentUserId) return <>{children}</>;
+  if (isLoading || isBlockedRoute || !currentUserId) return <>{children}</>;
+  // if (isLoading) return <>{children}</>;
+  // if (isBlockedRoute) return <>{children}</>;
+  // if (!currentUserId) return <>{children}</>;
 
   return (
     <>
