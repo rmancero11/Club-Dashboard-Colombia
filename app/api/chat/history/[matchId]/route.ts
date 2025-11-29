@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server";
 import { getAuth } from "@/app/lib/auth";
 import { PrismaClient } from "@prisma/client";
-import { MessageType } from "@/app/types/chat";
 
 const prisma = new PrismaClient();
 
@@ -29,22 +28,16 @@ export async function GET(request: Request, { params }: { params: { matchId: str
     const lastMessageId = searchParams.get('lastMessageId');
 
     // ----- Obtenemos el historial de mensajes -----
+    // Obtener mensajes filtrando los que el usuario borró
     // Buscamos msgs donde: (Soy yo el remitente y él el receptor) O (Soy yo el receptor y él el remitente)
-    const messages = await prisma.message.findMany({
+    const allMessages = await prisma.message.findMany({
       where: {
         OR: [
           { senderId: currentUserId, receiverId: matchId },
           { senderId: matchId, receiverId: currentUserId },
         ],
       },
-      ...(lastMessageId && {
-        cursor: { id: lastMessageId },
-        skip: 1,
-      }),
-      take: MESSAGES_PER_PAGE,
-      orderBy: {
-        createdAt: 'desc', // Ordemanos cronologicamente (usamos el cursor-mas antiguos primero)
-      },
+      orderBy: { createdAt: "desc" },
       select: {
         id: true,
         senderId: true,
@@ -57,28 +50,46 @@ export async function GET(request: Request, { params }: { params: { matchId: str
       },
     });
 
+    // ----- 3. Filtrar mensajes eliminados por el usuario -----
+    const visibleMessages = allMessages.filter((msg) => {
+      const deletedArray = Array.isArray(msg.deletedBy) ? msg.deletedBy : [];
 
-
-    // 3. Formateamos y devolvemos los mensajes
-    // Los devolvemos en el orden cronológico correcto (ascendente) para el frontend
-    const formattedMessages = messages
-      .map(msg => ({
-        ...msg,
-        // Añadimos status 'sent' ya que vienen de la DB
-        status: 'sent', 
-        localId: msg.id, // Usamos el ID de la DB como localId
-      }))
-      .reverse(); // Invertimos para que los más antiguos queden arriba
-
-    // Determinamos si hay más mensajes disponibles
-    const hasMore = messages.length === MESSAGES_PER_PAGE;
-    
-    // Devolvemos los mensajes y el indicador de paginación
-    return NextResponse.json({ 
-        messages: formattedMessages, 
-        hasMore: hasMore,
+      // Si el usuario aparece en deletedBy → NO mostrar
+      return !deletedArray.some((entry: any) => entry?.userId === currentUserId);
     });
 
+    // ----- 4. Aplicar paginación manualmente -----
+    let paginated: typeof visibleMessages;
+
+    if (lastMessageId) {
+      const index = visibleMessages.findIndex((m) => m.id === lastMessageId);
+
+      if (index === -1) {
+        paginated = visibleMessages.slice(0, MESSAGES_PER_PAGE);
+      } else {
+        paginated = visibleMessages.slice(index + 1, index + 1 + MESSAGES_PER_PAGE);
+      }
+    } else {
+      paginated = visibleMessages.slice(0, MESSAGES_PER_PAGE);
+    }
+
+    const hasMore = visibleMessages.length > paginated.length;
+
+    // 3. Formateamos y devolvemos los mensajes
+    // ----- 5. Añadir status + localId y devolver en orden ascendente -----
+    const formattedMessages = paginated
+      .map((msg) => ({
+        ...msg,
+        status: "sent",
+        localId: msg.id,
+      }))
+      .reverse(); // más antiguos primero
+
+    return NextResponse.json({
+      messages: formattedMessages,
+      hasMore,
+    });
+    
   }catch (error) {
     console.error(`Error fetching messages for match ${params.matchId}:`, error);
     return NextResponse.json({message: 'Internal Server Error'}, {status: 500});

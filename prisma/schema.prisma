@@ -452,7 +452,7 @@ model Message {
   imageUrl      String?
   createdAt     DateTime @default(now())
   readAt        DateTime?
-  deletedBy     Json?   // Para eliminación logica por usuario 
+  deletedBy     Json[]   // Para eliminación logica por usuario 
 
   // Relaciones con la tabla User
   sender        User  @relation("SentMessages", fields: [senderId], references: [id])
