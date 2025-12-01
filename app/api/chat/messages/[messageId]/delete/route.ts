@@ -33,8 +33,9 @@ export async function PATCH(request: Request, { params }: { params: { messageId:
     // Construir entry y nuevo array (idempotente)
     const deletionEntry = { userId: currentUserId, deletedAt: new Date().toISOString() };
 
-    const existing = Array.isArray(message.deletedBy) ? message.deletedBy : [];
-    const alreadyDeletedByUser = existing.some((e: any) => e && e.userId === currentUserId);
+    const existing = (message.deletedBy || []) as {userId: string, deletedAt: string} [];
+
+    const alreadyDeletedByUser = existing.some(e => e.userId === currentUserId);
 
     if (alreadyDeletedByUser) {
       // Nada que hacer: ya marcado por este usuario
@@ -46,7 +47,7 @@ export async function PATCH(request: Request, { params }: { params: { messageId:
     const updated = await prisma.message.update({
       where: { id: messageId },
       data: {
-        deletedBy: newDeletedBy,
+        deletedBy: newDeletedBy as any,
         content: "",      // vaciar contenido para que no sea visible
         imageUrl: null,   // eliminar imagen si existía
       },
