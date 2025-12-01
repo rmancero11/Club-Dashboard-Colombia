@@ -132,10 +132,6 @@ const ChatSidebar: React.FC<ChatSidebarProps> = ({ currentUserId }) => {
                         {briefText}
                       </span>
 
-                      {/* preview del último mensaje real */}
-                      {/* <span className="text-sm text-gray-600 block truncate">
-                        {lastMessage?.content ?? "Iniciar conversación..."}
-                      </span> */}
                     </div>
 
                     {onlineUsers[match.id] ? (

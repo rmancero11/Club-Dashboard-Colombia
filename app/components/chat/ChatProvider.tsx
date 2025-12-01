@@ -4,7 +4,7 @@ import React, { useEffect, useCallback } from 'react';
 import { useAuth } from '@/app/hooks/useAuth';
 import { useSocket } from '@/app/hooks/useSocket';
 import { useChatStore, MatchContact } from '@/store/chatStore';
-import ChatModal from '../ChatModal';
+import ChatModal from './ChatModal';
 import { usePathname } from 'next/navigation';
 import { MessageType } from '@/app/types/chat';
 
@@ -95,9 +95,6 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const isBlockedRoute = BLOCKED_ROUTES.includes(pathname);
 
   if (isLoading || isBlockedRoute || !currentUserId) return <>{children}</>;
-  // if (isLoading) return <>{children}</>;
-  // if (isBlockedRoute) return <>{children}</>;
-  // if (!currentUserId) return <>{children}</>;
 
   return (
     <>
