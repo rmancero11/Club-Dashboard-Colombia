@@ -322,10 +322,6 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
         );
 
         if (isInitialLoad) {
-          // Si no hay mensajes, setMessages([]) se llama, y la carga finaliza.
-          //   setMessages([]);
-          //   setHasMore(false);
-          // } else if (isInitialLoad) {
           mergeMessages(newMessages);
         } else {
           // Carga subsiguiente (scroll infinito): añadimos al principio
@@ -351,8 +347,6 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   // --- Efecto de Carga Inicial y Lectura de Mensajes ---
   useEffect(() => {
     const store = chatStoreGetState();
-    // Limpiamos los mensajes cada vez que cambia el matchId
-    // store.setMessages([]);
     setHasMore(true);
     hasMoreRef.current = true;
 
@@ -361,7 +355,6 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     // Cuando se abre el chat, marcamos los mensajes entrantes como leídos
     if (matchId) {
       markMessagesAsRead(matchId);
-      // markMessagesAsRead(matchId);
       socketMarkMessagesAsRead(matchId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -446,12 +439,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
       }
       return msg;
     });
-    // const filtered = rawMessages.filter(msg =>
-    //   !(
-    //     (msg.senderId === matchId && msg.receiverId === currentUserId) ||
-    //     (msg.senderId === currentUserId && msg.receiverId === matchId)
-    //   )
-    // );
+    
     setMessages(updated);
     setShowHeaderMenu(false);
   };

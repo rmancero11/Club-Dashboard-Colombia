@@ -1,6 +1,6 @@
 import React, { useMemo } from 'react';
 import { useChatStore } from '@/store/chatStore';
-import { MessageType } from '../types/chat';
+import { MessageType } from '../../types/chat';
 
 // Icono de búsqueda
 const SearchIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -121,16 +121,7 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
                 briefText = "Iniciar conversación...";
               }
             }
-            // if (wasDeleted) {
-            //   // Preview del mensaje eliminado
-            //   briefText = deletedForMe
-            //     ? "Eliminaste este mensaje"
-            //     : "Este mensaje fue eliminado";
-            // } else if (lastMsg.content && lastMsg.content.trim().length > 0) {
-            //   briefText = lastMsg.content;
-            // } else if (lastMsg.imageUrl) {
-            //   briefText = "📷 Foto";
-            // }
+          
           }
           const lastAt = lastMsg?.createdAt ?? match.lastMessageAt;
           const unread = getUnreadCount(match.id);
