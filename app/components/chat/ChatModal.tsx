@@ -3,7 +3,7 @@
 import React from 'react';
 import { useChatStore } from '@/store/chatStore';
 import ChatList from './ChatList';
-import ConversationWindow from './chat/ConversationWindow';
+import ConversationWindow from './ConversationWindow';
 
 // Íconos
 const MinimizeIcon = (props: React.SVGProps<SVGSVGElement>) => (

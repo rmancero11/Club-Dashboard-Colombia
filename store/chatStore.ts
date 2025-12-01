@@ -262,8 +262,7 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     matches: state.matches.map((match) => 
       match.id === blockedId ? { ...match, isBlockedByMe: isBlocked } : match
     ),
-    // Al bloquear, se desactiva la conversación para forzar a volver a la lista
-    // activeMatchId: isBlocked ? (state.activeMatchId === blockedId ? null : state.activeMatchId) : state.activeMatchId,
+  
     activeMatchId: 
     isBlocked && state.activeMatchId === blockedId
     ? null

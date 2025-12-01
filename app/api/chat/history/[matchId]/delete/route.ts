@@ -37,13 +37,8 @@ export async function PATCH(request: Request, { params }: { params: { matchId: s
 
     const deletionEntry = { userId: currentUserId, deletedAt: new Date().toISOString() };
 
-    // Paso 2: Actualizar todos los mensajes en una sola operación
-    // ¡CRUCIAL! Para un soft delete masivo, es mejor usar updateMany. 
-    // Sin embargo, como tu campo 'deletedBy' es un array JSON que requiere 
-    // la lógica de append, *debemos* mantener el Promise.all, pero limpiándolo.
     
     await Promise.all(messages.map(async (msg) => {
-    // const existing = Array.isArray(msg.deletedBy) ? msg.deletedBy : [];
     const existing = (msg.deletedBy || []) as { userId: string, deletedAt: string }[];
   
     const alreadyDeleted = existing.some(e => e.userId === currentUserId);

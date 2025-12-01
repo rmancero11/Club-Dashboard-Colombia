@@ -5,7 +5,6 @@ import { getSocket, initializeSocket } from '../utils/socket';
 
 interface UseSocketReturn {
   sendMessage: (data: MessageData) => void;
-  // deleteMessage: (messageId: string, receiverId: string) => void;
   deleteMessage: (messageId: string, matchId: string) => Promise<void>;
   deleteConversation: (matchId: string) => Promise<void>;
   blockUser: (blockedUserId: string) => void;
@@ -25,12 +24,6 @@ export const useSocket = (
   // Helper para acceder a store acciones
   const store = useChatStore.getState();
 
-  // // --- Función estable para marcar mensajes como leídos ---
-  // const markMessagesAsRead = useCallback((matchId: string) => {
-  //   if (!socketInstance || !userId) return;
-  //   socketInstance.emit('mark-messages-read', matchId);
-  // }, [userId, socketInstance]); // Agregamos socketInstance como dependencia
-
   // ------- Mark AS READ (emit) --------
   const markMessagesAsRead = useCallback(
     (matchId: string) => {
@@ -49,16 +42,6 @@ export const useSocket = (
 
     // --- Listeners de chat ---
     const store = useChatStore.getState();
-    
-    // // Evento de Éxito de Bloqueo
-    // socketInstance.on('block-success', (data: { blockedId: string }) => {
-    //   // 1. Avisa al usuario bloqueador (User1)
-    //   alert('✅ Usuario bloqueado exitosamente.'); 
-    //   // 2. Actualiza el estado local (isBlockedByMe = true)
-    //   store.updateBlockStatus(data.blockedId, true);
-    //   // 3. Recarga la lista de matches para eliminar el chat de la lista
-    //   reloadMatches();
-    // });
 
     // --- LISTENERS (definidos como funciones para off en cleanup) ---
     const onUserBlockedSuccess = (data: { blockedId: string }) => {
@@ -71,44 +54,13 @@ export const useSocket = (
       store.setActiveChat(null);
     };
 
-    // Evento de Éxito de bloqueo
-    // const onBlockSuccess = (data: { blockedId: string }) => {
-    //   alert('✅ Usuario bloqueado exitosamente.'); 
-    //   store.updateBlockStatus(data.blockedId, true);
-    //   reloadMatches();
-    // };
-
-    // // Evento de Éxito de Desbloqueo
-    // socketInstance.on('unblock-success', (data: { blockedId: string }) => {
-    //   // 1. Avisa al usuario desbloqueador (User1)
-    //   alert('✅ Usuario desbloqueado exitosamente.'); 
-    //   // 2. Actualiza el estado local (isBlockedByMe = false)
-    //   store.updateBlockStatus(data.blockedId, false);
-    //   // 3. Recarga la lista de matches para eliminar el chat de la lista
-    //   reloadMatches();
-    // });
-
+    // Evento de Éxito de Desbloqueo
     const onUnblockSuccess = (data: { blockedId: string }) => {
       store.updateBlockStatus(data.blockedId, false);
       reloadMatches();
       try { window.alert('✅ Usuario desbloqueado exitosamente.'); } catch {}
     };
 
-    // Evento de Éxito de Desbloqueo
-    // const onUnblockSuccess = (data: { blockedId: string }) => {
-    //   alert('✅ Usuario desbloqueado exitosamente.'); 
-    //   store.updateBlockStatus(data.blockedId, false);
-    //   reloadMatches();
-    // };
-
-    // // Evento si el usuario actual es bloqueado por otro (User2)
-    // socketInstance.on('you-are-blocked', (data: { blockerId: string }) => {
-    //   alert(`❌ Has sido bloqueado por un usuario. Tu lista de chats se ha actualizado.`);
-    //   // 1. Recargamos la lista de matches para filtrar al usuario que te bloqueó
-    //   reloadMatches();
-    //   // 2. Cerramos la ventana de chat si estaba abierta con él
-    //   store.setActiveChat(null);
-    // });
 
     // Evento si el usuario actual es bloqueado por otro (User2)
     const onYouAreBlocked = (data: { blockerId: string }) => {
@@ -118,27 +70,6 @@ export const useSocket = (
       store.setActiveChat(null);
     };
 
-    // // Recibir nuevo mensaje
-    // socketInstance.on('receive-message', (message: MessageType) => {
-    //   console.log('📩 Nuevo mensaje recibido. ID:', message.id);
-    //   store.addMessage({ ...message, status: 'sent' }); // Recibido es siempre 'sent'
-      
-    //   // Verificamos si el modal está expandido Y el chat activo es el de este remitente
-    //   const isCurrentChat = store.activeMatchId === message.senderId;
-
-    //   if (store.isExpanded && isCurrentChat) {
-    //     // Si estamos viendo la conversación, lo marcamos como leído en el servidor
-    //     markMessagesAsRead(message.senderId); // Usamos la función local
-    //   }
-    //   // // Si el chat está abierto, emitimos evento para marcar como leído
-    //   // if (store.activeMatchId === message.senderId && store.isExpanded) {
-    //   //   socketInstance?.emit('message-read', { 
-    //   //     messageId: message.id, 
-    //   //     readerId: userId,
-    //   //     senderId: message.senderId
-    //   //   });
-    //   // }
-    // });
 
     // Recibir nuevo mensaje
     const onReceiveMessage = (message: MessageType) => {
@@ -151,22 +82,7 @@ export const useSocket = (
         markMessagesAsRead(message.senderId);
       }
     };
-    
-    // // Confirmamos el envío de un mensaje
-    // socketInstance.on('message-sent-success', (message: MessageType & { localId: string }) => {
-    //   console.log('📤 Mensaje enviado con éxito y guardado. ID:', message.id);
-    //   store.updateMessageStatus(message.localId, 'sent', message.id);
-
-    //   // Ya que se envió un nuevo mensaje, recargamos la lista de matches
-    //   reloadMatches();
-    // });
-
-    // Confirmamos el envío de un mensaje
-    // const onMessageSentSuccess = (message: MessageType & { localId: string }) => {
-    //   console.log('📤 Mensaje enviado con éxito y guardado. ID:', message.id);
-    //   store.updateMessageStatus(message.localId, 'sent', message.id);
-    //   reloadMatches();
-    // };
+ 
 
     const onMessageSentSuccess = (message: MessageType & { localId?: string }) => {
       // Actualizamos estado del mensaje local (optimistic)
@@ -176,13 +92,6 @@ export const useSocket = (
       reloadMatches();
     };
 
-    // // Notificación de error en el envío
-    // socketInstance.on('message-error', (data: { error: string, localId?: string }) => {
-    //   console.error('❌ Error al enviar mensaje:', data.error);
-    //   if (data.localId){
-    //     store.updateMessageStatus(data.localId, 'failed');
-    //   }
-    // });
 
     // Notificación de error en el envío
     const onMessageError = (data: { error: string, localId?: string }) => {
@@ -192,13 +101,6 @@ export const useSocket = (
       }
     };
 
-    // // Evento de eliminación de mensaje
-    // socketInstance.on('message-deleted', (data: { messageId: string, receiverId: string, userId: string }) => {
-    //   // Verifica si el mensaje es de la conversación actual (donde el receiver es el match)
-    //   if (store.activeMatchId === data.userId) {
-    //     store.removeMessage(data.messageId);
-    //   }
-    // });
 
     // Evento de eliminación de mensaje
     // Payload esperado: { messageId: string, deletedBy: string, matchId?: string, receiverId?: string }
@@ -217,21 +119,6 @@ export const useSocket = (
       }
     };
 
-    // const onMessageDeleted = (data: { messageId: string, receiverId: string, userId: string }) => {
-    //   if (store.activeMatchId === data.userId) {
-    //     store.removeMessage(data.messageId);
-    //   }
-    // };
-
-    // // Evento que notifica que los mensajes que enviaste han sido leídos por el receptor
-    // socketInstance.on('messages-read-by-receiver', (data: { readerId: string, senderId: string }) => {
-    // const markMessagesAsReadAction = useChatStore.getState().markMessagesAsRead;
-  
-    //   // Solo actualizamos si el que leyó es el match y el que envió soy yo (senderId)
-    //   if (data.senderId === userId) {
-    //     markMessagesAsReadAction(data.readerId);
-    //   }
-    // });
 
     // Evento que notifica que los mensajes que enviaste han sido leídos por el receptor
     const onMessagesReadByReceiver = (data: { readerId: string, senderId: string }) => {
@@ -243,29 +130,19 @@ export const useSocket = (
         useChatStore.getState().markMessageAsRead(data.readerId);
       }
     };
-    
-    // // Confirmación de lectura (cuando el otro usuario lo lee)
-    // socketInstance.on('message-marked-read', (data: { messageId: string }) => {
-    //   store.markMessageAsRead(data.messageId);
-    // });
+
     
     // Confirmación de lectura (cuando el otro usuario lo lee)
     const onMessageMarkedRead = (data: { messageId: string }) => {
       store.markMessageAsRead(data.messageId);
     };
 
-    // // Actualizamos el estado ONLINE/OFFLINE
-    // socketInstance.on('user-status-change', (data: UserStatusChange) => {
-    //   store.updateUserStatus(data.id, data.online);
-    // });
 
     // Actualizamos el estado ONLINE/OFFLINE
     const onUserStatusChange = (data: UserStatusChange) => {
       store.updateUserStatus(data.id, data.online);
     };
     
-    //   // Fin del initializeSocket
-    // initializeSocket();
     
     // 2. Registramos todos los listeners
     currentSocket.on('user-blocked-success', onUserBlockedSuccess);
@@ -284,18 +161,6 @@ export const useSocket = (
     
     currentSocket.on('user-status-change', onUserStatusChange);
 
-
-
-    // // Limpieza: No desconectamos el socket, pero removemos la función initializeSocket
-    // return () => {
-    //   if (socketInstance) {
-    //     console.log('🔌 Desconectando Socket...');
-    //     // Eliminamos todos los listeners para evitar Memory Leaks
-    //     socketInstance.offAny();
-    //     socketInstance.disconnect();
-    //     socketInstance = null; // Limpiamos la referencia global
-    //   }
-    // };
 
     // 3. Limpieza (CLEANUP): **SOLO eliminamos los listeners, NO la conexión global.**
     return () => {
@@ -399,51 +264,6 @@ export const useSocket = (
     [userId, store]
   );
   
-  // Función publica para enviar mensajes
-  // const sendMessage = (data: MessageData) => {
-  //   const addMessageAction = useChatStore.getState().addMessage; 
-
-  //   if (!socketInstance) {
-  //     console.error('⚠️ Socket no está conectado.');
-  //     return;
-  //   }
-  //   const localId = Date.now().toString(); // Generamos un ID temporal para la Optimistic UI
-
-  //   // Agregamos el mensaje al estado de Zunstand inmediatamente con status 'pending'
-  //   addMessageAction({
-  //     // Propiedades de MessageData
-  //     receiverId: data.receiverId,
-  //     content: data.content,
-  //     imageUrl: data.imageUrl ?? null,
-
-  //     // Propiedades de MessageType
-  //     id: localId, // Usamos el ID temporal como ID principal
-  //     localId: localId, // Y el ID temporal como ID secundario
-  //     senderId: userId,
-  //     createdAt: new Date().toISOString(),
-  //     readAt: null,
-  //     deletedBy: null,
-  //     status: 'pending',
-  //   } as MessageType); // Usamos MessageType para tipado temporal
-
-  //   // Emitimos el mensaje al servidor (incluyendo el localId temporal)
-  //   socketInstance.emit('send-message', {
-  //     ...data,
-  //     senderId: userId,
-  //     localId: localId, // Enviamos el ID temporal para que el servidor lo devuelva
-  //   });
-  // }
-
-  // Función para eliminar un mensaje
-  // const deleteMessage = (messageId: string, receiverId: string) => {
-  //   if (!socketInstance || !userId) return;
-
-  //   socketInstance.emit('delete-message', {
-  //     messageId: messageId,
-  //     userId: userId,
-  //     matchId: receiverId,
-  //   });
-  // }
 
   // --- DELETE CONVERSATION ---
   // Similar: optimistic local -> API PATCH -> socket emit
@@ -489,25 +309,6 @@ export const useSocket = (
     [userId, store]
   );
 
-  // // Función para bloquear un usuario
-  // const blockUser = (blockedUserId: string) => {
-  //   if (socketInstance) {
-  //     // Pedimos confirmación al usuario antes de bloquear
-  //     if (window.confirm(`⚠️ ¿Estás seguro de que quieres bloquear a este usuario?`)) {
-  //       socketInstance.emit('block-user', { blockedUserId: blockedUserId });
-  //     }
-  //   }
-  //   useChatStore.getState().setActiveChat(null);
-  // };
-
-  // // Función para desbloquear un usuario
-  // const unblockUser = (blockedUserId: string) => {
-  //   if (socketInstance) {
-  //     if (window.confirm(`⚠️ ¿Estás seguro de que quieres desbloquear a este usuario?`)) {
-  //       socketInstance.emit('unblock-user', { blockedUserId: blockedUserId });
-  //     }
-  //   }
-  // };
 
   // --- BLOCK / UNBLOCK ---
   const blockUser = useCallback(

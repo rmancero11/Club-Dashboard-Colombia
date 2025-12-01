@@ -86,46 +86,6 @@ export async function GET(request: Request, { params }: { params: { matchId: str
       hasMore,
     });
 
-
-    // // ----- 3. Filtrar mensajes eliminados por el usuario -----
-    // const visibleMessages = allMessages.filter((msg) => {
-    //   const deletedArray = Array.isArray(msg.deletedBy) ? msg.deletedBy : [];
-
-    //   // Si el usuario aparece en deletedBy → NO mostrar
-    //   return !deletedArray.some((entry: any) => entry?.userId === currentUserId);
-    // });
-
-    // // ----- 4. Aplicar paginación manualmente -----
-    // let paginated: typeof visibleMessages;
-
-    // if (lastMessageId) {
-    //   const index = visibleMessages.findIndex((m) => m.id === lastMessageId);
-
-    //   if (index === -1) {
-    //     paginated = visibleMessages.slice(0, MESSAGES_PER_PAGE);
-    //   } else {
-    //     paginated = visibleMessages.slice(index + 1, index + 1 + MESSAGES_PER_PAGE);
-    //   }
-    // } else {
-    //   paginated = visibleMessages.slice(0, MESSAGES_PER_PAGE);
-    // }
-
-    // const hasMore = visibleMessages.length > paginated.length;
-
-    // // 3. Formateamos y devolvemos los mensajes
-    // // ----- 5. Añadir status + localId y devolver en orden ascendente -----
-    // const formattedMessages = paginated
-    //   .map((msg) => ({
-    //     ...msg,
-    //     status: "sent",
-    //     localId: msg.id,
-    //   }))
-    //   .reverse(); // más antiguos primero
-
-    // return NextResponse.json({
-    //   messages: formattedMessages,
-    //   hasMore,
-    // });
     
   }catch (error) {
     console.error(`Error fetching messages for match ${params.matchId}:`, error);

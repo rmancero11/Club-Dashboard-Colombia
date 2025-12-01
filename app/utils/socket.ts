@@ -14,17 +14,6 @@ export const initializeSocket = (userId: string): Socket | null => {
         return null;
     }
 
-    // // Si ya existe y está conectado o en proceso de conexión, lo reutilizamos.
-    // if (socket && (socket.connected || socket.active)) {
-    //     // Si el userId es diferente, forzamos la reconexión con el nuevo usuario
-    //     if (socket.io.opts.query && socket.io.opts.query.userId !== userId) {
-    //          console.log(`♻️ Reconectando socket por cambio de usuario: ${socket.io.opts.query.userId} -> ${userId}`);
-    //          socket.disconnect();
-    //          socket = null; // Fuerza una nueva instancia con el nuevo ID
-    //     } else {
-    //         return socket;
-    //     }
-    // }
 
     // Si ya existe y está conectado, lo reutilizamos.
     if (socket && socket.connected) { 
@@ -37,14 +26,7 @@ export const initializeSocket = (userId: string): Socket | null => {
             return socket;
         }
     }
-    
-    // // Crea la nueva instancia (o la primera)
-    // socket = io(SOCKET_SERVER_URL, {
-    //     query: { userId }, // Pasar el ID del usuario
-    //     transports: ['websocket', 'polling'], // Prioriza WebSocket
-    //     autoConnect: true,
-    //     forceNew: false,
-    // });
+
 
     // Crea la nueva instancia (o la primera)
     socket = io(SOCKET_SERVER_URL, {
@@ -59,12 +41,6 @@ export const initializeSocket = (userId: string): Socket | null => {
         reconnectionDelayMax: 5000, // Máximo retardo (5 segundos)
         randomizationFactor: 0.5, // Para evitar que todos los clientes reconecten a la vez
         timeout: 60000, // Timeout de conexión inicial (60 segundos)
-        // Coincidir el pingTimeout del servidor
-        // Si el servidor usa 60000, el cliente debe usar 60000 o más (el cliente tiene un margen)
-        // 🚨 Es crucial que este valor sea igual o mayor que el del servidor
-        // En tu servidor el default es 20000. Si lo aumentaste a 60000, úsalo aquí.
-        // Si lo dejaste en default, usa al menos 20000. Usaremos 60000 como buena práctica.
-        // Ojo: Esto lo toma del servidor, pero ayuda a ser explícito.
         pingTimeout: 60000, 
     }as any);
 

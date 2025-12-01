@@ -1,7 +1,6 @@
 import { Server, ServerOptions } from 'socket.io';
 import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
-import { s } from 'framer-motion/client';
 
 const PORT = process.env.PORT || 4000;
 const prisma = new PrismaClient(); 
@@ -103,10 +102,6 @@ io.on('connection', (socket) => {
         })();
     }
 
-    // /* ------------------ REALTIME: Message Deleted ------------------ */
-    // socket.on('message-deleted', (data: { messageId: string; deletedBy: string; receiverId: string }) => {
-    //     safeEmit(data.receiverId, 'message-deleted', data);
-    // });
 
     // --------- DELETE MESSAGE (realtime sync) -----------
     socket.on('delete-message', async (payload: { messageId: string; matchId: string; userId: string }) => {
@@ -119,10 +114,6 @@ io.on('connection', (socket) => {
         console.warn('delete-message: user mismatch', { socketUserId, deletedBy });
         return;
         }
-
-        // Opcional: comprobar la existencia del mensaje y que el usuario sea participante
-        // const msg = await prisma.message.findUnique({ where: { id: messageId } });
-        // if (!msg || (msg.senderId !== deletedBy && msg.receiverId !== deletedBy)) return;
 
         // Emitimos a las sesiones del mismo usuario (para sincronizar pc/otro navegador)
         io.to(deletedBy).emit('message-deleted', {
@@ -144,10 +135,6 @@ io.on('connection', (socket) => {
     }
     });
 
-    // /* ------------------ REALTIME: Conversation Deleted ------------------ */
-    // socket.on('conversation-deleted', (data: { matchId: string; deletedBy: string; receiverId: string }) => {
-    //     safeEmit(data.receiverId, 'conversation-deleted', data);
-    // });
 
     // --------- DELETE CONVERSATION (realtime sync) -----------
     socket.on('delete-conversation', async (payload: { matchId: string; userId: string }) => {
@@ -206,35 +193,7 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- Listener para Bloquear Usuario ---
-    // socket.on('block-user', async ({blockedUserId}: {blockedUserId: string}) => {
-    //     // Usamos el ID del usuario que inicia la conexión (el bloqueador)
-    //     const blockerId = socket.handshake.query.userId as string;
 
-    //     if (!blockerId || !blockedUserId || blockerId === blockedUserId) {
-    //         console.error('Intento de bloqueo inválido:', {blockerId, blockedUserId});
-    //         return;
-    //     };
-
-    //     try {
-    //         await prisma.blockedUser.create({
-    //             data: {
-    //                 blockerUserId: blockerId,
-    //                 blockedUserId: blockedUserId,
-    //             }
-    //         });
-    //         // 1. Notificación de éxito al bloqueador (User1)
-    //         socket.emit('user-blocked-success', {blockedId: blockedUserId});
-    //         // 2. Notificación de éxito al bloqueado (User2)
-    //         io.to(blockedUserId).emit('you-are-blocked', {blockerId: blockerId});
-
-    //     } catch (error: any) {
-    //         // Manejamos el error de UNIQUE constraint si el bloqueo ya existía
-    //         if (error.code !== 'P2002') { 
-    //             console.error('Error blocking user:', error);
-    //         }
-    //     }
-    // });
     socket.on('block-user', async ({ blockedUserId }) => {
         const blockerId = userId;
         if (!blockerId) return;
@@ -254,38 +213,6 @@ io.on('connection', (socket) => {
         }
     });
 
-    // --- Listener para desbloquear usuario ---
-    // socket.on('unblock-user', async ({ blockedUserId }: { blockedUserId: string }) => {
-    //     // Usamos el ID del usuario que inicia la conexión (el desbloqueador)
-    //     const unblockerId = socket.handshake.query.userId as string;
-        
-    //     if (!unblockerId || !blockedUserId || unblockerId === blockedUserId) {
-    //         console.error('Intento de desbloqueo inválido:', {unblockerId, blockedUserId});
-    //         return;
-    //     };
-
-    //     try {
-    //         const result = await prisma.blockedUser.deleteMany({
-    //             where: { blockerUserId: unblockerId, blockedUserId: blockedUserId }
-    //         });
-            
-    //         if (result.count === 0) {
-    //             socket.emit('unblock-error', { error: 'El usuario no estaba bloqueado.' });
-    //             return;
-    //         }
-
-    //         // 1. Notificación de éxito al desbloqueador (User1)
-    //         socket.emit('unblock-success', { blockedId: blockedUserId });
-
-    //         // 2. Notificar al usuario desbloqueado (User2) para que pueda recargar sus matches/chat.
-    //         io.to(blockedUserId).emit('you-are-unblocked', { unblockerId: unblockerId });
-
-    //     } catch (error: any) {
-    //         if (error.code !== 'P2002') { 
-    //             console.error('Error unblocking user:', error);
-    //         }
-    //     }
-    // });
 
     socket.on('unblock-user', async ({ blockedUserId }) => {
         const unblockerId = userId;
