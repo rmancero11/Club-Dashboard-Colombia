@@ -1,5 +1,3 @@
-// api/chat/history/[matchId]/delete/route.ts (Versión corregida)
-
 import { NextResponse } from "next/server";
 import { getAuth } from "@/app/lib/auth";
 import { PrismaClient } from "@prisma/client";
