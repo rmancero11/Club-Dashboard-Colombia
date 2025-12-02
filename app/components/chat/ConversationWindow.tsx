@@ -10,6 +10,7 @@ import React, {
 import { useChatStore } from "@/store/chatStore";
 import { useSocket } from "@/app/hooks/useSocket";
 import { MessageType } from "@/app/types/chat";
+import { useCountdown } from "@/app/hooks/useCountdown";
 
 const MESSAGES_PER_PAGE = 50;
 
@@ -63,7 +64,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   matchName,
 }) => {
   const isChatExpanded = useChatStore((state) => state.isExpanded);
-  const reloadMatches = React.useCallback(() => {}, []);
+  // const reloadMatches = React.useCallback(() => {}, []);
 
   // Obtenemos la función de envío
   const {
@@ -72,7 +73,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     blockUser,
     unblockUser,
     markMessagesAsRead: socketMarkMessagesAsRead,
-  } = useSocket(currentUserId, isChatExpanded, reloadMatches);
+  } = useSocket(currentUserId, isChatExpanded);
 
   const rawMessages = useChatStore((state) => state.messages);
   const rawMatches = useChatStore((state) => state.matches);
@@ -97,6 +98,9 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   const [hasMore, setHasMore] = useState(false);
   const [isHistoryLoading, setIsHistoryLoading] = useState(false);
 
+  // Inicializamos el contador de tiempo de espera
+  const countdown = useCountdown(5);
+
   // menu state
   const [showHeaderMenu, setShowHeaderMenu] = useState(false);
   const [openMessageMenuId, setOpenMessageMenuId] = useState<string | null>(
@@ -111,45 +115,48 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   // Usamos la Referencia para bloquear llamadas concurrentes
   const isHistoryLoadingRef = useRef(false);
   const hasMoreRef = useRef(true);
-  const setHasMoreRef = useRef(setHasMore);
 
-  // Aseguramos que la referencia del setter setHasMore esté actualizada
-  useEffect(() => {
-    setHasMoreRef.current = setHasMore;
-  }, [setHasMore]);
+  // Helper: calculo de preview (incluye mensajes eliminados)
+  const computePreviewFromMessage = useCallback((msg?: MessageType | undefined) => {
+    if (!msg) return "";
+    const wasDeleted = Array.isArray(msg.deletedBy) && msg.deletedBy.length > 0;
+    const deletedForMe = msg.deletedBy?.includes(currentUserId);
 
-  // --- Helper: merge/upsert messages into global store (dedupe by id/localId) ---
-  const mergeMessages = useCallback(
-    (incoming: MessageType[]) => {
-      const existing = chatStoreGetState().messages || [];
-      const map = new Map<string, MessageType>();
+    if (wasDeleted) {
+      return deletedForMe ? "Eliminaste este mensaje" : "Este mensaje fue eliminado";
+    }
+    if (msg.imageUrl) return "📷 Foto";
+    if (msg.content && msg.content.trim().length > 0) return msg.content;
+    return "";
+  }, [currentUserId]);
 
-      // add existing messages (prefer earlier stored)
-      for (const m of existing) {
-        const key = m.id ?? m.localId;
-        if (!key) continue;
-        map.set(key, m);
-      }
+  const updateMatchPreviewFromStore = useCallback((targetMatchId: string | undefined) => {
+    if (!targetMatchId) return;
+    const all = chatStoreGetState().messages || [];
+    const chatMsgs = all
+      .filter(
+        (m) =>
+          (m.senderId === currentUserId && m.receiverId === targetMatchId) ||
+          (m.senderId === targetMatchId && m.receiverId === currentUserId)
+      )
+      .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
 
-      
-      // merge incoming (overwrite/complete fields)
-      for (const m of incoming) {
-        const key = m.id ?? m.localId;
-        if (!key) continue;
-        const prev = map.get(key);
-        // prefer fields from incoming when available; preserve previous otherwise
-        map.set(key, { ...(prev || {}), ...m });
-      }
+    const lastMsg = chatMsgs.length > 0 ? chatMsgs[chatMsgs.length - 1] : undefined;
+    const preview = computePreviewFromMessage(lastMsg);
+    const lastAt = lastMsg?.createdAt ?? null;
 
-      // create sorted array (asc by createdAt)
-      const merged = Array.from(map.values()).sort(
-        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
-      );
-
-      setMessages(merged);
-    },
-    [setMessages, chatStoreGetState]
-  );
+    useChatStore.setState((state) => ({
+      matches: state.matches.map((m) =>
+        m.id === targetMatchId
+          ? {
+              ...m,
+              lastMessageContent: preview || null,
+              lastMessageAt: lastAt,
+            }
+          : m
+      ),
+    }));
+  }, [chatStoreGetState, currentUserId, computePreviewFromMessage]);
 
   // --- Lógica de Filtrado de Mensajes ---
   const messages = useMemo(() => {
@@ -273,92 +280,146 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   // Logica de carga de Historial
   const loadHistory = useCallback(
     async (isInitialLoad: boolean = true) => {
-      if (
-        isHistoryLoadingRef.current ||
-        (!isInitialLoad && !hasMoreRef.current) ||
-        !matchId
-      )
-        return;
+      // 1. Evitar llamadas si ya está cargando o no hay ID
+      if (isHistoryLoadingRef.current || !matchId) return;
+
+      // 2. Si es paginación (scroll) y ya no hay más, salir.
+      if (!isInitialLoad && !hasMoreRef.current) return;
+      
+      // Bloquear nuevas llamadas
+      isHistoryLoadingRef.current = true;
+      setIsHistoryLoading(true);
+
+      // Guardamos la altura del scroll ANTES de cargar para ajustar después
+      if (scrollContainerRef.current) {
+        lastScrollHeight.current = scrollContainerRef.current.scrollHeight;
+      }
 
       console.log(
         `[CHAT] Iniciando carga para Match ID: ${matchId}, Carga Inicial: ${isInitialLoad}`
       );
-      // Actualizamos la referencia y el estado para la UI:
-      isHistoryLoadingRef.current = true;
-      setIsHistoryLoading(true);
 
-      const { messages: currentMessages } = chatStoreGetState();
-
-      // Filtramos para obtener solo los mensajes del match activo que SÍ tengan ID (o sea, guardados en DB)
-      const activeMatchMessages = currentMessages.filter(
-        (msg) =>
-          ((msg.senderId === currentUserId && msg.receiverId === matchId) ||
-            (msg.senderId === matchId && msg.receiverId === currentUserId)) &&
-          msg.id // Solo mensajes que tienen ID de la DB
-      );
-
-      const lastMessageId = isInitialLoad
-        ? ""
-        : activeMatchMessages[0]?.id || "";
-
-      const url = `/api/chat/history/${matchId}?lastMessageId=${lastMessageId}`;
-
+      
       try {
-        const response = await fetch(url);
-        if (!response.ok) {
-          // Log para saber qué pasó si falla
-          console.error(
-            `[CHAT ERROR] Falló la API: ${response.status} ${response.statusText}`
-          );
-          throw new Error("Failed to load chat history");
+        let lastMessageId = "";
+        
+        // Si NO es carga inicial, buscamos el mensaje MÁS VIEJO (el primero de la lista)
+        // para pedir los anteriores a ese.
+        if (!isInitialLoad) {
+          const { messages: currentMessages } = chatStoreGetState();
+          // Filtramos solo los de este chat
+          const chatMsgs = currentMessages.filter(
+             m => (m.senderId === currentUserId && m.receiverId === matchId) || 
+                  (m.senderId === matchId && m.receiverId === currentUserId)
+          ).sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+
+          // El más viejo es el primero (índice 0) y debe tener un ID de Prisma
+          const oldestMessageWithId = chatMsgs.find(m => !!m.id);
+          if (oldestMessageWithId) {
+            lastMessageId = oldestMessageWithId.id;
+          }
+
+          // Si estamos paginando y no encontramos un mensaje con ID de Prisma para el cursor, salimos.
+          if (!lastMessageId) {
+            console.log("[CHAT] No hay mensaje con ID válido para usar como cursor.");
+            isHistoryLoadingRef.current = false;
+            setIsHistoryLoading(false);
+            return;
+          }
         }
+
+        const url = `/api/chat/history/${matchId}?lastMessageId=${lastMessageId}`;
+        const response = await fetch(url);
+        
+        if (!response.ok) throw new Error("Failed");
 
         const data = await response.json();
         const newMessages: MessageType[] = data.messages ?? [];
-        setHasMoreRef.current = data.hasMore ?? false;
-        hasMoreRef.current = data.hasMore ?? false;
-        console.log(
-          `[CHAT] Data recibida. Mensajes: ${newMessages.length}, HasMore: ${data.hasMore}`
-        );
+        
+        // Control de paginación
+        const serverHasMore = data.hasMore ?? false;
+        // Si no llegan mensajes, no hay más (evita bucles)
+        const calculatedHasMore = newMessages.length > 0 && serverHasMore;
+
+        hasMoreRef.current = calculatedHasMore;
+        setHasMore(calculatedHasMore);
 
         if (isInitialLoad) {
-          mergeMessages(newMessages);
+          // Para la carga inicial, reemplazamos TODOS los mensajes de este chat
+          // (Esto es clave para eliminar mensajes optimistas que no se guardaron,
+          // o al menos los de la paginación inicial)
+          // 1. Filtramos los mensajes de OTRAS conversaciones
+          const otherChatMessages = chatStoreGetState().messages.filter(m => 
+            !(m.senderId === currentUserId && m.receiverId === matchId) &&
+            !(m.senderId === matchId && m.receiverId === currentUserId)
+          );
+
+          // 2. Combinamos con los mensajes del historial y establecemos el nuevo estado
+          // Usamos `setMessages` para reemplazar el array completo, asegurando consistencia.
+          // Como la API devuelve [Viejo...Nuevo], está listo para ser concatenado.
+          setMessages([...otherChatMessages, ...newMessages]); 
+
+          if (newMessages.length > 0) {
+            const last = newMessages[newMessages.length - 1];
+            const preview = computePreviewFromMessage(last);
+            const lastAt = last.createdAt || new Date().toISOString();
+
+            useChatStore.setState((state) => ({
+              matches: state.matches.map((m) =>
+                m.id === matchId ? { ...m, lastMessageContent: preview || null, lastMessageAt: lastAt } : m
+              ),
+            }));
+          } else {
+            updateMatchPreviewFromStore(matchId);
+          }
+
         } else {
-          // Carga subsiguiente (scroll infinito): añadimos al principio
-          const existing = chatStoreGetState().messages || [];
-          mergeMessages(newMessages.concat(existing));
+          
+          prependMessages(newMessages);
+          // cuando traemos más mensajes podemos recalcular preview por si el último cambió
+          if (newMessages.length > 0) updateMatchPreviewFromStore(matchId);
         }
+
       } catch (error) {
         console.error("Error loading chat history:", error);
-        // Establecemos hasMore a false en caso de error para detener reintentos de paginación
-        if (!isInitialLoad) {
-          setHasMoreRef.current(false);
-          hasMoreRef.current = false;
-        }
+        hasMoreRef.current = false;
+        setHasMore(false);
       } finally {
         isHistoryLoadingRef.current = false;
         setIsHistoryLoading(false);
-        console.log(`[CHAT] Carga finalizada. isHistoryLoading: false`);
       }
     },
-    [matchId, mergeMessages, chatStoreGetState, currentUserId]
+    [matchId, chatStoreGetState, currentUserId, setMessages, prependMessages, computePreviewFromMessage, updateMatchPreviewFromStore]
   );
 
-  // --- Efecto de Carga Inicial y Lectura de Mensajes ---
+
+  // --- Efecto de Carga Inicial ---
   useEffect(() => {
-    const store = chatStoreGetState();
-    setHasMore(true);
+    // 1. Resetear estados al cambiar de match
+    setHasMore(true); 
     hasMoreRef.current = true;
+    
+    const existingMessagesForChat = chatStoreGetState().messages.filter(
+      (m) => (m.senderId === currentUserId && m.receiverId === matchId) ||
+             (m.senderId === matchId && m.receiverId === currentUserId)
+    );
 
-    loadHistory(true); // Iniciamos la carga
+    if (existingMessagesForChat.length > 0) {
+      // usamos los mensajes preloaded; si quieres cargar historial completo al abrir, reemplaza la siguiente línea por loadHistory(true)
+      // setHasMore(false); // opcional: si sólo trajimos 1 preview y no queremos cargar historial aún
+      // aseguramos preview actualizado
+      updateMatchPreviewFromStore(matchId);
+    } else {
+      loadHistory(true);
+    }
 
-    // Cuando se abre el chat, marcamos los mensajes entrantes como leídos
+    // 3. Marcar como leídos
     if (matchId) {
       markMessagesAsRead(matchId);
       socketMarkMessagesAsRead(matchId);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [matchId, loadHistory]);
+  }, [matchId]); // 👈 Dependencia limpia: solo se ejecuta al cambiar de chat
 
   // 📌 Al abrir un chat → reset unread (ya lo hace tu store)
   useEffect(() => {
@@ -366,23 +427,35 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     markMessagesAsRead(matchId);
   }, [matchId, setActiveChat, markMessagesAsRead]);
 
-  // --- Efecto para el Scroll ---
-  useEffect(() => {
-    // Si estamos en la carga inicial, hacemos scroll al final
-    if (messages.length > 0 && messages.length <= MESSAGES_PER_PAGE) {
-      messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
-    }
-    // Si estamos en una paginación (scroll infinito), ajustamos la posición
-    if (messages.length > MESSAGES_PER_PAGE && scrollContainerRef.current) {
-      const currentScrollHeight = scrollContainerRef.current.scrollHeight;
-      // Ajustamos el scroll para compensar el contenido añadido
-      scrollContainerRef.current.scrollTop =
-        currentScrollHeight - lastScrollHeight.current;
-    }
 
-    // Guardamos la altura actual del scroll para la siguiente carga
-    lastScrollHeight.current = scrollContainerRef.current?.scrollHeight || 0;
-  }, [messages.length]);
+  // A. Scroll Inicial Automático (Solo baja al fondo si es la primera carga)
+  useEffect(() => {
+    // Si terminamos de cargar y NO hay historial previo (es la primera vez que entramos), bajamos.
+    if (!isHistoryLoading && messagesEndRef.current) messagesEndRef.current.scrollIntoView({ behavior: "auto" });
+    
+    // Mejor lógica simple: Si hay pocos mensajes (pantalla inicial), bajar.
+    if (messages.length > 0 && messages.length <= MESSAGES_PER_PAGE && !isHistoryLoading) messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  
+  }, [matchId, isHistoryLoading, messages.length]); // Dependencia clave: matchId (al cambiar de chat)
+
+
+  // B. Scroll de Paginación (Mantiene la posición al cargar mensajes viejos arriba)
+  // Usamos useLayoutEffect para que ocurra ANTES de que el usuario vea el pintado
+  React.useLayoutEffect(() => {
+    // Solo ejecutamos si tenemos una altura previa guardada y NO estamos cargando
+    if (scrollContainerRef.current && lastScrollHeight.current > 0 && !isHistoryLoading) {
+      
+      const newScrollHeight = scrollContainerRef.current.scrollHeight;
+      const diff = newScrollHeight - lastScrollHeight.current;
+
+      // Si la altura creció (se agregaron mensajes arriba), ajustamos el scroll
+      // para que el usuario visualmente se quede en el mismo mensaje.
+      if (diff > 0) scrollContainerRef.current.scrollTop = diff;
+      
+      // Reseteamos para evitar ajustes en otros renders
+      lastScrollHeight.current = 0;
+    }
+  }, [messages.length, isHistoryLoading]);
 
   // --- Lógica de IntersectionObserver para Scroll Infinito ---
   useEffect(() => {
@@ -398,9 +471,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     const observerCallback: IntersectionObserverCallback = (entries) => {
       const target = entries[0];
       // Si el target (el primer mensaje) está visible
-      if (target.isIntersecting && messages.length > 0) {
-        loadHistory(false);
-      }
+      if (target.isIntersecting && messages.length > 0) loadHistory(false);
     };
 
     const observer = new IntersectionObserver(observerCallback, {
@@ -441,6 +512,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     });
     
     setMessages(updated);
+    updateMatchPreviewFromStore(matchId);
     setShowHeaderMenu(false);
   };
 
@@ -476,6 +548,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
       return msg;
     });
     setMessages(updated);
+    updateMatchPreviewFromStore(matchId);
     setOpenMessageMenuId(null);
   };
 
@@ -598,8 +671,14 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
           </div>
         )}
         {isHistoryLoading && (
-          <div className="text-center text-sm text-blue-500 py-2">
-            Cargando historial...
+          <div className="text-center py-2 flex flex-col items-center">
+            <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-purple-500 mb-2"></div>
+              <p className="text-sm text-purple-600 font-semibold">
+                Cargando historial de mensajes...
+              </p>
+              <p className="text-xs text-gray-500 mt-1">
+              Espera: {countdown} segundos
+            </p>
           </div>
         )}
         {!hasMore && (
@@ -613,24 +692,24 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
           const isSender = msg.senderId === currentUserId;
 
           const messageClasses = `
-    max-w-[75%] 
-    p-3 
-    rounded-xl 
-    shadow-md 
-    transition-all 
-    duration-300 
-    break-words 
-    whitespace-pre-line
-    ${
-      isSender
-        ? "bg-purple-500 text-white self-end rounded-br-none"
-        : "bg-purple-100 text-purple-900 self-start rounded-tl-none"
-    }
-    relative
-  `;
+          max-w-[75%] 
+          p-3 
+          rounded-xl 
+          shadow-md 
+          transition-all 
+          duration-300 
+          break-words 
+          whitespace-pre-line
+          ${
+            isSender
+              ? "bg-purple-500 text-white self-end rounded-br-none"
+              : "bg-purple-100 text-purple-900 self-start rounded-tl-none"
+          }
+          relative
+          `;
           const wasDeleted = Array.isArray(msg.deletedBy) && msg.deletedBy.length > 0;
           const deletedForMe = msg.deletedBy?.includes(currentUserId);
-          const deletedByOther = wasDeleted && !deletedForMe;
+          // const deletedByOther = wasDeleted && !deletedForMe;
 
           return (
             <div
@@ -760,7 +839,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
               }}
               className="absolute top-[-5px] right-[-5px] bg-red-500 text-white rounded-full w-5 h-5 flex items-center justify-center text-xs font-bold"
             >
-              X
+             ❌
             </button>
             <p className="text-xs text-gray-600 mt-1 truncate">
               {imageFile?.name}

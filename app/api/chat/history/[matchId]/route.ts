@@ -27,17 +27,21 @@ export async function GET(request: Request, { params }: { params: { matchId: str
     // lastMessageId es el 'cursor' para obtener mensajes ANTERIORES a él
     const lastMessageId = searchParams.get('lastMessageId');
 
-    // ----- Obtenemos el historial de mensajes -----
-    // Obtener mensajes filtrando los que el usuario borró
-    // Buscamos msgs donde: (Soy yo el remitente y él el receptor) O (Soy yo el receptor y él el remitente)
-    const allMessages = await prisma.message.findMany({
-      where: {
-        OR: [
-          { senderId: currentUserId, receiverId: matchId },
-          { senderId: matchId, receiverId: currentUserId },
-        ],
-      },
-      orderBy: { createdAt: "desc" },
+    // ----- 2. Obtenemos el historial de mensajes (Prisma Query con cursor) -----
+    // El historial debe ordenarse de forma INVERSA (desc) para la paginación de scroll infinito
+    // y luego invertirse en el cliente.
+    const whereClause = {
+      OR: [
+        { senderId: currentUserId, receiverId: matchId },
+        { senderId: matchId, receiverId: currentUserId },
+      ],
+    };
+
+    // Parámetros base para la consulta
+    const queryOptions: any = {
+      where: whereClause,
+      take: MESSAGES_PER_PAGE + 1, // Solicitamos +1 para verificar si hay más
+      orderBy: { createdAt: "desc" as const }, // Más recientes primero
       select: {
         id: true,
         senderId: true,
@@ -48,47 +52,44 @@ export async function GET(request: Request, { params }: { params: { matchId: str
         readAt: true,
         deletedBy: true,
       },
-    });
+    };
 
-    const visibleMessages = allMessages;
-
-    // ----- 4. PAGINACIÓN -----
-    let paginated;
-
+    // Si hay un cursor (lastMessageId), lo añadimos para la paginación
     if (lastMessageId) {
-      const index = visibleMessages.findIndex((m) => m.id === lastMessageId);
 
-      if (index === -1) {
-        paginated = visibleMessages.slice(0, MESSAGES_PER_PAGE);
-      } else {
-        paginated = visibleMessages.slice(
-          index + 1,
-          index + 1 + MESSAGES_PER_PAGE
-        );
-      }
-    } else {
-      paginated = visibleMessages.slice(0, MESSAGES_PER_PAGE);
+      // Usando `cursor` y `skip` para paginación (offset) sin perder el contexto:
+      queryOptions.cursor = { id: lastMessageId };
+      queryOptions.skip = 1; // Omitir el cursor en sí
+    }
+    const messages = await prisma.message.findMany(queryOptions);
+
+    // ----- 3. Lógica de `hasMore` -----
+    let hasMore = false;
+    let paginatedMessages = messages;
+
+    if (messages.length > MESSAGES_PER_PAGE) {
+      hasMore = true;
+      // Removemos el mensaje extra que pedimos para el control de `hasMore`
+      paginatedMessages = messages.slice(0, MESSAGES_PER_PAGE);
     }
 
-    const hasMore = allMessages.length > paginated.length;
-
-    // ----- Formateo -----
-    const formattedMessages = paginated
+    // ----- 4. Formateo y Ordenamiento (Lo invertimos para que el más viejo esté primero) -----
+    // El cliente (ConversationWindow) espera el orden del más viejo al más nuevo.
+    const formattedMessages = paginatedMessages
       .map((msg) => ({
-        ...msg,
-        status: "sent",
-        localId: msg.id,
-      }))
-      .reverse();
+      ...msg,
+      status: "sent" as const, // Forzamos el tipo 'sent'
+      localId: msg.id,
+    }))
+    .reverse(); // 👈 Ahora el más viejo está al principio, listo para ser prependMessages
 
     return NextResponse.json({
       messages: formattedMessages,
       hasMore,
-    });
-
-    
+    });  
   }catch (error) {
     console.error(`Error fetching messages for match ${params.matchId}:`, error);
     return NextResponse.json({message: 'Internal Server Error'}, {status: 500});
   }
+
 }

@@ -155,8 +155,13 @@ export default function UserProfile({ user }: { user: UserShape }) {
 
     try {
       await fetch("/api/auth/logout", { method: "POST" });
-    } catch {}
-    router.replace("/login");
+    } catch (error) {
+      console.error("Error al llamar a la API de logout, continuando con la recarga:", error);
+    }
+    // 🚨 4. FORZAMOS UNA RECARGA COMPLETA
+    // Esto asegura que todo el código del cliente (incluyendo el módulo singleton del socket)
+    // se re-ejecute y se cargue desde cero en la página de login.
+    window.location.replace("/login");
   };
 
   const destinos: string[] = React.useMemo(() => {
