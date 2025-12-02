@@ -16,7 +16,7 @@ type AvatarModalProps = {
   currentUser?: User;
   likedUsers?: Record<string, boolean>;
   matchedUsers?: Record<string, boolean>;
-  handleLike?: (targetId: string) => Promise<void>;
+  handleLike: (targetId: string) => Promise<boolean>;
 };
 
 export default function AvatarModal({
@@ -124,22 +124,25 @@ export default function AvatarModal({
           animate={{ opacity: 1 }}
           exit={{ opacity: 0 }}
         >
-         <motion.div
-  className="relative w-full max-w-md h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl"
-  onClick={(e) => e.stopPropagation()}
-  initial={{ opacity: 0, y: 40 }}
-  animate={{ opacity: 1, y: 0 }}
-  exit={{ opacity: 0, y: 200, transition: { duration: 0.35, ease: "easeInOut" } }}
-  transition={{ duration: 0.35, ease: "easeOut" }}
->
-
-  <motion.button
-    onClick={onClose}
-    className="absolute top-4 right-4 z-20 bg-black/50 hover:bg-black/70 text-white font-bold w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm"
-    whileTap={{ scale: 0.9 }}
-  >
-    ✕
-  </motion.button>
+          <motion.div
+            className="relative w-full max-w-md h-[85vh] bg-white rounded-2xl overflow-hidden shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+            initial={{ opacity: 0, y: 40 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{
+              opacity: 0,
+              y: 200,
+              transition: { duration: 0.35, ease: "easeInOut" },
+            }}
+            transition={{ duration: 0.35, ease: "easeOut" }}
+          >
+            <motion.button
+              onClick={onClose}
+              className="absolute top-4 right-4 z-20 bg-black/50 hover:bg-black/70 text-white font-bold w-8 h-8 rounded-full flex items-center justify-center backdrop-blur-sm"
+              whileTap={{ scale: 0.9 }}
+            >
+              ✕
+            </motion.button>
             {/* Imagen de fondo */}
             <Image
               src={user.avatar || "/images/default-avatar.png"}
@@ -210,67 +213,66 @@ export default function AvatarModal({
               </div>
 
               {/* BOTONES INFERIORES IZQUIERDA + DERECHA */}
-<div className="absolute bottom-4 left-4 right-4 flex justify-between items-center z-20">
+              <div className="absolute bottom-4 left-4 right-4 flex justify-between items-center z-20">
+                {/* BOTÓN IZQUIERDO (más grande) */}
+                <button
+                  onClick={() => {
+                    if (onNextUser) onNextUser();
+                  }}
+                  className="w-20 h-20 flex items-center justify-center"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    boxShadow: "none",
+                  }}
+                >
+                  <Image
+                    src="/favicon/iconosclub-13.svg"
+                    alt="Acción izquierda"
+                    width={100}
+                    height={100}
+                  />
+                </button>
 
-  {/* BOTÓN IZQUIERDO (más grande) */}
-  <button
-    onClick={() => {
-      if (onNextUser) onNextUser();
-    }}
-    className="w-20 h-20 flex items-center justify-center"
-    style={{ background: "transparent", border: "none", boxShadow: "none" }}
-  >
-    <Image
-      src="/favicon/iconosclub-13.svg"
-      alt="Acción izquierda"
-      width={100}
-      height={100}
-    />
-  </button>
+                {/* BOTÓN ME GUSTA (más grande) */}
+                <motion.button
+                  onClick={async () => {
+                    if (!matchedUsers[user.id]) {
+                      const isMatch = await handleLike?.(user.id);
 
-  {/* BOTÓN ME GUSTA (más grande) */}
-<motion.button
-  onClick={async () => {
-    if (!matchedUsers[user.id]) {
-      await handleLike?.(user.id);
-
-      // pequeño delay para evitar el salto instantáneo
-      setTimeout(() => {
-        onNextUser?.();
-      }, 300);
-    }
-  }}
-  disabled={matchedUsers[user.id]}
-  whileTap={{ scale: 1.2 }}
-  className="w-16 h-16 flex items-center justify-center"
-  style={{
-    background: "transparent",
-    border: "none",
-    boxShadow: "none",
-    cursor: matchedUsers[user.id] ? "not-allowed" : "pointer",
-  }}
->
-  <Image
-    src={
-      matchedUsers[user.id]
-        ? "/favicon/iconosclub-22.svg"
-        : likedUsers[user.id]
-        ? "/favicon/iconosclub-23.svg"
-        : "/favicon/iconosclub-21.svg"
-    }
-    alt="Like"
-    width={60}
-    height={60}
-  />
-</motion.button>
-
-
-</div>
-
+                      // ⛔ SI HAY MATCH → NO se pasa al siguiente usuario.
+                      if (!isMatch) {
+                        setTimeout(() => {
+                          onNextUser?.();
+                        }, 300);
+                      }
+                    }
+                  }}
+                  disabled={matchedUsers[user.id]}
+                  whileTap={{ scale: 1.2 }}
+                  className="w-16 h-16 flex items-center justify-center"
+                  style={{
+                    background: "transparent",
+                    border: "none",
+                    boxShadow: "none",
+                    cursor: matchedUsers[user.id] ? "not-allowed" : "pointer",
+                  }}
+                >
+                  <Image
+                    src={
+                      matchedUsers[user.id]
+                        ? "/favicon/iconosclub-22.svg"
+                        : likedUsers[user.id]
+                        ? "/favicon/iconosclub-23.svg"
+                        : "/favicon/iconosclub-21.svg"
+                    }
+                    alt="Like"
+                    width={60}
+                    height={60}
+                  />
+                </motion.button>
+              </div>
             </div>
-
-  
-    
 
             {/* Premium Modal */}
             <AnimatePresence>

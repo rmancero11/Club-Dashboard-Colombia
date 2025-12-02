@@ -78,6 +78,8 @@ export async function GET() {
             id: true,
             travelPoints: true,
             subscriptionPlan: true,
+            subscriptionCreatedAt: true,
+            subscriptionExpiresAt: true,
             seller: {
               select: {
                 id: true,
@@ -159,6 +161,8 @@ export async function GET() {
       id: user.clientProfile.id,
       travelPoints: user.clientProfile.travelPoints ?? 0,
       subscriptionPlan: user.clientProfile.subscriptionPlan ?? null,
+      subscriptionCreatedAt: user.clientProfile.subscriptionCreatedAt ?? null,
+      subscriptionExpiresAt: user.clientProfile.subscriptionExpiresAt ?? null,
     }
   : null,
 

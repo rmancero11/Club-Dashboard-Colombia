@@ -53,9 +53,14 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     : undefined;
 
   const existingClient = await prisma.client.findUnique({
-    where: { id: params.id },
-    select: { userId: true },
-  });
+  where: { id: params.id },
+  select: {
+    userId: true,
+    subscriptionCreatedAt: true,
+    subscriptionExpiresAt: true,
+  },
+});
+
 
   if (!existingClient) {
     return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
@@ -79,7 +84,28 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   };
 
   if (sellerId) clientData.sellerId = sellerId;
-  if (subscriptionPlan) clientData.subscriptionPlan = subscriptionPlan;
+  // Manejo de fechas de suscripción
+if (subscriptionPlan) {
+  clientData.subscriptionPlan = subscriptionPlan;
+
+  const NOW = new Date();
+
+  if (subscriptionPlan === "STANDARD") {
+    // Plan gratuito → resetear fechas
+    clientData.subscriptionCreatedAt = null;
+    clientData.subscriptionExpiresAt = null;
+  } else {
+    // PREMIUM o VIP
+    clientData.subscriptionCreatedAt =
+      existingClient.subscriptionCreatedAt ?? NOW;
+
+    clientData.subscriptionExpiresAt =
+      existingClient.subscriptionExpiresAt ??
+      new Date(new Date().setFullYear(NOW.getFullYear() + 1));
+  }
+}
+
+
 
   // Ajustes de puntos sobre Client
   if (addTravelPoints > 0) {
@@ -146,6 +172,8 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
           notes: true,
           sellerId: true,
           subscriptionPlan: true,
+          subscriptionCreatedAt: true,
+          subscriptionExpiresAt: true,
           travelPoints: true,
         },
       }),

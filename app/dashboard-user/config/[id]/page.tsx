@@ -415,6 +415,7 @@ export default function EditProfilePage() {
     }
   };
 
+
   return (
     <div className="max-w-4xl mx-auto bg-white p-6 rounded-2xl shadow-md mt-8 relative">
       <div className="flex justify-start mb-4">

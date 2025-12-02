@@ -30,6 +30,11 @@ export default function UserPreferences({
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [matches, setMatches] = useState<
+    { id: string; name: string; avatar: string }[]
+  >([]);
+  const [loadingMatches, setLoadingMatches] = useState(true);
+  const [errorMatches, setErrorMatches] = useState<string | null>(null);
 
   // Si incluye "Mixtos", asignar automáticamente los tres gustos
   useEffect(() => {
@@ -61,6 +66,36 @@ export default function UserPreferences({
       }
     }
     fetchDestinos();
+  }, []);
+
+  useEffect(() => {
+    async function fetchMatches() {
+      setLoadingMatches(true);
+      setErrorMatches(null);
+
+      try {
+        const res = await fetch("/api/chat/matches", { cache: "no-store" });
+        if (!res.ok) throw new Error("Error al cargar tus matches");
+
+        const data = await res.json();
+
+        // Normalizo solo lo que necesito ahora (avatar + nombre + id)
+        setMatches(
+          data.map((m: any) => ({
+            id: m.id,
+            name: m.name,
+            avatar: m.avatar,
+          }))
+        );
+      } catch (err: any) {
+        console.error(err);
+        setErrorMatches(err.message);
+      } finally {
+        setLoadingMatches(false);
+      }
+    }
+
+    fetchMatches();
   }, []);
 
   const toggleGusto = (valor: string) => {
@@ -253,6 +288,48 @@ export default function UserPreferences({
           <p className="text-gray-500 text-sm font-montserrat">
             No especificado
           </p>
+        )}
+      </div>
+      {/* MATCHES */}
+      <div className="mt-6">
+        <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
+          Tus matches
+        </h2>
+
+        {loadingMatches ? (
+          <p className="text-gray-500 text-sm font-montserrat">
+            Cargando matches...
+          </p>
+        ) : errorMatches ? (
+          <p className="text-red-500 text-sm font-montserrat">
+            ⚠️ {errorMatches}
+          </p>
+        ) : matches.length === 0 ? (
+          <p className="text-gray-500 text-sm font-montserrat">
+            No tienes matches por ahora
+          </p>
+        ) : (
+          <ul className="flex flex-wrap gap-4">
+            {matches.map((m) => (
+              <li
+                key={m.id}
+                className="flex flex-col items-center font-montserrat"
+              >
+                <div className="w-16 h-16 rounded-full overflow-hidden shadow-md">
+                  <Image
+                    src={m.avatar || "/default-avatar.png"}
+                    alt={m.name}
+                    width={64}
+                    height={64}
+                    className="object-cover w-full h-full"
+                  />
+                </div>
+                <span className="text-xs text-gray-700 mt-1 text-center w-16 truncate">
+                  {m.name}
+                </span>
+              </li>
+            ))}
+          </ul>
         )}
       </div>
     </div>

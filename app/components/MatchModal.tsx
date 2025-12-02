@@ -1,3 +1,5 @@
+"use client";
+
 import { motion, AnimatePresence } from "framer-motion";
 import Image from "next/image";
 import { Heart } from "lucide-react";
@@ -5,6 +7,7 @@ import { Heart } from "lucide-react";
 type MatchModalProps = {
   isOpen: boolean;
   onClose: () => void;
+  onViewProfile?: () => void;
   currentUserImg: string;
   matchedUserImg: string;
   matchedUserName: string;
@@ -13,6 +16,7 @@ type MatchModalProps = {
 export function MatchModal({
   isOpen,
   onClose,
+  onViewProfile,
   currentUserImg,
   matchedUserImg,
   matchedUserName,
@@ -27,43 +31,83 @@ export function MatchModal({
           className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50"
           onClick={onClose}
         >
+          {/* Glow */}
           <motion.div
-            initial={{ scale: 0.5, opacity: 0 }}
+            className="absolute w-64 h-64 rounded-full bg-purple-500/30 blur-3xl"
+            initial={{ scale: 0, opacity: 0 }}
+            animate={{ scale: 1.5, opacity: 1 }}
+            exit={{ scale: 0, opacity: 0 }}
+            transition={{ duration: 0.8 }}
+          />
+
+          <motion.div
+            initial={{ scale: 0.4, opacity: 0 }}
             animate={{ scale: 1, opacity: 1 }}
-            exit={{ scale: 0.5, opacity: 0 }}
-            transition={{ type: "spring", stiffness: 130, damping: 12 }}
-            className="bg-white rounded-3xl p-6 w-[90%] max-w-sm text-center relative"
+            exit={{ scale: 0.4, opacity: 0 }}
+            transition={{ type: "spring", stiffness: 120, damping: 10 }}
+            className="bg-white rounded-3xl p-6 w-[90%] max-w-sm text-center relative shadow-2xl"
             onClick={(e) => e.stopPropagation()}
           >
-            <h2 className="text-2xl font-bold text-primary mb-4">
-              Hay Match!
+            <h2 className="text-3xl font-bold text-purple-700 mb-4">
+              ¡Hay Match!
             </h2>
 
-            {/* IMÁGENES */}
             <div className="flex justify-center items-center gap-4 mb-6">
-              <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-pink-500 shadow-lg">
-                <Image src={currentUserImg} alt="You" fill className="object-cover" />
-              </div>
+              <motion.div
+                animate={{ y: [-5, 5, -5] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2,
+                  ease: "easeInOut",
+                }}
+                className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-purple-600 shadow-lg"
+              >
+                <Image
+                  src={currentUserImg}
+                  alt="You"
+                  fill
+                  className="object-cover"
+                />
+              </motion.div>
 
-              <Heart className="text-primary w-10 h-10" />
+              <motion.div
+                animate={{ scale: [1, 1.3, 1] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 1.4,
+                  ease: "easeInOut",
+                }}
+              >
+                <Heart className="text-purple-600 w-10 h-10" />
+              </motion.div>
 
-              <div className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-pink-500 shadow-lg">
-                <Image src={matchedUserImg} alt={matchedUserName} fill className="object-cover" />
-              </div>
+              <motion.div
+                animate={{ y: [5, -5, 5] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 2,
+                  ease: "easeInOut",
+                }}
+                className="relative w-24 h-24 rounded-full overflow-hidden border-4 border-purple-600 shadow-lg"
+              >
+                <Image
+                  src={matchedUserImg}
+                  alt={matchedUserName}
+                  fill
+                  className="object-cover"
+                />
+              </motion.div>
             </div>
 
-            {/* TEXTO */}
-            <p className="text-gray-700 text-lg mb-6">
-              Tu y <strong>{matchedUserName}</strong> hicieron match 🎉
-            </p>
-
-            {/* BOTÓN */}
-            <button
-              onClick={onClose}
-              className="w-full bg-primary text-white py-3 rounded-xl text-lg font-semibold shadow-md active:scale-95 transition"
-            >
-              ¡Seguir explorando!
-            </button>
+            {/* Botón para ver el perfil del usuario */}
+            {onViewProfile && (
+              <button
+                onClick={onViewProfile}
+                className="mt-4 bg-purple-600 text-white px-4 py-2 rounded-xl shadow-md hover:bg-purple-700 transition font-semibold"
+              >
+                Ver perfil del viajero
+              </button>
+            )}
           </motion.div>
         </motion.div>
       )}
