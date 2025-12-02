@@ -1,6 +1,8 @@
 import React, { useMemo } from 'react';
 import { useChatStore } from '@/store/chatStore';
 import { MessageType } from '../../types/chat';
+import { useCountdown } from '../../hooks/useCountdown';
+import ChatMessagesPreloader from './ChatMessagesPreloader';
 
 // Icono de búsqueda
 const SearchIcon = (props: React.SVGProps<SVGSVGElement>) => (
@@ -40,6 +42,9 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
   const deleteConversationAndMatch = useChatStore(state => state.deleteConversationAndMatch);
   const getUnreadCount = useChatStore(state => state.getUnreadCount);
 
+  const isLoadingMatches = useChatStore(state => state.isLoadingMatches);
+  const countdown = useCountdown(10);
+
   const [searchTerm, setSearchTerm] = React.useState('');
 
   const lastMessageByMatch = useMemo(() => {
@@ -59,10 +64,40 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
     match.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  if (matches.length === 0) {
+  // if (matches.length === 0) {
+  //   return (
+  //     <div className="flex-grow flex items-center justify-center p-4 font-montserrat">
+  //       <p className="text-sm text-gray-500">No hay chats activos.</p>
+  //     </div>
+  //   );
+  // }
+
+  // 1. ESTADO DE CARGA (Alta prioridad)
+  if (isLoadingMatches) {
     return (
-      <div className="flex-grow flex items-center justify-center p-4 font-montserrat">
-        <p className="text-sm text-gray-500">No hay chats activos.</p>
+      <div className="flex-grow flex flex-col items-center justify-center p-4 font-montserrat bg-gray-50">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-purple-500 mb-3"></div>
+        <p className="text-sm text-purple-600 font-semibold">
+          Cargando historial de chats...
+        </p>
+        <p className="text-xs text-gray-500 mt-1">
+          Tiempo estimado: {countdown} segundos.
+        </p>
+      </div>
+    );
+  }
+
+  // 2. ESTADO SIN CHATS (Cuando la carga terminó y la lista está vacía)
+  if (!isLoadingMatches && matches.length === 0) {
+    return (
+      <div className="flex-grow flex flex-col items-center justify-center p-4 font-montserrat text-center">
+        <span className="text-4xl mb-3" role="img" aria-label="Sin chats">💬</span>
+        <p className="text-base font-semibold text-gray-700 mb-1">
+          ¡Aún no hay conversaciones!
+        </p>
+        <p className="text-sm text-gray-500 px-4">
+          Empieza a hacer match con otros usuarios para que tus chats aparezcan aquí.
+        </p>
       </div>
     );
   }
@@ -85,12 +120,15 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
 
       {/* Lista de chats */}
       <div className="flex-grow overflow-y-auto bg-white">
+        
         {displayedMatches.length === 0 && (
-          <div className="p-4 text-center text-gray-500 text-sm">No se encontraron resultados.</div>
+          <div className="p-4 text-center text-gray-500 text-sm">
+            No se encontraron resultados.
+          </div>
         )}
         {displayedMatches.map(match => {
           const lastMsg = lastMessageByMatch[match.id];
-          let briefText = 'Iniciar conversación...';
+          let briefText = '😴 ¡Despiertame, abre la conversación!';
           if (match.isBlockedByMe) briefText = 'Usuario bloqueado.';
           if (lastMsg) {
             const wasDeleted =
@@ -118,7 +156,7 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
               if (match.lastMessageContent) {
                 briefText = match.lastMessageContent;
               } else {
-                briefText = "Iniciar conversación...";
+                briefText = "💬 Iniciar conversación...";
               }
             }
           

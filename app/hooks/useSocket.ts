@@ -1,6 +1,6 @@
 import { useCallback, useEffect } from 'react';
 import { MessageType, UserStatusChange, MessageData } from '../types/chat';
-import { useChatStore } from '@/store/chatStore';
+import { MatchContact, useChatStore } from '@/store/chatStore';
 import { getSocket, initializeSocket } from '../utils/socket';
 
 interface UseSocketReturn {
@@ -12,10 +12,31 @@ interface UseSocketReturn {
   markMessagesAsRead: (matchId: string) => void;
 }
 
+// FUNCIÓN DE CARGA ASÍNCRONA
+const fetchMatches = async () => {
+  const store = useChatStore.getState();
+  store.setIsLoadingMatches(true); // 👈 Inicia la carga
+
+  try {
+    // Asumiendo que esta es la API para cargar la lista de chats.
+    const response = await fetch('api/chat/matches');
+    if (!response.ok) throw new Error('Failed to fetch matches');
+    
+    const data: MatchContact[] = await response.json();
+    
+    // Asumiendo que 'data' contiene la lista de MatchContact
+    store.setMatches(data); // 👈 setMatches pone isLoadingMatches: false
+
+  } catch (error) {
+    console.error('Error fetching matches:', error);
+    store.setIsLoadingMatches(false); // 👈 Asegura que la carga termine en caso de error
+  }
+};
+
 export const useSocket = (
   userId: string, 
   isExpanded: boolean, 
-  reloadMatches: () => void
+  // reloadMatches: () => void
 ): UseSocketReturn => {
 
   // Obtenemos la instancia global si existe
@@ -40,6 +61,10 @@ export const useSocket = (
     // Si no hay socket (ej: no hay userId o URL), salimos
     if (!currentSocket) return;
 
+    // Cargar los Matches la primera vez que se conecta el usuario
+    // Esta es la parte que asegura que los chats se carguen.
+    fetchMatches();
+
     // --- Listeners de chat ---
     const store = useChatStore.getState();
 
@@ -47,7 +72,7 @@ export const useSocket = (
     const onUserBlockedSuccess = (data: { blockedId: string }) => {
       // Actualizamos UI local y recargamos matches
       store.updateBlockStatus(data.blockedId, true);
-      reloadMatches();
+      // reloadMatches();
       // opcional: notificar al usuario
       try { window.alert('✅ Usuario bloqueado exitosamente.'); } catch {}
       // cerrar chat si estaba abierto con ese usuario
@@ -57,7 +82,7 @@ export const useSocket = (
     // Evento de Éxito de Desbloqueo
     const onUnblockSuccess = (data: { blockedId: string }) => {
       store.updateBlockStatus(data.blockedId, false);
-      reloadMatches();
+      // reloadMatches();
       try { window.alert('✅ Usuario desbloqueado exitosamente.'); } catch {}
     };
 
@@ -66,7 +91,7 @@ export const useSocket = (
     const onYouAreBlocked = (data: { blockerId: string }) => {
       // alert(`❌ Has sido bloqueado por un usuario. Tu lista de chats se ha actualizado.`);
       try { window.alert('❌ Has sido bloqueado por un usuario. Tu lista de chats se ha actualizado.'); } catch {}
-      reloadMatches();
+      // reloadMatches();
       store.setActiveChat(null);
     };
 
@@ -89,7 +114,7 @@ export const useSocket = (
       if (message.localId) {
         store.updateMessageStatus(message.localId, 'sent', message.id);
       }
-      reloadMatches();
+      // reloadMatches();
     };
 
 
@@ -182,7 +207,7 @@ export const useSocket = (
       currentSocket.off('user-status-change', onUserStatusChange);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [userId, reloadMatches, markMessagesAsRead]); // Solo se reconecta si el usuario cambia (logout/login)
+  }, [userId, markMessagesAsRead]); // Solo se reconecta si el usuario cambia (logout/login)
 
   // --- Funciones de comunicación hacia el servidor (Emits) ---
 
@@ -267,47 +292,75 @@ export const useSocket = (
 
   // --- DELETE CONVERSATION ---
   // Similar: optimistic local -> API PATCH -> socket emit
+  // const deleteConversation = useCallback(
+  //   async (matchId: string) => {
+  //     if (!userId) return;
+
+  //     const sock = getSocket();
+
+  //     // Optimistic local
+  //     store.removeConversation(matchId, userId);
+
+  //     try {
+  //       const res = await fetch(`/api/chat/history/${matchId}/delete`, {
+  //         method: 'PATCH',
+  //         headers: { 'Content-Type': 'application/json' },
+  //       });
+
+  //       if (!res.ok) {
+  //         console.error('API delete conversation failed', await res.text());
+  //         try { window.alert('No se pudo eliminar la conversación. Intenta de nuevo.'); } catch {}
+  //         return;
+  //       }
+
+  //       // Emitir evento para sincronizar otras sesiones
+  //       if (sock) {
+  //         sock.emit('conversation-deleted', {
+  //           matchId,
+  //           deletedBy: userId,
+  //           receiverId: matchId
+  //         });
+  //       }
+
+  //       // También reseteamos unread en matches local (ya lo hace removeConversation, pero por si acaso)
+  //       useChatStore.setState((s) => ({
+  //         matches: s.matches.map((m) => (m.id === matchId ? { ...m, unreadCount: 0 } : m))
+  //       }));
+  //     } catch (err) {
+  //       console.error('Error deleting conversation:', err);
+  //       try { window.alert('No se pudo eliminar la conversación.'); } catch {}
+  //     }
+  //   },
+  //   [userId, store]
+  // );
+
   const deleteConversation = useCallback(
-    async (matchId: string) => {
-      if (!userId) return;
+    async (matchId: string) => {
+      if (!userId) return;
 
-      const sock = getSocket();
+      const sock = getSocket();
 
-      // Optimistic local
-      store.removeConversation(matchId, userId);
+      // 💡 USAR LA NUEVA ACCIÓN ASÍNCRONA DEL STORE
+      const success = await store.deleteConversationAndMatch(matchId, userId);
 
-      try {
-        const res = await fetch(`/api/chat/history/${matchId}/delete`, {
-          method: 'PATCH',
-          headers: { 'Content-Type': 'application/json' },
-        });
+      if (!success) {
+        console.error('API delete conversation failed');
+        try { window.alert('No se pudo eliminar la conversación. Intenta de nuevo.'); } catch {}
+        return;
+      }
 
-        if (!res.ok) {
-          console.error('API delete conversation failed', await res.text());
-          try { window.alert('No se pudo eliminar la conversación. Intenta de nuevo.'); } catch {}
-          return;
-        }
-
-        // Emitir evento para sincronizar otras sesiones
-        if (sock) {
-          sock.emit('conversation-deleted', {
-            matchId,
-            deletedBy: userId,
-            receiverId: matchId
-          });
-        }
-
-        // También reseteamos unread en matches local (ya lo hace removeConversation, pero por si acaso)
-        useChatStore.setState((s) => ({
-          matches: s.matches.map((m) => (m.id === matchId ? { ...m, unreadCount: 0 } : m))
-        }));
-      } catch (err) {
-        console.error('Error deleting conversation:', err);
-        try { window.alert('No se pudo eliminar la conversación.'); } catch {}
-      }
-    },
-    [userId, store]
-  );
+      // Emitir evento para sincronizar otras sesiones
+      if (sock) {
+        sock.emit('conversation-deleted', {
+          matchId,
+          deletedBy: userId,
+          receiverId: matchId
+        });
+      }
+      // Ya no es necesario limpiar el match ni el activeChat aquí, lo hace deleteConversationAndMatch
+    },
+    [userId, store]
+  );
 
 
   // --- BLOCK / UNBLOCK ---

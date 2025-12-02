@@ -24,6 +24,9 @@ export interface ChatStore {
   // Datos
   isModalOpen: boolean;
 
+  // Estado de carga
+  isLoadingMatches: boolean;
+
   messages: MessageType[];
   matches: MatchContact[]; // Lista de contactos con los que se puede chatear
   onlineUsers: Record<string, boolean>; // Mapeo de userId a estado (true/false)
@@ -43,6 +46,8 @@ export interface ChatStore {
   addMessage: (msg: MessageType) => void;
   upsertMessages: (msgs: MessageType[]) => void;
 
+  // ACCIÓN DE CARGA
+  setIsLoadingMatches: (isLoading: boolean) => void
   
   // Actualizamos el estado de un mensaje (logica de Optimistic UI)
   updateMessageStatus: (localId: string, newStatus: MessageStatus, prismaId?: string) => void;
@@ -54,7 +59,7 @@ export interface ChatStore {
   // Reacciones al realtime de borrado
   deleteMessageRealtime: (messageId: string, userId: string) => void;
   deleteConversationRealtime: (matchId: string, userId: string) => void;
-  deleteConversationAndMatch: (matchId: string, currentUserId: string) => void;
+  deleteConversationAndMatch: (matchId: string, currentUserId: string) => Promise<boolean>;
 
   setLikesSent: (userIds: string[]) => void;
   setLikesReceived: (userIds: string[]) => void;
@@ -76,6 +81,7 @@ const initialChatState = {
   isExpanded: false,
   activeMatchId: null,
   isModalOpen: false,
+  isLoadingMatches: true,
 
   messages: [],
   matches: [],
@@ -112,52 +118,108 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     }
   },
 
+  // ACCIÓN DE CARGA
+  setIsLoadingMatches: (isLoading) => set({ isLoadingMatches: isLoading }),
+
   // ------- Acciones de datos -------
   setMatches: (matchList) =>
   set({
     matches: matchList.map((m) => ({
       ...m,
       unreadCount: m.unreadCount ?? 0 // 👉 asegurar campo
-    }))
+    })),
+    isLoadingMatches: false
   }),
 
   setMessages: (msgs) => set({ messages: msgs }),
 
-  prependMessages: (msgs) => set((state) => ({ messages: [...msgs, ...state.messages] })),
+  // prependMessages: (msgs) => set((state) => ({ messages: [...msgs, ...state.messages] })),
+  prependMessages: (msgs) => {
+    get().upsertMessages(msgs);
+  },
+
 
   upsertMessages: (newMessages: MessageType[]) =>
   set((state) => {
-    const merged = [...state.messages];
-
-    newMessages.forEach((msg) => {
-      const exists = merged.some((m) => m.id === msg.id);
-      if (!exists) merged.push(msg);
+    // Usamos un mapa para la deduplicación por ID de Prisma o localId
+    const messagesMap = new Map<string, MessageType>();
+      
+    // 1. Insertamos los existentes
+    state.messages.forEach((msg) => {
+      const key = msg.id || msg.localId;
+      if (key) messagesMap.set(key, msg);
     });
 
-    merged.sort(
-      (a, b) =>
-        new Date(a.createdAt).getTime() -
-        new Date(b.createdAt).getTime()
+    // 2. Insertamos/Actualizamos los nuevos (sobrescribirán si tienen el mismo id/localId)
+    newMessages.forEach((msg) => {
+      const key = msg.id || msg.localId;
+      if (key) messagesMap.set(key, msg);
+    });
+        
+    // 3. Convertimos a array y ordenamos CRONOLÓGICAMENTE (más viejo al inicio)
+    const merged = Array.from(messagesMap.values()).sort(
+      (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
     );
 
     return { messages: merged };
-  }),
+  }),  
+
 
   addMessage: (msg) =>
     set((state) => {
-      const isChatOpen = state.activeMatchId === msg.senderId;
-      const updatedMatches = !isChatOpen
-      ? state.matches.map((m) => 
-        m.id === msg.senderId
-      ? { ...m, unreadCount: (m.unreadCount ?? 0) + 1 }
-      : m
-    )
-    : state.matches;
-    
+    const existingMessage = state.messages.find(m => m.id && m.id === msg.id);
+
+    if (existingMessage) {
+      // Si ya existe, simplemente mantenemos el estado actual o actualizamos.
+      // Aquí solo lo mantenemos para evitar duplicados.
+      return state; 
+    }
+    // Identificamos el otro usuario (el que envió el mensaje)
+    const senderId = msg.senderId;
+
+    const isChatOpen = state.activeMatchId === senderId;
+    const updatedMatches = state.matches.map((m) => {
+      if (m.id === senderId) {
+        return { 
+          ...m, 
+          // ⭐️ AJUSTE CLAVE: Actualizar el contenido y la hora del último mensaje
+          lastMessageContent: msg.content, 
+          lastMessageAt: msg.createdAt,
+          // Incrementar unreadCount solo si el chat NO está abierto
+          unreadCount: isChatOpen ? 0 : (m.unreadCount ?? 0) + 1 
+        };
+      }
+      return m;
+    });
+        
+    // 3. Ordenar la lista de matches para que el nuevo mensaje aparezca arriba
+    // La ordenación debe hacerse basándose en `lastMessageAt`
+    const sortedMatches = updatedMatches.sort((a, b) => {
+      const dateA = new Date(a.lastMessageAt || 0).getTime();
+      const dateB = new Date(b.lastMessageAt || 0).getTime();
+      return dateB - dateA; // Orden descendente (más reciente primero)
+    });
+
     return {
       messages: [...state.messages, msg],
-      matches: updatedMatches
+      matches: sortedMatches, // Devolvemos la lista ordenada
     };
+    // 2. Lógica de mensajes no leídos y actualización de matchContact
+
+
+    // 2. Lógica de mensajes no leídos y actualización de matchContact
+    //     const updatedMatches = !isChatOpen
+    //     ? state.matches.map((m) => 
+    //       m.id === msg.senderId
+    //       ? { ...m, unreadCount: (m.unreadCount ?? 0) + 1 }
+    //       : m
+    //     )
+    //     : state.matches;
+    //     
+    //     return {
+    //       messages: [...state.messages, msg],
+    //       matches: updatedMatches
+    //     };
   }),
     
   updateMessageStatus: (localId, newStatus, prismaId) => set((state) => ({
@@ -231,8 +293,13 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
             return false;
         }
 
-        // 2. Borrado local: Marca los mensajes como borrados (Soft Delete)
-        get().removeConversation(matchId, currentUserId);
+        // 2. BORRADO LOCAL: Limpiamos los mensajes del estado, en lugar de marcarlos como borrados.
+        set(state => ({
+            messages: state.messages.filter(msg => 
+                // Mantenemos solo los mensajes que NO pertenecen a la conversación eliminada
+                !(msg.senderId === matchId || msg.receiverId === matchId) 
+            )
+        }));
 
         // 3. Borrado del match de la lista: Esto resuelve el problema de que el chat reaparezca.
         set(state => ({
@@ -241,7 +308,8 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
 
         // 4. Reset del chat activo si estábamos en él
         if (get().activeMatchId === matchId) {
-            set({ activeMatchId: null, messages: [] });
+            // set({ activeMatchId: null, messages: [] });
+            set({ activeMatchId: null });
         }
 
         return true;
