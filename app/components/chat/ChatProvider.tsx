@@ -81,15 +81,15 @@ export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children
   // ---- Conectamos al socket, pasamos el estado de expansión y la función de recarga ----
   // El hook useSocket ahora devolverá las funciones del socket.
   // Por lo tanto, no necesitamos guardar el retorno.
-  useSocket(currentUserId || '', isExpanded, loadInitialChatData);
+  useSocket(currentUserId || '', isExpanded);
   
   // Efecto inicial para la PRIMERA carga de datos
   useEffect( () => {
     // Si hay usuario, cargamos la data.
     if (user && user?.id) {
-      loadInitialChatData();
+      // loadInitialChatData();
     }
-  }, [user, loadInitialChatData]);
+  }, [user]);
 
   const BLOCKED_ROUTES = ['api/auth/login', 'api/auth/accept-register'];
   const isBlockedRoute = BLOCKED_ROUTES.includes(pathname);
