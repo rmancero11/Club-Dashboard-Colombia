@@ -274,6 +274,8 @@ model Client {
   isArchived Boolean   @default(false)
 
   subscriptionPlan SubscriptionPlan @default(STANDARD)
+  subscriptionCreatedAt   DateTime?
+  subscriptionExpiresAt   DateTime?
 
   travelPoints Int @default(0)
 

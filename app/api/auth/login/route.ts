@@ -58,6 +58,33 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Credenciales inválidas" }, { status: 401 });
     }
 
+    // 🔥 AUTO-DESUSCRIPCIÓN SI LA SUSCRIPCIÓN ESTÁ EXPIRADA
+    const client = await prisma.client.findUnique({
+      where: { userId: user.id },
+      select: {
+        id: true,
+        subscriptionPlan: true,
+        subscriptionCreatedAt: true,
+        subscriptionExpiresAt: true,
+      },
+    });
+
+    if (
+      client &&
+      client.subscriptionPlan !== "STANDARD" &&
+      client.subscriptionExpiresAt &&
+      client.subscriptionExpiresAt < new Date()
+    ) {
+      await prisma.client.update({
+        where: { id: client.id },
+        data: {
+          subscriptionPlan: "STANDARD",
+          subscriptionCreatedAt: null,
+          subscriptionExpiresAt: null,
+        },
+      });
+    }
+
     const token = await signToken(
       { id: user.id, role: user.role, email: user.email },
       { expiresIn: "1d", subject: user.id }
@@ -67,16 +94,16 @@ export async function POST(req: Request) {
       user: { id: user.id, name: user.name, email: user.email, role: user.role },
     });
 
-   const isLocal = process.env.NODE_ENV !== "production";
+    const isLocal = process.env.NODE_ENV !== "production";
 
-res.cookies.set("token", token, {
-  httpOnly: true,
-  secure: !isLocal, // 🔹 false en local, true en prod
-  sameSite: "lax",
-  path: "/",
-  maxAge: 60 * 60 * 24,
-  ...(isLocal ? {} : { domain: "dashboard.clubdeviajerossolteros.com" }), // 🔹 sin dominio en local
-});
+    res.cookies.set("token", token, {
+      httpOnly: true,
+      secure: !isLocal,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24,
+      ...(isLocal ? {} : { domain: "dashboard.clubdeviajerossolteros.com" }),
+    });
 
     return res;
   } catch (err) {

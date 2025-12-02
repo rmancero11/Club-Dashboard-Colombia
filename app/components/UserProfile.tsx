@@ -4,10 +4,7 @@ import * as React from "react";
 import { useRouter } from "next/navigation";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
-import DestinationsList from "./DestinationList";
 import Memberships from "./Memberships";
-import DestinationCard from "./DestinationCard";
-import { div } from "framer-motion/client";
 import UserPreferences from "./UserPreferences";
 import { useSearchParams } from "next/navigation";
 import InstallAppButton from "./InstallAppButton";
@@ -30,6 +27,7 @@ type UserShape = {
   preference?: Preference;
   verified?: boolean;
   clientProfile?: {
+    subscriptionExpiresAt?: number;
     subscriptionPlan?: string;
     travelPoints?: number;
   };
@@ -65,7 +63,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
   }>(null);
 
   // Obtenemos la acción resetChat del store
-  const resetChat = useChatStore(state => state.resetChat);
+  const resetChat = useChatStore((state) => state.resetChat);
 
   async function handleSave(data: { gustos: string[]; destinos: string[] }) {
     const formData = new FormData();
@@ -173,10 +171,23 @@ export default function UserProfile({ user }: { user: UserShape }) {
       ? user.preference.split(",").map((p) => p.trim())
       : user.preference || [];
 
+  const expiresAt = user.clientProfile?.subscriptionExpiresAt
+    ? new Date(user.clientProfile.subscriptionExpiresAt)
+    : null;
+
+  const NOW = new Date();
+
+  let daysLeft = null;
+
+  if (expiresAt) {
+    const diff = expiresAt.getTime() - NOW.getTime();
+    daysLeft = Math.ceil(diff / (1000 * 60 * 60 * 24)); // días restantes redondeados hacia arriba
+  }
+
   return (
     <div className="font-montserrat w-full max-w-5xl mx-auto px-4 md:px-6 pb-16">
       {/* HEADER */}
-      <div className="relative bg-white md:shadow-md md:border md:border-gray-200 p-6 rounded-2xl flex flex-col items-center text-center md:grid md:grid-cols-[auto_1fr_auto] md:text-left md:items-center gap-6">
+      <div className="relative bg-white md:shadow-md md:border md:border-gray-200 p-6 rounded-2xl flex flex-col items-center text-center md:grid md:grid-cols-[auto_1fr_auto] md:text-left md:items-center gap-6 overflow-visible">
         <div className="absolute top-4 right-4">
           <button
             onClick={() => setMenuOpen((prev) => !prev)}
@@ -415,24 +426,49 @@ export default function UserProfile({ user }: { user: UserShape }) {
           <div className="flex items-center gap-2 mt-2 font-montserrat">
             {/* Subscription Plan del Client */}
             {user.clientProfile?.subscriptionPlan && (
-              <span className="text-sm font-montserrat font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-md">
-                {user.clientProfile.subscriptionPlan}
-              </span>
+              <div className="flex items-center gap-2 mt-2 font-montserrat">
+                {user.clientProfile?.subscriptionPlan && (
+                  <div className="relative flex flex-col items-center group">
+                    {/* Badge */}
+                    <span className="text-sm font-montserrat font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-md cursor-default">
+                      {user.clientProfile.subscriptionPlan}
+                    </span>
+
+                    {/* Tooltip (solo visible en hover) */}
+                    <div
+                      className="
+        absolute top-full mt-2 w-max px-3 py-2 text-xs rounded-md shadow-md bg-gray-800 text-white 
+        opacity-0 pointer-events-none transition-opacity duration-200
+        group-hover:opacity-100
+      "
+                    >
+                      {user.clientProfile.subscriptionPlan === "STANDARD"
+                        ? "Sin suscripción activa"
+                        : daysLeft === null
+                        ? "Sin fecha"
+                        : daysLeft > 0
+                        ? `Le quedan ${daysLeft} día${
+                            daysLeft === 1 ? "" : "s"
+                          }`
+                        : "La suscripción ha expirado"}
+                    </div>
+                  </div>
+                )}
+              </div>
             )}
 
             {/* Travel Points */}
             {typeof user.clientProfile?.travelPoints === "number" && (
-  <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md">
-    <Image
-      src="/favicon/iconosclub-25.svg" // 👉 poné acá la ruta de tu imagen
-      alt="Travel Points"
-      width={18}
-      height={18}
-    />
-    {user.clientProfile.travelPoints}
-  </span>
-)}
-
+              <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md">
+                <Image
+                  src="/favicon/iconosclub-25.svg" // 👉 poné acá la ruta de tu imagen
+                  alt="Travel Points"
+                  width={18}
+                  height={18}
+                />
+                {user.clientProfile.travelPoints}
+              </span>
+            )}
           </div>
 
           <UserPreferences

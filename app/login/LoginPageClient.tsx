@@ -113,7 +113,7 @@ export default function LoginPageClient({}: {}) {
                   onClick={() => setShowForgot(true)}
                   className="w-full cursor-pointer text-center hover:text-primary hover:font-bold duration-200 font-sans"
                 >
-                  Forgot your password?
+                  ¿Olvidaste tu contraseña?
                 </button>
               </div>
             </form>

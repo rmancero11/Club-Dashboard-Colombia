@@ -159,11 +159,12 @@ export default function TravelersMatchList() {
   }, [currentUser]);
 
   // ❤️ Like / Unlike / Match
-  const handleLike = async (targetId: string) => {
-    if (!currentUser) return;
+  // ❤️ Like / Unlike / Match
+  const handleLike = async (targetId: string): Promise<boolean> => {
+    if (!currentUser) return false;
 
     // ⛔ Si ya hubo MATCH → no se puede tocar
-    if (matchedUsers[targetId]) return;
+    if (matchedUsers[targetId]) return false;
 
     // 💔 Si ya le diste like → UNLIKE
     if (likedUsers[targetId]) {
@@ -180,7 +181,7 @@ export default function TravelersMatchList() {
         if (!res.ok) {
           const data = await res.json();
           alert(data.error || "No se pudo remover el like");
-          return;
+          return false;
         }
 
         setLikedUsers((prev) => {
@@ -189,10 +190,10 @@ export default function TravelersMatchList() {
           return newState;
         });
 
-        return;
+        return false;
       } catch (err) {
         console.error(err);
-        return;
+        return false;
       }
     }
 
@@ -211,17 +212,17 @@ export default function TravelersMatchList() {
 
       if (!res.ok) {
         alert(data.error || "No se pudo enviar el like");
-        return;
+        return false;
       }
 
+      // Guardar el like
       setLikedUsers((prev) => ({ ...prev, [targetId]: true }));
 
-      // 🎉 Si hubo MATCH
+      // 🎉 Si hubo MATCH —> devolvemos TRUE
       if (data.matched) {
         setMatchedUsers((prev) => ({ ...prev, [targetId]: true }));
 
-        // Buscar datos del usuario que matcheó
-        const traveler = travelersByDest;
+        // Buscar datos del usuario matcheado
         const matched = Object.values(travelersByDest)
           .flat()
           .find((t) => t.id === targetId);
@@ -234,9 +235,14 @@ export default function TravelersMatchList() {
         }
 
         setShowMatchModal(true);
+
+        return true; //  👈 ***ESTO ES LA CLAVE*** (hubo match)
       }
+
+      return false; // no hubo match → se puede pasar al siguiente
     } catch (error) {
       console.error(error);
+      return false;
     }
   };
 
@@ -422,7 +428,17 @@ export default function TravelersMatchList() {
               matchedUserInfo?.avatar || "/images/default-avatar.png"
             }
             matchedUserName={matchedUserInfo?.name || "Viajero"}
-            
+            onViewProfile={() => {
+              const traveler = Object.values(travelersByDest)
+                .flat()
+                .find((t) => t.name === matchedUserInfo?.name);
+
+              if (traveler) {
+                setSelectedTraveler(traveler);
+              }
+
+              setShowMatchModal(false);
+            }}
           />,
           document.body
         )}

@@ -112,6 +112,27 @@ function planBadgeClass(plan?: string) {
   }
 }
 
+function getRemainingTime(expiresAt?: Date | string | null) {
+  if (!expiresAt) return "Sin fecha";
+
+  const now = new Date();
+  const exp = typeof expiresAt === "string" ? new Date(expiresAt) : expiresAt;
+
+  if (exp < now) return "Expirada";
+
+  const diffMs = exp.getTime() - now.getTime();
+  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
+  const diffHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
+
+  if (diffDays > 0) {
+    return `${diffDays} días y ${diffHours} horas restantes`;
+  }
+
+  return `${diffHours} horas restantes`;
+}
+
+
+
 /** Previsualizador */
 function FilePreview({
   url,
@@ -297,35 +318,40 @@ export default async function AdminClientDetailPage({
   if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   const client = await prisma.client.findFirst({
-    where: { id: params.id },
-    select: {
-      id: true,
-      name: true,
-      email: true,
-      phone: true,
-      country: true,
-      city: true,
-      documentId: true,
-      birthDate: true,
-      tags: true,
-      notes: true,
-      isArchived: true,
-      createdAt: true,
-      travelPoints: true,
-      /** <<<<<<<<<<<<<<<<<<<<<< AQUI: traemos el plan */
-      subscriptionPlan: true,
-      seller: { select: { id: true, name: true, email: true } },
-      _count: { select: { reservations: true } },
-      user: {
-        select: {
-          dniFile: true,
-          passport: true,
-          visa: true,
-          verified: true,
-        },
+  where: { id: params.id },
+  select: {
+    id: true,
+    name: true,
+    email: true,
+    phone: true,
+    country: true,
+    city: true,
+    documentId: true,
+    birthDate: true,
+    tags: true,
+    notes: true,
+    isArchived: true,
+    createdAt: true,
+    travelPoints: true,
+
+    // ⭐ Agregado:
+    subscriptionPlan: true,
+    subscriptionCreatedAt: true,
+    subscriptionExpiresAt: true,
+
+    seller: { select: { id: true, name: true, email: true } },
+    _count: { select: { reservations: true } },
+    user: {
+      select: {
+        dniFile: true,
+        passport: true,
+        visa: true,
+        verified: true,
       },
     },
-  });
+  },
+});
+
   if (!client) notFound();
 
   const [reservations, sellers] = await Promise.all([
@@ -409,6 +435,24 @@ export default async function AdminClientDetailPage({
                 ] ?? "—"}
               </span>
             </div>
+
+           <div className="text-sm text-gray-500 mt-1">
+  {client.subscriptionPlan !== "STANDARD" ? (
+    <>
+      <span className="font-medium">Expira:</span>{" "}
+      {client.subscriptionExpiresAt
+        ? fmtDate(client.subscriptionExpiresAt)
+        : "—"}{" "}
+      · <span className="italic">
+        {getRemainingTime(client.subscriptionExpiresAt)}
+      </span>
+    </>
+  ) : (
+    "Sin suscripción activa"
+  )}
+</div>
+
+
             {/* <<< SUSCRIPCIÓN VISUAL <<< */}
 
             <div className="flex items-center gap-1">
