@@ -13,6 +13,7 @@ export interface MatchContact {
   birthday?: Date | string | null;
   gender?: string | null; 
   isBlockedByMe: boolean;
+  isBlockedByOther: boolean;
   unreadCount?: number;
 }
 
@@ -70,6 +71,7 @@ export interface ChatStore {
   
   updateUserStatus: (id: string, online: boolean) => void;
   updateBlockStatus: (blockedId: string, isBlocked: boolean) => void;
+  setBlockedByOther: (otherUserId: string, isBlocked: boolean) => void;
   
   getUnreadCount: (matchId: string) => number;
   getTotalUnread: () => number;
@@ -126,7 +128,9 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
   set({
     matches: matchList.map((m) => ({
       ...m,
-      unreadCount: m.unreadCount ?? 0 // 👉 asegurar campo
+      unreadCount: m.unreadCount ?? 0, // 👉 asegurar campo
+      isBlockedByMe: m.isBlockedByMe ?? false,
+      isBlockedByOther: m.isBlockedByOther ?? false,
     })),
     isLoadingMatches: false
   }),
@@ -204,23 +208,8 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
       messages: [...state.messages, msg],
       matches: sortedMatches, // Devolvemos la lista ordenada
     };
-    // 2. Lógica de mensajes no leídos y actualización de matchContact
-
-
-    // 2. Lógica de mensajes no leídos y actualización de matchContact
-    //     const updatedMatches = !isChatOpen
-    //     ? state.matches.map((m) => 
-    //       m.id === msg.senderId
-    //       ? { ...m, unreadCount: (m.unreadCount ?? 0) + 1 }
-    //       : m
-    //     )
-    //     : state.matches;
-    //     
-    //     return {
-    //       messages: [...state.messages, msg],
-    //       matches: updatedMatches
-    //     };
   }),
+
     
   updateMessageStatus: (localId, newStatus, prismaId) => set((state) => ({
     messages: state.messages.map((msg) =>
@@ -341,6 +330,19 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
     const match = get().matches.find((m) => m.id === matchId);
     return match?.unreadCount ?? 0;
   },
+
+  setBlockedByOther: (otherUserId: string, isBlocked: boolean) => set((state) => ({
+    matches: state.matches.map((m) =>
+      m.id === otherUserId
+      ? { ...m, isBlockedByOther: isBlocked }
+      : m
+    ),
+    activeMatchId:
+      isBlocked && state.activeMatchId === otherUserId
+      ? null
+      : state.activeMatchId
+  })),
+  
 
   getTotalUnread: () => get().matches.reduce((t, m) => t + (m.unreadCount ?? 0), 0),
 

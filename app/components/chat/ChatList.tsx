@@ -11,7 +11,7 @@ const SearchIcon = (props: React.SVGProps<SVGSVGElement>) => (
 
 // Icono de bloqueo
 const BlockSmallIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500 flex-shrink-0"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
+  <svg {...props} xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-red-500 flex-shrink-0"><circle cx="12" cy="12" r="10"></circle><title>Usuario Bloqueado</title><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>
 );
 
 interface ChatListProps {

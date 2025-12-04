@@ -64,7 +64,6 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   matchName,
 }) => {
   const isChatExpanded = useChatStore((state) => state.isExpanded);
-  // const reloadMatches = React.useCallback(() => {}, []);
 
   // Obtenemos la función de envío
   const {
@@ -179,16 +178,24 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   }, [rawMatches, matchId]);
 
   const isBlockedByMe = matchDetails?.isBlockedByMe; // Estado de Bloqueo
+  const isBlockedByOther = matchDetails?.isBlockedByOther; // Estado de Bloqueo por otro usuario
 
   const isOnline = useChatStore((state) => state.onlineUsers[matchId]); // <-- Este selector está bien porque devuelve un primitivo (boolean)
 
   // --- Manejador de Bloqueo/Desbloqueo ---
   const handleBlockUnblock = () => {
+    
+    if (!matchId) return;
+
     if (isBlockedByMe) {
+      // Si yo ya lo bloqueé, la acción será desbloquear
       unblockUser(matchId);
+    
     } else {
+      // Si no, bloqueo
       blockUser(matchId);
     }
+    setShowHeaderMenu(false);
   };
 
   // --- Lógica de Manejo de Archivo ---
@@ -204,13 +211,13 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
     }
   };
 
-  // --- Lógica de Envío con Pre-Subida (Cloudinary) ---
+  // --- Lógica de Envío con Pre-Subida (Cloudinary) (Previene si bloqueo cualquiera de los dos sentidos) ---
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    // Si está bloqueado por mí, no enviar.
-    if (isBlockedByMe) {
-      console.log("No se puede enviar: El usuario está bloqueado por mí.");
+    // Si está bloqueado por mí o por otro, no enviar.
+    if (isBlockedByMe || isBlockedByOther) {
+      console.log("No se puede enviar: bloqueo activo (blockedByMe | blockedByOther).");
       return;
     }
 
@@ -487,7 +494,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   // ---- Borrar conversación (solo local).
   const handleDeleteConversation = () => {
     if (!matchId) return;
-    if (!confirm("¿Borrar toda la conversación del chat?")) return;
+    if (!confirm("¿Borrar chat? Esto borrará todos los mensajes de la conversación.")) return;
     const currentMessages = chatStoreGetState().messages || [];
     const updated = currentMessages.map((msg) => {
       // si el mensaje pertenece a la conversación, marcamos como borrado por mí
@@ -553,7 +560,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   };
 
   return (
-    <div className="flex flex-col w-full h-screen bg-white shadow-2xl">
+    <div className="flex flex-col w-full h-screen bg-white shadow-2xl absolute">
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-purple-400 to-purple-600 text-white sticky top-0 z-50">
         <div className="flex items-center space-x-3">
@@ -613,15 +620,18 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
                 >
                   Eliminar conversación
                 </button>
+
                 <button
                   onClick={() => {
-                    updateBlockStatus(matchId!, !isBlockedByMe);
-                    setShowHeaderMenu(false);
+                    // updateBlockStatus(matchId!, !isBlockedByMe);
+                    // setShowHeaderMenu(false);
+                    handleBlockUnblock()
                   }}
                   className="w-full text-left px-3 py-2 text-sm text-black hover:bg-gray-100 font-montserrat"
                 >
                   {isBlockedByMe ? "Desbloquear" : "Bloquear usuario"}
                 </button>
+
                 <button
                   onClick={() => {
                     setActiveChat(null);
@@ -664,12 +674,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
         ref={scrollContainerRef}
         className="flex-grow overflow-y-auto p-4 flex flex-col space-y-3"
       >
-        {isBlockedByMe && (
-          <div className="text-center bg-red-100 text-red-700 p-2 rounded-lg text-sm mb-4">
-            Has bloqueado a este usuario. Desbloquea para poder chatear de
-            nuevo.
-          </div>
-        )}
+        
         {isHistoryLoading && (
           <div className="text-center py-2 flex flex-col items-center">
             <div className="animate-spin rounded-full h-5 w-5 border-t-2 border-purple-500 mb-2"></div>
@@ -681,6 +686,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
             </p>
           </div>
         )}
+        
         {!hasMore && (
           <div className="text-center text-xs text-gray-500 mt-2">
             Fin del historial
@@ -783,7 +789,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
 
                   {/* Menú de eliminar mensaje */}
                   {openMessageMenuId === msg.id && (
-                    <div className="absolute right-1 top-full mt-1 bg-white rounded-md shadow z-50 w-36">
+                    <div className="absolute right-1 bottom-16 mt-1 bg-white rounded-md shadow z-50 w-36">
                       <button
                         onClick={() => handleDeleteMessage(msg.id)}
                         className="font-montserrat w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
@@ -821,9 +827,23 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
 
         <div ref={messagesEndRef} />
       </div>
+        {/* Banner cuando YO bloqueé al otro */}
+        {isBlockedByMe && (
+          <div className="text-center bg-red-100 text-red-700 p-2 rounded-lg justify text-sm mb-4">
+            Has bloqueado a este usuario. Desbloquea para poder chatear de
+            nuevo.
+          </div>
+        )}
+
+        {/* Banner cuando ME BLOQUEARON */}
+        {isBlockedByOther && (
+          <div className="text-center bg-yellow-50 text-yellow-800 p-2 rounded-lg text-sm mb-4">
+            Este usuario te ha bloqueado. No podrás enviar mensajes hasta que te desbloquee.
+          </div>
+        )}
 
       {/* Input de Envío */}
-      <form onSubmit={handleSubmit} className="p-4 border-t flex-shrink-0">
+      <form onSubmit={handleSubmit} className="p-4 border-t flex-shrink-0 ">
         {imagePreviewUrl && (
           <div className="mb-3 relative max-w-[150px] border rounded-lg p-1 bg-gray-50">
             <img
@@ -850,7 +870,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
         <div className="flex space-x-2 items-center">
           <label
             className={`cursor-pointer ${
-              isUploading || isBlockedByMe ? "opacity-50" : ""
+              isUploading || isBlockedByMe || isBlockedByOther ? "opacity-50" : ""
             }`}
           >
             <input
@@ -858,7 +878,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
               accept="image/*"
               onChange={handleFileChange}
               className="hidden"
-              disabled={isUploading || isBlockedByMe}
+              disabled={isUploading || isBlockedByMe || isBlockedByOther}
             />
             <span className="p-2 bg-gray-200 rounded-full hover:bg-gray-300 transition-colors flex items-center justify-center flex-shrink-0">
               <svg
@@ -891,11 +911,13 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
             }}
             placeholder={
               isBlockedByMe
-                ? "Desbloquea para escribir..."
-                : "Escribe un mensaje..."
+              ? "Desbloquea para escribir..."
+              : isBlockedByOther 
+              ? "Este usuario te ha bloqueado."
+              : "Escribe un mensaje..."
             }
             className="w-full resize-none border rounded-lg p-2 text-sm max-h-32 overflow-y-auto"
-            disabled={isHistoryLoading || isUploading || isBlockedByMe}
+            disabled={isHistoryLoading || isUploading || isBlockedByMe || isBlockedByOther}
           />
 
           <button
@@ -904,7 +926,9 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
             disabled={
               (!inputContent.trim() && !imageFile) ||
               isHistoryLoading ||
-              isUploading
+              isUploading ||
+              isBlockedByMe ||
+              isBlockedByOther
             }
           >
             {isUploading ? (
