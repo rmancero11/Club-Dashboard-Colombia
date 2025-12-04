@@ -41,22 +41,55 @@ export async function POST(req: Request) {
       },
     });
 
-    // ---- Eliminar cualquier Match existente para que desaparezca del chat ----    
-    // Los IDs se ordenan alfabéticamente para encontrar el registro unico de prisma
-    const [userAId, userBId] = [blockerUserId, blockedUserId].sort();
-
-    await prisma.match.deleteMany({
-      where: {
-        // Buscamos el match sin importar quien es userA o userB
-        userAId,
-        userBId,
-      }
-    });
-
+    // No eliminamos match; sólo persistimos bloqueo
     return NextResponse.json({ ok: true, blocked: blocked.blockedUserId }, { status: 200 });
 
   } catch (error) {
-    console.error('Error blocking user:', error);
+    console.error('Error in API block POST:', error);
+    return NextResponse.json({ error: "Internal error" }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: Request) {
+  try {
+    const authResult = await getAuth();
+    if (!authResult || !authResult.userId) {
+      return NextResponse.json({ message: 'Unauthorized' }, { status: 401 });
+    }
+    const unblockerId = authResult.userId;
+
+    // Leer body (puede venir en body JSON) o query param
+    const url = new URL(req.url);
+    const queryBlockedId = url.searchParams.get('blockedUserId');
+
+    let bodyBlockedId: string | undefined = undefined;
+    try {
+      const body = await req.json();
+      bodyBlockedId = body?.blockedUserId;
+    } catch (e) {
+      // ignore if no JSON body
+    }
+
+    const blockedUserId = bodyBlockedId ?? queryBlockedId;
+    if (!blockedUserId) {
+      return NextResponse.json({ error: "Missing blockedUserId" }, { status: 400 });
+    }
+
+    const result = await prisma.blockedUser.deleteMany({
+      where: {
+        blockerUserId: unblockerId,
+        blockedUserId
+      }
+    });
+
+    if (result.count > 0) {
+      return NextResponse.json({ ok: true, unblocked: blockedUserId }, { status: 200 });
+    } else {
+      return NextResponse.json({ ok: false, message: 'No block record found' }, { status: 200 });
+    }
+
+  } catch (error) {
+    console.error('Error in API block DELETE:', error);
     return NextResponse.json({ error: "Internal error" }, { status: 500 });
   }
 }

@@ -196,41 +196,84 @@ io.on('connection', (socket) => {
 
     socket.on('block-user', async ({ blockedUserId }) => {
         const blockerId = userId;
-        if (!blockerId) return;
+        if (!blockerId || !blockedUserId) return;
 
         try {
-        await prisma.blockedUser.create({
-            data: {
-            blockerUserId: blockerId,
-            blockedUserId
-            }
+        await prisma.blockedUser.upsert({
+            where: {
+                blockerUserId_blockedUserId: {
+                    blockerUserId: blockerId,
+                    blockedUserId,
+                },
+            },
+            update: {}, // No se actualiza nada si ya existe
+            create: {
+                blockerUserId: blockerId,
+                blockedUserId,
+            },
         });
 
-        socket.emit('user-blocked-success', { blockedId: blockedUserId });
+        // socket.emit('user-blocked-success', { blockedId: blockedUserId });
+        // io.to(blockedUserId).emit('you-are-blocked', { blockerId });
+
+        // Confirmación al propio bloqueador (todas sus sesiones)
+        io.to(blockerId).emit('user-blocked-success', { blockedId: blockedUserId });
+
+        // Notificar al bloqueado que fue bloqueado (todas sus sesiones)
         io.to(blockedUserId).emit('you-are-blocked', { blockerId });
+
         } catch (e: any) {
-        if (e.code !== 'P2002') console.error(e);
+        // if (e.code !== 'P2002') console.error(e);
+        console.error('Error in socket block-user:', e);
         }
     });
 
 
     socket.on('unblock-user', async ({ blockedUserId }) => {
         const unblockerId = userId;
-        if (!unblockerId) return;
+        if (!unblockerId || !blockedUserId) return;
 
-        const result = await prisma.blockedUser.deleteMany({
-        where: {
-            blockerUserId: unblockerId,
-            blockedUserId
-        }
-        });
+        try {
+            const result = await prisma.blockedUser.deleteMany({
+                where: {
+                    blockerUserId: unblockerId,
+                    blockedUserId
+                },
+            });
 
-        if (result.count > 0) {
-        socket.emit('unblock-success', { blockedId: blockedUserId });
-        io.to(blockedUserId).emit('you-are-unblocked', { unblockerId });
+            if (result.count > 0) {
+                io.to(unblockerId).emit('unblock-success', { blockedId: blockedUserId });
+                io.to(blockedUserId).emit('you-are-unblocked', { unblockerId });
+            }
+
+        } catch (err) {
+            console.error('Error in socket unblock-user:', err);
         }
     });
 
+    /* ----------------- NOTIFY-only events -----------------
+   Estos handlers **no tocan la DB**: sirven cuando la acción
+   se realizó por la API REST y queremos notificar a los sockets.
+   (El cliente llamará la API y luego emitirá 'notify-block' para avisar)
+    */
+    socket.on('notify-block', ({ blockedUserId }) => {
+    const blockerId = userId;
+    if (!blockerId || !blockedUserId) return;
+
+    // Notificamos al bloqueador y al bloqueado
+    io.to(blockerId).emit('user-blocked-success', { blockedId: blockedUserId });
+    io.to(blockedUserId).emit('you-are-blocked', { blockerId });
+    });
+
+    socket.on('notify-unblock', ({ blockedUserId }) => {
+    const unblockerId = userId;
+    if (!unblockerId || !blockedUserId) return;
+
+    io.to(unblockerId).emit('unblock-success', { blockedId: blockedUserId });
+    io.to(blockedUserId).emit('you-are-unblocked', { unblockerId });
+    });
+
+    
     // --- Lógica de send-message ---
     socket.on('send-message', async (data: { senderId: string, receiverId: string, content: string, imageUrl?: string, localId:string }) => {
         const senderId = data.senderId;

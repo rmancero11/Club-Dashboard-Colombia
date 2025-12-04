@@ -290,105 +290,112 @@ export const useSocket = (
   );
   
 
-  // --- DELETE CONVERSATION ---
-  // Similar: optimistic local -> API PATCH -> socket emit
-  // const deleteConversation = useCallback(
-  //   async (matchId: string) => {
-  //     if (!userId) return;
-
-  //     const sock = getSocket();
-
-  //     // Optimistic local
-  //     store.removeConversation(matchId, userId);
-
-  //     try {
-  //       const res = await fetch(`/api/chat/history/${matchId}/delete`, {
-  //         method: 'PATCH',
-  //         headers: { 'Content-Type': 'application/json' },
-  //       });
-
-  //       if (!res.ok) {
-  //         console.error('API delete conversation failed', await res.text());
-  //         try { window.alert('No se pudo eliminar la conversación. Intenta de nuevo.'); } catch {}
-  //         return;
-  //       }
-
-  //       // Emitir evento para sincronizar otras sesiones
-  //       if (sock) {
-  //         sock.emit('conversation-deleted', {
-  //           matchId,
-  //           deletedBy: userId,
-  //           receiverId: matchId
-  //         });
-  //       }
-
-  //       // También reseteamos unread en matches local (ya lo hace removeConversation, pero por si acaso)
-  //       useChatStore.setState((s) => ({
-  //         matches: s.matches.map((m) => (m.id === matchId ? { ...m, unreadCount: 0 } : m))
-  //       }));
-  //     } catch (err) {
-  //       console.error('Error deleting conversation:', err);
-  //       try { window.alert('No se pudo eliminar la conversación.'); } catch {}
-  //     }
-  //   },
-  //   [userId, store]
-  // );
-
+  
   const deleteConversation = useCallback(
-    async (matchId: string) => {
-      if (!userId) return;
+    async (matchId: string) => {
+      if (!userId) return;
 
-      const sock = getSocket();
+      const sock = getSocket();
 
       // 💡 USAR LA NUEVA ACCIÓN ASÍNCRONA DEL STORE
-      const success = await store.deleteConversationAndMatch(matchId, userId);
+      const success = await store.deleteConversationAndMatch(matchId, userId);
 
-      if (!success) {
-        console.error('API delete conversation failed');
-        try { window.alert('No se pudo eliminar la conversación. Intenta de nuevo.'); } catch {}
-        return;
-      }
+      if (!success) {
+        console.error('API delete conversation failed');
+        try { window.alert('No se pudo eliminar la conversación. Intenta de nuevo.'); } catch {}
+        return;
+      }
 
-      // Emitir evento para sincronizar otras sesiones
-      if (sock) {
-        sock.emit('conversation-deleted', {
-          matchId,
-          deletedBy: userId,
-          receiverId: matchId
-        });
-      }
-      // Ya no es necesario limpiar el match ni el activeChat aquí, lo hace deleteConversationAndMatch
-    },
-    [userId, store]
-  );
+      // Emitir evento para sincronizar otras sesiones
+      if (sock) {
+        sock.emit('conversation-deleted', {
+          matchId,
+          deletedBy: userId,
+          receiverId: matchId
+        });
+      }
+      // Ya no es necesario limpiar el match ni el activeChat aquí, lo hace deleteConversationAndMatch
+    },
+    [userId, store]
+  );
 
 
-  // --- BLOCK / UNBLOCK ---
+  // --- BLOCK USER ---
   const blockUser = useCallback(
-    (blockedUserId: string) => {
+    async (blockedUserId: string) => {
       const sock = getSocket();
       if (!sock || !userId) return;
 
       if (!window.confirm('⚠️ ¿Estás seguro de que quieres bloquear a este usuario?')) return;
 
-      sock.emit('block-user', { blockedUserId });
+      try {
+        // 1) Persistir bloqueo en la API (idempotente)
+        const res = await fetch('/api/block', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blockedUserId }),
+        });
 
-      // cerrar chat local
-      store.setActiveChat(null);
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error('API block failed', errText);
+          try { window.alert('No se pudo bloquear el usuario.'); } catch {}
+          return;
+        }
+
+        // 2) Notificar por sockets a otras sesiones (server no tocará DB)
+        sock.emit('notify-block', { blockedUserId });
+
+        // 3) Actualizar UI local optimista (cerrar chat)
+        store.updateBlockStatus(blockedUserId, true);
+        store.setActiveChat(null);
+
+        try { window.alert('✅ Usuario bloqueado exitosamente.'); } catch {}
+
+      } catch (err) {
+        console.error('Error blocking user:', err);
+        try { window.alert('Ocurrió un error. Intenta de nuevo.'); } catch {}
+      }
+
     },
     [userId, store]
   );
 
   const unblockUser = useCallback(
-    (blockedUserId: string) => {
+    async (blockedUserId: string) => {
       const sock = getSocket();
       if (!sock || !userId) return;
 
       if (!window.confirm('⚠️ ¿Estás seguro de que quieres desbloquear a este usuario?')) return;
 
-      sock.emit('unblock-user', { blockedUserId });
+      try {
+        // 1) Llamada a la API para eliminar el bloqueo
+        const res = await fetch(`/api/block?blockedUserId=${encodeURIComponent(blockedUserId)}`, {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+        });
+
+        if (!res.ok) {
+          const errText = await res.text();
+          console.error('API unblock failed', errText);
+          try { window.alert('No se pudo desbloquear el usuario.'); } catch {}
+          return;
+        }
+
+        // 2) Notificar por sockets
+        sock.emit('notify-unblock', { blockedUserId });
+
+        // 3) Actualizar UI local optimista
+        store.updateBlockStatus(blockedUserId, false);
+
+        try { window.alert('✅ Usuario desbloqueado exitosamente.'); } catch {}
+
+      } catch (err) {
+        console.error('Error unblocking user:', err);
+        try { window.alert('Ocurrió un error. Intenta de nuevo.'); } catch {}
+      }
     },
-    [userId]
+    [userId, store]
   );
 
   return { 
