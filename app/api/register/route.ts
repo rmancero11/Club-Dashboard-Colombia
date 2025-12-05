@@ -13,7 +13,6 @@ const enc = new TextEncoder();
 const WP_ALLOWED = new Set([
   "https://clubdeviajerossolteros.com",
   "https://www.clubdeviajerossolteros.com",
-  "http://localhost:3000"
 ]);
 
 const BASE_DASHBOARD = "https://dashboard.clubdeviajerossolteros.com";
