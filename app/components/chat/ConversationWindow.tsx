@@ -11,6 +11,7 @@ import { useChatStore } from "@/store/chatStore";
 import { useSocket } from "@/app/hooks/useSocket";
 import { MessageType } from "@/app/types/chat";
 import { useCountdown } from "@/app/hooks/useCountdown";
+import Link from "next/link";
 
 const MESSAGES_PER_PAGE = 50;
 
@@ -560,10 +561,13 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
   };
 
   return (
-    <div className="flex flex-col w-full h-screen bg-white shadow-2xl absolute">
+    <div className="flex flex-col w-full h-full bg-white shadow-2xl relative right-0">
       {/* Header */}
       <div className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-purple-400 to-purple-600 text-white sticky top-0 z-50">
-        <div className="flex items-center space-x-3">
+        <Link
+          href={`/dashboard-user/profile/${matchId}`} 
+          className="flex items-center space-x-3 cursor-pointer hover:opacity-80 transition-opacity"
+        >
           {/* Avatar */}
           <div className="relative">
             <img
@@ -588,7 +592,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
               {isOnline ? "En línea" : "Desconectado"}
             </span>
           </div>
-        </div>
+        </Link>
 
         <div className="flex items-center gap-3 ml-auto">
           {/* Botón menú header */}
@@ -599,8 +603,8 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
               title="Opciones"
             >
               <svg
-                width="18"
-                height="18"
+                width="20"
+                height="20"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
@@ -616,7 +620,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
               <div className="absolute right-0 mt-2 w-44 bg-white rounded-md shadow-lg z-50">
                 <button
                   onClick={handleDeleteConversation}
-                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-50 font-montserrat"
+                  className="w-full text-left px-3 py-2 text-sm text-red-600 hover:bg-red-100 font-montserrat border-b border-gray-200"
                 >
                   Eliminar conversación
                 </button>
@@ -627,7 +631,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
                     // setShowHeaderMenu(false);
                     handleBlockUnblock()
                   }}
-                  className="w-full text-left px-3 py-2 text-sm text-black hover:bg-gray-100 font-montserrat"
+                  className="w-full text-left px-3 py-2 text-sm text-black hover:bg-red-100 font-montserrat border-b border-gray-200"
                 >
                   {isBlockedByMe ? "Desbloquear" : "Bloquear usuario"}
                 </button>
@@ -637,7 +641,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
                     setActiveChat(null);
                     setShowHeaderMenu(false);
                   }}
-                  className="w-full text-left px-3 py-2 text-sm text-black hover:bg-gray-100 font-montserrat"
+                  className="w-full text-left px-3 py-2 text-sm text-black hover:bg-red-100 font-montserrat"
                 >
                   Cerrar chat
                 </button>
@@ -649,13 +653,13 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
         {/* Botón de Cerrar */}
         <button
           onClick={() => setActiveChat(null)}
-          className="text-gray-500 hover:text-gray-700 p-1 rounded-full hover:bg-gray-200 transition-colors"
+          className="text-white hover:text-red-900 p-1 rounded-full hover:bg-gray-200 transition-colors"
           title="Cerrar"
         >
           <svg
             xmlns="http://www.w3.org/2000/svg"
-            width="20"
-            height="20"
+            width="22"
+            height="22"
             viewBox="0 0 24 24"
             fill="none"
             stroke="currentColor"
@@ -672,7 +676,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
       {/* Contenedor de Mensajes */}
       <div
         ref={scrollContainerRef}
-        className="flex-grow overflow-y-auto p-4 flex flex-col space-y-3"
+        className="flex-grow p-4 flex flex-col space-y-3 overflow-y-auto"
       >
         
         {isHistoryLoading && (
@@ -842,8 +846,8 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
           </div>
         )}
 
-      {/* Input de Envío */}
-      <form onSubmit={handleSubmit} className="p-4 border-t flex-shrink-0 ">
+      {/* Input de Envío className="flex justify-between items-center p-4 border-b bg-gradient-to-r from-purple-400 to-purple-600 text-white sticky top-0 z-50"*/}
+      <form onSubmit={handleSubmit} className="sticky bottom-0 bg-white p-4 border-t z-50">
         {imagePreviewUrl && (
           <div className="mb-3 relative max-w-[150px] border rounded-lg p-1 bg-gray-50">
             <img

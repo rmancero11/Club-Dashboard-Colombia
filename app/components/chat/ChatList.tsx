@@ -128,46 +128,69 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
         )}
         {displayedMatches.map(match => {
           const lastMsg = lastMessageByMatch[match.id];
-          let briefText = '😴 ¡Despiertame, abre la conversación!';
-          if (match.isBlockedByMe) briefText = 'Usuario bloqueado.';
-          if (lastMsg) {
-            const wasDeleted =
-              Array.isArray(lastMsg.deletedBy) && lastMsg.deletedBy.length > 0;
-            const deletedForMe = lastMsg.deletedBy?.includes(currentUserId);
-            const deletedByOther = wasDeleted && !deletedForMe;
+          const unread = getUnreadCount(match.id);
+          const lastAt = lastMsg?.createdAt ?? match.lastMessageAt;
 
-            // Caso 1: Mensaje eliminado → siempre mostrar texto especial
+          let briefText = "💬 Iniciar conversación...";
+
+          // let briefText = '😴 ¡Despiertame, abre la conversación!';
+          if (match.isBlockedByMe){ 
+            briefText = 'Usuario bloqueado.'
+          }
+          else if (lastMsg) {
+            const wasDeleted = Array.isArray(lastMsg.deletedBy) && lastMsg.deletedBy.length > 0;
+            const deletedForMe = lastMsg.deletedBy?.includes(currentUserId);
+            
             if (wasDeleted) {
-              briefText = deletedForMe
-                ? "Eliminaste este mensaje"
-                : "Este mensaje fue eliminado";
-            }
-            // Caso 2: Tiene contenido válido → usarlo
-            else if (lastMsg.content && lastMsg.content.trim().length > 0) {
+              briefText = deletedForMe ? "Eliminaste este mensaje" : "Este mensaje fue eliminado";
+            } else if (lastMsg.imageUrl) {
+              briefText = "📷 Foto";
+            } else if (lastMsg.content && lastMsg.content.trim().length > 0) {
               briefText = lastMsg.content;
             }
-            // Caso 3: Es una imagen
-            else if (lastMsg.imageUrl) {
-              briefText = "📷 Foto";
-            }
-            // ❗ Caso 4: Mensaje está vacío y NO está eliminado → IGNORARLO
-            else {
-              // Si el match ya tenía contenido previo, usarlo
-              if (match.lastMessageContent) {
-                briefText = match.lastMessageContent;
-              } else {
-                briefText = "💬 Iniciar conversación...";
-              }
-            }
-          
           }
-          const lastAt = lastMsg?.createdAt ?? match.lastMessageAt;
-          const unread = getUnreadCount(match.id);
+          else if (match.lastMessageContent) {
+            briefText = match.lastMessageContent;
+          }
+
+          // if (lastMsg) {
+          //   const wasDeleted =
+          //     Array.isArray(lastMsg.deletedBy) && lastMsg.deletedBy.length > 0;
+          //   const deletedForMe = lastMsg.deletedBy?.includes(currentUserId);
+          //   const deletedByOther = wasDeleted && !deletedForMe;
+
+          //   // Caso 1: Mensaje eliminado → siempre mostrar texto especial
+          //   if (wasDeleted) {
+          //     briefText = deletedForMe
+          //       ? "Eliminaste este mensaje"
+          //       : "Este mensaje fue eliminado";
+          //   }
+          //   // Caso 2: Tiene contenido válido → usarlo
+          //   else if (lastMsg.content && lastMsg.content.trim().length > 0) {
+          //     briefText = lastMsg.content;
+          //   }
+          //   // Caso 3: Es una imagen
+          //   else if (lastMsg.imageUrl) {
+          //     briefText = "📷 Foto";
+          //   }
+          //   // ❗ Caso 4: Mensaje está vacío y NO está eliminado → IGNORARLO
+          //   else {
+          //     // Si el match ya tenía contenido previo, usarlo
+          //     if (match.lastMessageContent) {
+          //       briefText = match.lastMessageContent;
+          //     } else {
+          //       briefText = "💬 Iniciar conversación...";
+          //     }
+          //   }
+          
+          // }
+          // const lastAt = lastMsg?.createdAt ?? match.lastMessageAt;
+          // const unread = getUnreadCount(match.id);
 
           return (
             <div
               key={match.id}
-              className={`flex items-center p-3 border-b hover:bg-purple-50 cursor-pointer transition-colors ${
+              className={`flex items-center p-3 border-b hover:bg-purple-100 cursor-pointer transition-colors ${
                 match.id === activeMatchId ? 'bg-purple-100 border-l-4 border-purple-600' : ''
               }`}
               onClick={() => setActiveChat(match.id)}

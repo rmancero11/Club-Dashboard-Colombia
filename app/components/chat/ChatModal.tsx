@@ -62,17 +62,17 @@ const ChatModal: React.FC<ChatModalProps> = ({ currentUserId }) => {
 
         {/* Encabezado solo si NO hay ConversationWindow */}
         {!activeMatchId && (
-          <div className="p-4 border-b flex justify-between items-center bg-purple-50">
-            <h3 className="text-lg font-semibold text-purple-700">
+          <div className="p-4 border-b flex justify-between items-center bg-gradient-to-r from-purple-500 to-purple-600 text-white">
+            <h3 className="text-lg font-semibold text-white">
               Mensajes
             </h3>
             <div className="flex items-center space-x-2">
               <button
                 onClick={closeModal}
-                className="p-1 rounded-full hover:bg-red-200 transition-colors"
+                className="p-2 rounded-full hover:bg-gray-200 hover:text-red-900 text-white transition-colors"
                 title="Cerrar chat"
               >
-                <CloseIcon className="w-5 h-5 text-red-600" />
+                <CloseIcon className="w-6 h-6 text-white-600" />
               </button>
             </div>
           </div>
