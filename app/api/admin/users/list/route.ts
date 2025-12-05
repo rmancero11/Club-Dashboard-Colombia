@@ -1,62 +1,87 @@
-// app/api/admin/users/list/route.ts
-import { NextResponse } from 'next/server';
-import { prisma } from '@/app/lib/prisma';
-
-function parseQuery(searchParams: URLSearchParams) {
-  const fromStr = searchParams.get('from');
-  const toStr = searchParams.get('to');
-
-  if (!fromStr) throw new Error('Missing "from" query param (ISO date)');
-  const from = new Date(fromStr);
-  if (Number.isNaN(from.getTime())) throw new Error('Invalid "from" date');
-
-  const to = toStr ? new Date(toStr) : new Date();
-  if (Number.isNaN(to.getTime())) throw new Error('Invalid "to" date');
-
-  const limit = Math.max(1, Math.min(100, Number(searchParams.get('limit') ?? 10)));
-  const cursor = searchParams.get('cursor') ?? undefined; // para paginación cursor-based
-
-  return { from, to, limit, cursor };
-}
+import { NextResponse } from "next/server";
+import prisma from "@/app/lib/prisma";
+import { getAuth } from "@/app/lib/auth";
+import { Prisma } from "@prisma/client";
 
 export async function GET(req: Request) {
   try {
-    const { searchParams } = new URL(req.url);
-    const { from, to, limit, cursor } = parseQuery(searchParams);
-
-    const where = { createdAt: { gte: from, lte: to } };
-
-    const rows = await prisma.user.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: limit + 1, // pedir uno extra para saber si hay next
-      ...(cursor ? { skip: 1, cursor: { id: cursor } } : {}),
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        country: true,
-        budget: true,
-        preference: true,
-        destino: true,
-        createdAt: true,
-      },
-    });
-
-    let nextCursor: string | null = null;
-    if (rows.length > limit) {
-      const next = rows.pop()!; // quita el extra
-      nextCursor = next.id;
+    // ✅ Seguridad: solo ADMIN
+    const auth = await getAuth();
+    if (!auth || auth.role !== "ADMIN") {
+      return NextResponse.json({ error: "No autorizado" }, { status: 401 });
     }
 
-    const data = rows.map((u) => ({
-      ...u,
-      createdAt: u.createdAt.toISOString(),
-    }));
+    const { searchParams } = new URL(req.url);
 
-    return NextResponse.json({ data, nextCursor });
+    const q = searchParams.get("q") || "";
+    const fromStr = searchParams.get("from");
+    const toStr = searchParams.get("to");
+
+    const from = fromStr ? new Date(fromStr) : new Date("2000-01-01");
+    const to = toStr ? new Date(toStr) : new Date();
+
+    if (Number.isNaN(from.getTime()) || Number.isNaN(to.getTime())) {
+      return NextResponse.json(
+        { error: "Fechas inválidas" },
+        { status: 400 }
+      );
+    }
+
+    const page = Math.max(1, Number(searchParams.get("page") ?? 1));
+    const limit = 10;
+    const skip = (page - 1) * limit;
+
+    // ✅ WHERE correctamente tipado
+    const where: Prisma.UserWhereInput = {
+      createdAt: { gte: from, lte: to },
+      ...(q && {
+        OR: [
+          {
+            email: {
+              contains: q,
+              mode: Prisma.QueryMode.insensitive,
+            },
+          },
+          {
+            name: {
+              contains: q,
+              mode: Prisma.QueryMode.insensitive,
+            },
+          },
+        ],
+      }),
+    };
+
+    const [users, total] = await Promise.all([
+      prisma.user.findMany({
+        where,
+        take: limit,
+        skip,
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          name: true,
+          email: true,
+          role: true,
+          status: true,
+          createdAt: true,
+        },
+      }),
+      prisma.user.count({ where }),
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    return NextResponse.json({
+      users,
+      totalPages,
+      page,
+    });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Internal error';
-    return NextResponse.json({ error: message }, { status: 400 });
+    console.error(err);
+    return NextResponse.json(
+      { error: "Error al listar usuarios" },
+      { status: 500 }
+    );
   }
 }
