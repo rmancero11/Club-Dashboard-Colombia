@@ -30,7 +30,9 @@ export default function AdminSidebar({
     { href: "/dashboard-admin/destinos", label: "Destinos" },
     { href: "/dashboard-admin/reservas", label: "Reservas" },
     { href: "/dashboard-admin/reportes", label: "Reportes" },
+    { href: "/dashboard-admin/usuarios", label: "Usuarios" },
     { href: "/dashboard-admin/configuracion", label: "Configuración" },
+    
   ];
 
   const isActive = useCallback(
