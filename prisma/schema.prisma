@@ -480,6 +480,7 @@ model TravelPointsTransaction {
   toClient   Client? @relation("ClientPointsReceived", fields: [toClientId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+  expiresAt DateTime
 
   @@index([fromClientId])
   @@index([toClientId])

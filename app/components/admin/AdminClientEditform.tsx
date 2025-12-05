@@ -34,13 +34,20 @@ export default function AdminClientEditForm({
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
   const [addTravelPoints, setAddTravelPoints] = useState(0);
-  const [removeTravelPoints, setRemoveTravelPoints] = useState(0);
+const [resetTravelPoints, setResetTravelPoints] = useState(false);
+const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
+  
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMsg(null);
     setErr(null);
+    if (addTravelPoints > 0 && travelPointsDurationDays <= 0) {
+  setErr("Debés indicar cuántos días durarán los Travel Points.");
+  setLoading(false);
+  return;
+}
 
     try {
       const formData = new FormData();
@@ -49,7 +56,11 @@ export default function AdminClientEditForm({
       formData.append("notes", notes ?? "");
       formData.append("subscriptionPlan", subscriptionPlan);
       formData.append("addTravelPoints", String(addTravelPoints));
-      formData.append("removeTravelPoints", String(removeTravelPoints));
+      formData.append("resetTravelPoints", String(resetTravelPoints));
+      formData.append(
+  "travelPointsDurationDays",
+  String(travelPointsDurationDays)
+);
 
       const res = await fetch(`/api/admin/clients/${clientId}`, {
         method: "PATCH",
@@ -136,21 +147,42 @@ export default function AdminClientEditForm({
     Estos puntos se sumarán a los {currentTravelPoints} actuales.
   </p>
 </div>
-
-{/* RESTAR PUNTOS */}
+{/* DURACIÓN DE LOS PUNTOS */}
 <div className="flex flex-col gap-1">
-  <label className="text-sm font-medium">Restar TravelPoints al cliente</label>
+  <label className="text-sm font-medium">
+    Duración de los Travel Points (días)
+  </label>
   <input
     type="number"
-    min={0}
-    value={removeTravelPoints}
-    onChange={(e) => setRemoveTravelPoints(Number(e.target.value))}
+    min={1}
+    value={travelPointsDurationDays}
+    onChange={(e) => setTravelPointsDurationDays(Number(e.target.value))}
     className="rounded-md border px-2 py-1"
+    disabled={addTravelPoints === 0}
   />
   <p className="text-xs text-gray-500">
-    Estos puntos se restaran a los {currentTravelPoints} actuales.
+    Define cuántos días serán válidos los puntos que estás agregando.
   </p>
 </div>
+
+
+{/* RESETEAR TODOS LOS PUNTOS */}
+<div className="flex items-center gap-2">
+  <input
+    type="checkbox"
+    checked={resetTravelPoints}
+    onChange={(e) => setResetTravelPoints(e.target.checked)}
+  />
+  <span className="text-sm font-medium">
+    Eliminar todos los TravelPoints del cliente
+  </span>
+</div>
+
+{resetTravelPoints && (
+  <p className="text-xs text-red-600">
+    Esta acción eliminará TODOS los puntos actuales ({currentTravelPoints}).
+  </p>
+)}
 
 
 

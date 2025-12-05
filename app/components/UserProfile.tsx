@@ -30,6 +30,12 @@ type UserShape = {
     subscriptionExpiresAt?: number;
     subscriptionPlan?: string;
     travelPoints?: number;
+    travelPointsActive?: {
+  id: string;
+  amount: number;
+  expiresAt: string;
+  createdAt: string;
+}[];
   };
   vendedor?: {
     nombre: string;
@@ -154,7 +160,10 @@ export default function UserProfile({ user }: { user: UserShape }) {
     try {
       await fetch("/api/auth/logout", { method: "POST" });
     } catch (error) {
-      console.error("Error al llamar a la API de logout, continuando con la recarga:", error);
+      console.error(
+        "Error al llamar a la API de logout, continuando con la recarga:",
+        error
+      );
     }
     // 🚨 4. FORZAMOS UNA RECARGA COMPLETA
     // Esto asegura que todo el código del cliente (incluyendo el módulo singleton del socket)
@@ -183,6 +192,17 @@ export default function UserProfile({ user }: { user: UserShape }) {
   const NOW = new Date();
 
   let daysLeft = null;
+
+  function getDaysLeft(expiresAt: string) {
+  const now = new Date();
+  const exp = new Date(expiresAt);
+
+  const diff = exp.getTime() - now.getTime();
+  if (diff <= 0) return 0;
+
+  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+}
+
 
   if (expiresAt) {
     const diff = expiresAt.getTime() - NOW.getTime();
@@ -462,17 +482,49 @@ export default function UserProfile({ user }: { user: UserShape }) {
               </div>
             )}
 
-            {/* Travel Points */}
             {typeof user.clientProfile?.travelPoints === "number" && (
-              <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md">
-                <Image
-                  src="/favicon/iconosclub-25.svg" // 👉 poné acá la ruta de tu imagen
-                  alt="Travel Points"
-                  width={18}
-                  height={18}
-                />
-                {user.clientProfile.travelPoints}
-              </span>
+              <div className="relative flex flex-col items-center group">
+                {/* Badge */}
+                <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md cursor-default">
+                  <Image
+                    src="/favicon/iconosclub-25.svg"
+                    alt="Travel Points"
+                    width={18}
+                    height={18}
+                  />
+                  {user.clientProfile.travelPoints}
+                </span>
+
+                {/* Tooltip */}
+                <div
+                  className="
+        absolute top-full mt-2 w-max px-3 py-2 text-xs rounded-md shadow-md bg-gray-800 text-white 
+        opacity-0 pointer-events-none transition-opacity duration-200
+        group-hover:opacity-100
+      "
+                >
+                 {!user.clientProfile?.travelPointsActive ||
+user.clientProfile.travelPointsActive.length === 0 ? (
+  "No hay puntos activos"
+) : (
+  <div className="flex flex-col gap-1">
+    {user.clientProfile.travelPointsActive.map((tp) => {
+      const daysLeft = getDaysLeft(tp.expiresAt);
+
+      return (
+        <div key={tp.id}>
+          +{tp.amount} pts —{" "}
+          {daysLeft > 0
+            ? `${daysLeft} día${daysLeft === 1 ? "" : "s"} restantes`
+            : "Vencidos"}
+        </div>
+      );
+    })}
+  </div>
+)}
+
+                </div>
+              </div>
             )}
           </div>
 
