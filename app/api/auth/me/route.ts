@@ -80,6 +80,21 @@ export async function GET() {
             subscriptionPlan: true,
             subscriptionCreatedAt: true,
             subscriptionExpiresAt: true,
+
+           pointsReceived: {
+  where: {
+    amount: { gt: 0 },
+    expiresAt: { gt: new Date() }, // ✅ solo vigentes
+  },
+  select: {
+    id: true,
+    amount: true,
+    expiresAt: true,
+    createdAt: true,
+  },
+  orderBy: { expiresAt: "asc" }, // primero el que vence antes
+},
+
             seller: {
               select: {
                 id: true,
@@ -90,6 +105,7 @@ export async function GET() {
                 currentlyLink: true,
               },
             },
+
             reservations: {
               where: { status: { not: "CANCELED" } },
               orderBy: { startDate: "asc" },
@@ -157,14 +173,18 @@ export async function GET() {
       lookingFor: user.lookingFor,
 
       clientProfile: user.clientProfile
-  ? {
-      id: user.clientProfile.id,
-      travelPoints: user.clientProfile.travelPoints ?? 0,
-      subscriptionPlan: user.clientProfile.subscriptionPlan ?? null,
-      subscriptionCreatedAt: user.clientProfile.subscriptionCreatedAt ?? null,
-      subscriptionExpiresAt: user.clientProfile.subscriptionExpiresAt ?? null,
-    }
-  : null,
+        ? {
+            id: user.clientProfile.id,
+            travelPoints: user.clientProfile.travelPoints ?? 0,
+            subscriptionPlan: user.clientProfile.subscriptionPlan ?? null,
+            subscriptionCreatedAt:
+              user.clientProfile.subscriptionCreatedAt ?? null,
+            subscriptionExpiresAt:
+              user.clientProfile.subscriptionExpiresAt ?? null,
+
+           travelPointsActive: user.clientProfile.pointsReceived ?? [],
+          }
+        : null,
 
       // Archivos
       purchaseOrder: user.purchaseOrder,
@@ -185,7 +205,8 @@ export async function GET() {
         : null,
 
       // Próximo destino reservado
-      nextDestination: user.clientProfile?.reservations?.[0]?.destination ?? null,
+      nextDestination:
+        user.clientProfile?.reservations?.[0]?.destination ?? null,
     };
 
     return NextResponse.json(

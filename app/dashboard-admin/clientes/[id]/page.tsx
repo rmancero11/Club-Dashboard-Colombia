@@ -131,8 +131,6 @@ function getRemainingTime(expiresAt?: Date | string | null) {
   return `${diffHours} horas restantes`;
 }
 
-
-
 /** Previsualizador */
 function FilePreview({
   url,
@@ -318,43 +316,43 @@ export default async function AdminClientDetailPage({
   if (auth.role !== "ADMIN") redirect("/unauthorized");
 
   const client = await prisma.client.findFirst({
-  where: { id: params.id },
-  select: {
-    id: true,
-    name: true,
-    email: true,
-    phone: true,
-    country: true,
-    city: true,
-    documentId: true,
-    birthDate: true,
-    tags: true,
-    notes: true,
-    isArchived: true,
-    createdAt: true,
-    travelPoints: true,
+    where: { id: params.id },
+    select: {
+      id: true,
+      name: true,
+      email: true,
+      phone: true,
+      country: true,
+      city: true,
+      documentId: true,
+      birthDate: true,
+      tags: true,
+      notes: true,
+      isArchived: true,
+      createdAt: true,
+      travelPoints: true,
 
-    // ⭐ Agregado:
-    subscriptionPlan: true,
-    subscriptionCreatedAt: true,
-    subscriptionExpiresAt: true,
+      // ⭐ Agregado:
+      subscriptionPlan: true,
+      subscriptionCreatedAt: true,
+      subscriptionExpiresAt: true,
 
-    seller: { select: { id: true, name: true, email: true } },
-    _count: { select: { reservations: true } },
-    user: {
-      select: {
-        dniFile: true,
-        passport: true,
-        visa: true,
-        verified: true,
+      seller: { select: { id: true, name: true, email: true } },
+      _count: { select: { reservations: true } },
+      user: {
+        select: {
+          dniFile: true,
+          passport: true,
+          visa: true,
+          verified: true,
+        },
       },
     },
-  },
-});
+  });
 
   if (!client) notFound();
 
-  const [reservations, sellers] = await Promise.all([
+  const [reservations, sellers, travelPointsHistory] = await Promise.all([
     prisma.reservation.findMany({
       where: { clientId: client.id },
       orderBy: { createdAt: "desc" },
@@ -370,10 +368,27 @@ export default async function AdminClientDetailPage({
         destination: { select: { name: true } },
       },
     }),
+
     prisma.user.findMany({
       where: { role: "SELLER", status: "ACTIVE" },
       select: { id: true, name: true, email: true },
       orderBy: { name: "asc" },
+    }),
+
+    // ✅ NUEVO: historial de travel points con expiración
+    prisma.travelPointsTransaction.findMany({
+      where: {
+        toClientId: client.id,
+      },
+      orderBy: { createdAt: "desc" },
+      select: {
+        id: true,
+        type: true,
+        amount: true,
+        note: true,
+        createdAt: true,
+        expiresAt: true,
+      },
     }),
   ]);
 
@@ -436,22 +451,22 @@ export default async function AdminClientDetailPage({
               </span>
             </div>
 
-           <div className="text-sm text-gray-500 mt-1">
-  {client.subscriptionPlan !== "STANDARD" ? (
-    <>
-      <span className="font-medium">Expira:</span>{" "}
-      {client.subscriptionExpiresAt
-        ? fmtDate(client.subscriptionExpiresAt)
-        : "—"}{" "}
-      · <span className="italic">
-        {getRemainingTime(client.subscriptionExpiresAt)}
-      </span>
-    </>
-  ) : (
-    "Sin suscripción activa"
-  )}
-</div>
-
+            <div className="text-sm text-gray-500 mt-1">
+              {client.subscriptionPlan !== "STANDARD" ? (
+                <>
+                  <span className="font-medium">Expira:</span>{" "}
+                  {client.subscriptionExpiresAt
+                    ? fmtDate(client.subscriptionExpiresAt)
+                    : "—"}{" "}
+                  ·{" "}
+                  <span className="italic">
+                    {getRemainingTime(client.subscriptionExpiresAt)}
+                  </span>
+                </>
+              ) : (
+                "Sin suscripción activa"
+              )}
+            </div>
 
             {/* <<< SUSCRIPCIÓN VISUAL <<< */}
 
@@ -465,9 +480,63 @@ export default async function AdminClientDetailPage({
             </div>
 
             <div>
-              <span className="text-gray-500">Puntos: </span>
-              {client.travelPoints ?? 0}
+              <span className="text-gray-500">Puntos actuales: </span>
+              <strong>{client.travelPoints ?? 0}</strong>
             </div>
+
+            {/* ================= TRAVEL POINTS STATUS ================= */}
+            <div className="mt-3 rounded-md border p-3 bg-gray-50">
+              <div className="text-sm font-semibold mb-2">
+                Estado de Travel Points
+              </div>
+
+              {travelPointsHistory.length === 0 ? (
+                <div className="text-xs text-gray-400">
+                  Sin historial de puntos
+                </div>
+              ) : (
+                <ul className="divide-y text-xs">
+                  {travelPointsHistory.map((tp) => (
+                    <li
+                      key={tp.id}
+                      className="py-2 flex justify-between items-center"
+                    >
+                      <div>
+                        <div className="font-medium">
+                          {tp.amount > 0 ? `+${tp.amount}` : tp.amount} pts ·{" "}
+                          {tp.type}
+                        </div>
+
+                        <div className="text-gray-500">
+                          {fmtDate(tp.createdAt)}
+                        </div>
+
+                        <div className="text-gray-400 italic">
+                          {tp.note || "—"}
+                        </div>
+                      </div>
+
+                      <div className="text-right">
+                        <div className="text-gray-600">
+                          {tp.expiresAt ? (
+                            <>
+                              <div>Vence:</div>
+                              <div>{fmtDate(tp.expiresAt)}</div>
+                              <div className="italic text-[10px]">
+                                {getRemainingTime(tp.expiresAt)}
+                              </div>
+                            </>
+                          ) : (
+                            "Sin vencimiento"
+                          )}
+                        </div>
+                      </div>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+            {/* ================= FIN TRAVEL POINTS ================= */}
 
             <div className="mt-2">
               <div className="text-gray-500">Tags:</div>
