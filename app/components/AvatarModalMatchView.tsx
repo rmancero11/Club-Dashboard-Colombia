@@ -9,12 +9,14 @@ export default function AvatarModalMatchView({
   isOpen,
   onClose,
   user,
-   onNextUser,
+  onNextUser,
+  fromChat,
 }: {
   isOpen: boolean;
   onClose: () => void;
   user: any;
   onNextUser?: () => void;
+  fromChat?: boolean;
 }) {
   if (!isOpen) return null;
 
@@ -51,13 +53,23 @@ export default function AvatarModalMatchView({
 
   const imageVariantsLeft: Variants = {
     hidden: { opacity: 0, x: -80, scale: 0.95 },
-    visible: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+    visible: {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
+    },
     exit: { opacity: 0, x: -50, transition: { duration: 0.4 } },
   };
 
   const imageVariantsRight: Variants = {
     hidden: { opacity: 0, x: 80, scale: 0.95 },
-    visible: { opacity: 1, x: 0, scale: 1, transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] } },
+    visible: {
+      opacity: 1,
+      x: 0,
+      scale: 1,
+      transition: { duration: 0.7, ease: [0.22, 1, 0.36, 1] },
+    },
     exit: { opacity: 0, x: 50, transition: { duration: 0.4 } },
   };
 
@@ -81,7 +93,16 @@ export default function AvatarModalMatchView({
     // si ya viene como "Soltero" / "Soltera" / "No soltero" etc., respetalo
     if (typeof raw === "string") {
       const lower = raw.trim().toLowerCase();
-      if (["soltero", "soltera", "no soltero", "no soltera", "no-soltero", "no-soltera"].includes(lower)) {
+      if (
+        [
+          "soltero",
+          "soltera",
+          "no soltero",
+          "no soltera",
+          "no-soltero",
+          "no-soltera",
+        ].includes(lower)
+      ) {
         // devuelve con capitalización tal cual el string original o normalizado
         return raw.charAt(0).toUpperCase() + raw.slice(1);
       }
@@ -90,9 +111,13 @@ export default function AvatarModalMatchView({
     const bool = normalizeBoolLike(raw);
     if (bool === null) return "N/A";
 
-    const genderRaw = String(u?.gender ?? "").trim().toLowerCase();
-    const isFemenino = genderRaw === "femenino" || genderRaw === "female" || genderRaw === "f";
-    const isMasculino = genderRaw === "masculino" || genderRaw === "male" || genderRaw === "m";
+    const genderRaw = String(u?.gender ?? "")
+      .trim()
+      .toLowerCase();
+    const isFemenino =
+      genderRaw === "femenino" || genderRaw === "female" || genderRaw === "f";
+    const isMasculino =
+      genderRaw === "masculino" || genderRaw === "male" || genderRaw === "m";
 
     if (bool) {
       if (isFemenino) return "Soltera";
@@ -170,7 +195,9 @@ export default function AvatarModalMatchView({
         )}
 
         <motion.div variants={staggerItem} className="mt-6">
-          <h3 className="font-montserrat font-bold mb-2 text-lg">Preferencias</h3>
+          <h3 className="font-montserrat font-bold mb-2 text-lg">
+            Preferencias
+          </h3>
 
           {user.preference?.length > 0 ? (
             <div className="flex flex-wrap justify-center gap-3">
@@ -187,7 +214,10 @@ export default function AvatarModalMatchView({
                 return (
                   <div key={i} className="flex items-center gap-2">
                     {items.map((it, i2) => (
-                      <div key={i2} className="flex flex-col items-center gap-1">
+                      <div
+                        key={i2}
+                        className="flex flex-col items-center gap-1"
+                      >
                         <Image
                           src={it.src}
                           alt={it.label}
@@ -209,27 +239,25 @@ export default function AvatarModalMatchView({
         </motion.div>
       </motion.div>
       {/* Indicador de scroll hacia abajo */}
-<motion.div
-  className="absolute bottom-6 left-0 right-0 flex justify-center"
-  initial={{ opacity: 0, y: 10 }}
-  animate={{ opacity: [0.4, 1, 0.4], y: [10, 0, 10] }}
-  transition={{
-    duration: 1.8,
-    repeat: Infinity,
-    ease: "easeInOut",
-  }}
->
-  <motion.span
-    className="text-purple-600 font-bold"
-    style={{ fontSize: "2.5rem", lineHeight: "2.5rem" }} // ← flecha más grande
-    animate={{ y: [0, 6, 0] }}
-    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-  >
-    ↓
-  </motion.span>
-</motion.div>
-
-
+      <motion.div
+        className="absolute bottom-6 left-0 right-0 flex justify-center"
+        initial={{ opacity: 0, y: 10 }}
+        animate={{ opacity: [0.4, 1, 0.4], y: [10, 0, 10] }}
+        transition={{
+          duration: 1.8,
+          repeat: Infinity,
+          ease: "easeInOut",
+        }}
+      >
+        <motion.span
+          className="text-purple-600 font-bold"
+          style={{ fontSize: "2.5rem", lineHeight: "2.5rem" }} // ← flecha más grande
+          animate={{ y: [0, 6, 0] }}
+          transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
+        >
+          ↓
+        </motion.span>
+      </motion.div>
     </motion.section>
   );
 
@@ -303,7 +331,9 @@ export default function AvatarModalMatchView({
 
         {/* Acerca de mí */}
         <motion.div variants={staggerItem} className="text-center">
-          <h3 className="text-xl font-bold font-montserrat mb-2">Acerca de mí</h3>
+          <h3 className="text-xl font-bold font-montserrat mb-2">
+            Acerca de mí
+          </h3>
           <p className="text-md font-montserrat opacity-80">
             {user?.comment || "El viajero aún no actualizó su resumen"}
           </p>
@@ -333,8 +363,7 @@ export default function AvatarModalMatchView({
           variants={staggerItem}
           className="bg-white/80 rounded-xl shadow-lg px-5 py-4 border-l-4 border-pink-500 font-montserrat text-lg"
         >
-          <strong>Estado:</strong>{" "}
-          {getSingleLabel(user)}
+          <strong>Estado:</strong> {getSingleLabel(user)}
         </motion.div>
 
         {/* Looking for */}
@@ -366,8 +395,16 @@ export default function AvatarModalMatchView({
       exit="exit"
       className="h-screen w-full snap-start bg-gradient-to-b from-purple-300 to-purple-400 flex items-center justify-center px-6"
     >
-      <motion.div variants={staggerParent} initial="hidden" whileInView="visible" className="w-full max-w-md space-y-6">
-        <motion.h2 variants={staggerItem} className="text-3xl font-bold font-montserrat text-center text-white">
+      <motion.div
+        variants={staggerParent}
+        initial="hidden"
+        whileInView="visible"
+        className="w-full max-w-md space-y-6"
+      >
+        <motion.h2
+          variants={staggerItem}
+          className="text-3xl font-bold font-montserrat text-center text-white"
+        >
           Próximos viajes de {user?.name || "este usuario"}
         </motion.h2>
 
@@ -375,19 +412,29 @@ export default function AvatarModalMatchView({
           {Array.isArray(user?.destino) && user.destino.length > 0 ? (
             <motion.ul variants={staggerParent} className="space-y-3">
               {user.destino.map((d: string, i: number) => (
-                <motion.li key={i} variants={staggerItem} className="bg-white/80 rounded-xl shadow-lg px-5 py-4 border-l-4 border-purple-600 font-montserrat text-lg">
+                <motion.li
+                  key={i}
+                  variants={staggerItem}
+                  className="bg-white/80 rounded-xl shadow-lg px-5 py-4 border-l-4 border-purple-600 font-montserrat text-lg"
+                >
                   • {d}
                 </motion.li>
               ))}
             </motion.ul>
           ) : (
-            <motion.p variants={staggerItem} className="text-white/90 font-montserrat text-center">
+            <motion.p
+              variants={staggerItem}
+              className="text-white/90 font-montserrat text-center"
+            >
               Sin destinos próximos
             </motion.p>
           )}
         </motion.div>
 
-        <motion.div variants={staggerItem} className="bg-white/80 rounded-xl shadow-lg px-5 py-4 border-l-4 border-purple-500 font-montserrat flex items-center justify-between">
+        <motion.div
+          variants={staggerItem}
+          className="bg-white/80 rounded-xl shadow-lg px-5 py-4 border-l-4 border-purple-500 font-montserrat flex items-center justify-between"
+        >
           <strong className="text-lg font-montserrat">Estado:</strong>
 
           {user?.online ? (
@@ -403,10 +450,13 @@ export default function AvatarModalMatchView({
           )}
         </motion.div>
 
-        <motion.button variants={staggerItem} onClick={() => console.log("Chatear con", user?.id)} className="mx-auto flex items-center justify-center bg-pink-600 hover:bg-pink-700 transition px-5 py-4 rounded-full shadow-lg active:scale-95">
+        <motion.button
+          variants={staggerItem}
+          onClick={() => console.log("Chatear con", user?.id)}
+          className="mx-auto flex items-center justify-center bg-pink-600 hover:bg-pink-700 transition px-5 py-4 rounded-full shadow-lg active:scale-95"
+        >
           <FiMessageCircle className="text-white text-3xl" />
         </motion.button>
-
       </motion.div>
     </motion.section>
   );
@@ -459,51 +509,48 @@ export default function AvatarModalMatchView({
           className="fixed inset-0 z-[9999] bg-black/80 backdrop-blur-md flex"
         >
           {/* Botón siguiente (arriba izquierda) */}
-{/* Botón siguiente (arriba izquierda) */}
-<motion.button
-  onClick={() => {
-    if (onNextUser) onNextUser();
-  }}
-  className="absolute top-4 left-4 z-20 flex items-center gap-2 
-             bg-purple-600/70 hover:bg-purple-700/80 
-             text-white font-semibold px-4 py-2 rounded-full 
-             backdrop-blur-md border border-purple-300/30 shadow-md"
-  whileTap={{ scale: 0.9 }}
-  initial={{ opacity: 0, x: -20 }}
-  animate={{ opacity: 1, x: 0 }}
-  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
->
-  {/* Flecha */}
-  <motion.span
-    animate={{ x: [0, 5, 0] }}
-    transition={{ repeat: Infinity, duration: 1.5, ease: "easeInOut" }}
-  >
-    ➜
-  </motion.span>
-
-  {/* Texto parpadeando */}
-  <motion.span
-    animate={{ opacity: [1, 0.4, 1] }}
-    transition={{ repeat: Infinity, duration: 1.8, ease: "easeInOut" }}
-  >
-    Seguir explorando
-  </motion.span>
-</motion.button>
-
+          {/* Botón siguiente (arriba izquierda) */}
+          {!fromChat && (
+            <motion.button
+              onClick={() => {
+                if (onNextUser) onNextUser();
+              }}
+              className="absolute top-4 left-4 z-20 flex items-center gap-2 
+               bg-purple-600/70 hover:bg-purple-700/80 
+               text-white font-semibold px-4 py-2 rounded-full 
+               backdrop-blur-md border border-purple-300/30 shadow-md"
+              whileTap={{ scale: 0.9 }}
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+            >
+              {/* Flecha */}
+              <motion.span
+                animate={{ x: [0, 5, 0] }}
+                transition={{
+                  repeat: Infinity,
+                  duration: 1.5,
+                  ease: "easeInOut",
+                }}
+              >
+                ➜
+              </motion.span>
+              Seguir explorando
+            </motion.button>
+          )}
 
           {/* Botón cerrar */}
-         {/* Botón cerrar */}
-<motion.button
-  onClick={onClose}
-  className="absolute top-4 right-4 z-20 
+          {/* Botón cerrar */}
+          <motion.button
+            onClick={onClose}
+            className="absolute top-4 right-4 z-20 
              bg-purple-600/80 hover:bg-purple-700/80 
              text-white font-bold w-8 h-8 rounded-full 
              flex items-center justify-center backdrop-blur-sm shadow-md"
-  whileTap={{ scale: 0.9 }}
->
-  ✕
-</motion.button>
-
+            whileTap={{ scale: 0.9 }}
+          >
+            ✕
+          </motion.button>
 
           {/* Contenedor scroll con animación de salida */}
           <motion.div
@@ -513,7 +560,7 @@ export default function AvatarModalMatchView({
             exit={{
               opacity: 0,
               y: 120,
-              transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] }
+              transition: { duration: 0.6, ease: [0.22, 1, 0.36, 1] },
             }}
             className="h-full w-full overflow-y-scroll snap-y snap-mandatory scroll-smooth"
           >

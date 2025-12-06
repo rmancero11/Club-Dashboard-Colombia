@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import Image from "next/image";
+import SendTravelPointsModal from "./travelpoints/SendTravelPointsModal";
 
 type Destination = {
   id: string;
@@ -31,10 +32,28 @@ export default function UserPreferences({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [matches, setMatches] = useState<
-    { id: string; name: string; avatar: string }[]
+    { id: string; name: string; avatar: string; clientId: string }[]
   >([]);
+
   const [loadingMatches, setLoadingMatches] = useState(true);
   const [errorMatches, setErrorMatches] = useState<string | null>(null);
+
+  const [selectedMatch, setSelectedMatch] = useState<{
+    clientId: string;
+    name: string;
+    avatar?: string;
+  } | null>(null);
+
+  const [isModalOpen, setIsModalOpen] = useState(false);
+
+  const handleOpenModal = (match: {
+    clientId: string;
+    name: string;
+    avatar?: string;
+  }) => {
+    setSelectedMatch(match);
+    setIsModalOpen(true);
+  };
 
   // Si incluye "Mixtos", asignar automáticamente los tres gustos
   useEffect(() => {
@@ -82,9 +101,10 @@ export default function UserPreferences({
         // Normalizo solo lo que necesito ahora (avatar + nombre + id)
         setMatches(
           data.map((m: any) => ({
-            id: m.id,
+            id: m.id, // userId
             name: m.name,
             avatar: m.avatar,
+            clientId: m.clientId, // 👈 ESTE es el que usa el modal
           }))
         );
       } catch (err: any) {
@@ -293,7 +313,10 @@ export default function UserPreferences({
       {/* MATCHES */}
       <div className="mt-6">
         <h2 className="text-base font-semibold text-gray-800 mb-2 font-montserrat">
-          Tus matches
+          Tus matches{" "}
+          <span className="italic text-gray-500 text-sm font-normal">
+            (Selecciona el perfil para regalarle Travelpoints)
+          </span>
         </h2>
 
         {loadingMatches ? (
@@ -321,7 +344,14 @@ export default function UserPreferences({
                     alt={m.name}
                     width={64}
                     height={64}
-                    className="object-cover w-full h-full"
+                    className="object-cover w-full h-full cursor-pointer"
+                    onClick={() =>
+                      handleOpenModal({
+                        clientId: m.clientId,
+                        name: m.name,
+                        avatar: m.avatar,
+                      })
+                    }
                   />
                 </div>
                 <span className="text-xs text-gray-700 mt-1 text-center w-16 truncate">
@@ -332,6 +362,11 @@ export default function UserPreferences({
           </ul>
         )}
       </div>
+      <SendTravelPointsModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        matchedUser={selectedMatch}
+      />
     </div>
   );
 }

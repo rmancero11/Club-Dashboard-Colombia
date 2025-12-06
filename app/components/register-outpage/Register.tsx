@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
+import { PhoneInput } from "react-international-phone";
+import "react-international-phone/style.css";
 
 export default function RegisterForm() {
   const router = useRouter();
@@ -95,55 +97,84 @@ export default function RegisterForm() {
   return (
     <form
       onSubmit={handleSubmit}
-      className="max-w-md mx-auto space-y-4 p-6 bg-white shadow rounded-lg"
+      className="max-w-md mx-auto space-y-4 p-6 bg-white shadow rounded-lg font-montserrat"
     >
       <h2 className="text-xl font-bold text-center">Crear cuenta</h2>
 
-      <input
-        name="name"
-        placeholder="Nombre"
-        onChange={handleChange}
-        className="input"
-        required
-      />
+      {/* Nombre */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Nombre</label>
+        <input
+          name="name"
+          placeholder="Nombre"
+          onChange={handleChange}
+          className="input"
+          required
+        />
+      </div>
 
-      <input
-        name="email"
-        placeholder="Email"
-        type="email"
-        onChange={handleChange}
-        className="input"
-        required
-      />
+      {/* Email */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Email</label>
+        <input
+          name="email"
+          placeholder="Email"
+          type="email"
+          onChange={handleChange}
+          className="input"
+          required
+        />
+      </div>
 
-      <input
-        name="password"
-        placeholder="Contraseña"
-        type="password"
-        onChange={handleChange}
-        className={`input ${passwordError ? "border-red-500" : ""}`}
-        required
-      />
+      {/* Contraseña */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Contraseña</label>
+        <input
+          name="password"
+          placeholder="Contraseña"
+          type="password"
+          onChange={handleChange}
+          className={`input ${passwordError ? "border-red-500" : ""}`}
+          required
+        />
+      </div>
 
       {passwordError && (
-        <p className="text-red-500 text-sm">{passwordError}</p>
+        <p className="text-red-500 text-sm font-montserrat">
+          {passwordError}
+        </p>
       )}
 
-      <input
-        name="whatsapp"
-        placeholder="WhatsApp"
-        onChange={handleChange}
-        className="input"
-      />
+      {/* Teléfono */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">Teléfono</label>
+        <PhoneInput
+          defaultCountry="ar"
+          value={form.whatsapp}
+          onChange={(value) =>
+            setForm((prev) => ({ ...prev, whatsapp: value }))
+          }
+          className="w-full"
+          inputClassName="input"
+        />
+        <p className="text-xs text-gray-500 font-montserrat">
+          Se guarda en formato internacional (E.164).
+        </p>
+      </div>
 
-      <input
-        name="country"
-        placeholder="País"
-        onChange={handleChange}
-        className="input"
-      />
+      {/* País */}
+      <div className="flex flex-col gap-1.5">
+        <label className="text-sm font-medium">País</label>
+        <input
+          name="country"
+          placeholder="País"
+          onChange={handleChange}
+          className="input"
+        />
+      </div>
 
-      <label className="flex items-center gap-2">
+      {/* Términos */}
+      <label className="flex items-center gap-2 text-sm font-montserrat">
         <input
           type="checkbox"
           name="acepta_terminos"
@@ -153,12 +184,16 @@ export default function RegisterForm() {
         Acepto los términos
       </label>
 
-      {error && <p className="text-red-500 text-sm">{error}</p>}
+      {error && (
+        <p className="text-red-500 text-sm font-montserrat">
+          {error}
+        </p>
+      )}
 
       <button
         type="submit"
         disabled={isDisabled}
-        className="w-full bg-black text-white py-2 rounded hover:bg-gray-800 disabled:opacity-50"
+        className="w-full bg-black text-white py-2 rounded hover:bg-gray-800 disabled:opacity-50 font-montserrat"
       >
         {loading ? "Registrando..." : "Registrarse"}
       </button>

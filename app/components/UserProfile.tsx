@@ -31,11 +31,11 @@ type UserShape = {
     subscriptionPlan?: string;
     travelPoints?: number;
     travelPointsActive?: {
-  id: string;
-  amount: number;
-  expiresAt: string;
-  createdAt: string;
-}[];
+      id: string;
+      amount: number;
+      expiresAt: string;
+      createdAt: string;
+    }[];
   };
   vendedor?: {
     nombre: string;
@@ -194,15 +194,14 @@ export default function UserProfile({ user }: { user: UserShape }) {
   let daysLeft = null;
 
   function getDaysLeft(expiresAt: string) {
-  const now = new Date();
-  const exp = new Date(expiresAt);
+    const now = new Date();
+    const exp = new Date(expiresAt);
 
-  const diff = exp.getTime() - now.getTime();
-  if (diff <= 0) return 0;
+    const diff = exp.getTime() - now.getTime();
+    if (diff <= 0) return 0;
 
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
-}
-
+    return Math.ceil(diff / (1000 * 60 * 60 * 24));
+  }
 
   if (expiresAt) {
     const diff = expiresAt.getTime() - NOW.getTime();
@@ -448,14 +447,23 @@ export default function UserProfile({ user }: { user: UserShape }) {
             Hola {user.name ?? "Viajero"}
           </h1>
           {/* BADGE DE ROL + PLAN + TRAVEL POINTS */}
-          <div className="flex items-center gap-2 mt-2 font-montserrat">
+          <div className="flex items-center gap-2 mt-3 font-montserrat">
             {/* Subscription Plan del Client */}
             {user.clientProfile?.subscriptionPlan && (
-              <div className="flex items-center gap-2 mt-2 font-montserrat">
+              <div className="flex items-center gap-2 font-montserrat">
                 {user.clientProfile?.subscriptionPlan && (
                   <div className="relative flex flex-col items-center group">
                     {/* Badge */}
-                    <span className="text-sm font-montserrat font-medium bg-blue-100 text-blue-700 px-3 py-1 rounded-md cursor-default">
+                    <span
+                      className="
+  flex items-center
+  h-9
+  text-xs font-semibold
+  px-4
+  rounded-md
+  bg-purple-100 text-purple-700
+"
+                    >
                       {user.clientProfile.subscriptionPlan}
                     </span>
 
@@ -485,12 +493,23 @@ export default function UserProfile({ user }: { user: UserShape }) {
             {typeof user.clientProfile?.travelPoints === "number" && (
               <div className="relative flex flex-col items-center group">
                 {/* Badge */}
-                <span className="flex font-montserrat items-center gap-1 text-sm font-semibold bg-yellow-100 text-yellow-700 px-3 py-1 rounded-md cursor-default">
+                <span
+                  className="
+  flex items-center gap-1.5
+  h-9
+  text-base font-bold
+  bg-yellow-100 text-yellow-700
+  px-4
+  rounded-md
+  cursor-default
+"
+                >
                   <Image
                     src="/favicon/iconosclub-25.svg"
                     alt="Travel Points"
-                    width={18}
-                    height={18}
+                    width={24}
+                    height={24}
+                    className="object-contain"
                   />
                   {user.clientProfile.travelPoints}
                 </span>
@@ -503,26 +522,27 @@ export default function UserProfile({ user }: { user: UserShape }) {
         group-hover:opacity-100
       "
                 >
-                 {!user.clientProfile?.travelPointsActive ||
-user.clientProfile.travelPointsActive.length === 0 ? (
-  "No hay puntos activos"
-) : (
-  <div className="flex flex-col gap-1">
-    {user.clientProfile.travelPointsActive.map((tp) => {
-      const daysLeft = getDaysLeft(tp.expiresAt);
+                  {!user.clientProfile?.travelPointsActive ||
+                  user.clientProfile.travelPointsActive.length === 0 ? (
+                    "No hay puntos activos"
+                  ) : (
+                    <div className="flex flex-col gap-1">
+                      {user.clientProfile.travelPointsActive.map((tp) => {
+                        const daysLeft = getDaysLeft(tp.expiresAt);
 
-      return (
-        <div key={tp.id}>
-          +{tp.amount} pts —{" "}
-          {daysLeft > 0
-            ? `${daysLeft} día${daysLeft === 1 ? "" : "s"} restantes`
-            : "Vencidos"}
-        </div>
-      );
-    })}
-  </div>
-)}
-
+                        return (
+                          <div key={tp.id}>
+                            +{tp.amount} pts —{" "}
+                            {daysLeft > 0
+                              ? `${daysLeft} día${
+                                  daysLeft === 1 ? "" : "s"
+                                } restantes`
+                              : "Vencidos"}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
                 </div>
               </div>
             )}
