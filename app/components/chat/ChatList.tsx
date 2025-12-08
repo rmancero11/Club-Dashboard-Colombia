@@ -64,14 +64,6 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
     match.name?.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // if (matches.length === 0) {
-  //   return (
-  //     <div className="flex-grow flex items-center justify-center p-4 font-montserrat">
-  //       <p className="text-sm text-gray-500">No hay chats activos.</p>
-  //     </div>
-  //   );
-  // }
-
   // 1. ESTADO DE CARGA (Alta prioridad)
   if (isLoadingMatches) {
     return (
@@ -153,40 +145,6 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
             briefText = match.lastMessageContent;
           }
 
-          // if (lastMsg) {
-          //   const wasDeleted =
-          //     Array.isArray(lastMsg.deletedBy) && lastMsg.deletedBy.length > 0;
-          //   const deletedForMe = lastMsg.deletedBy?.includes(currentUserId);
-          //   const deletedByOther = wasDeleted && !deletedForMe;
-
-          //   // Caso 1: Mensaje eliminado → siempre mostrar texto especial
-          //   if (wasDeleted) {
-          //     briefText = deletedForMe
-          //       ? "Eliminaste este mensaje"
-          //       : "Este mensaje fue eliminado";
-          //   }
-          //   // Caso 2: Tiene contenido válido → usarlo
-          //   else if (lastMsg.content && lastMsg.content.trim().length > 0) {
-          //     briefText = lastMsg.content;
-          //   }
-          //   // Caso 3: Es una imagen
-          //   else if (lastMsg.imageUrl) {
-          //     briefText = "📷 Foto";
-          //   }
-          //   // ❗ Caso 4: Mensaje está vacío y NO está eliminado → IGNORARLO
-          //   else {
-          //     // Si el match ya tenía contenido previo, usarlo
-          //     if (match.lastMessageContent) {
-          //       briefText = match.lastMessageContent;
-          //     } else {
-          //       briefText = "💬 Iniciar conversación...";
-          //     }
-          //   }
-          
-          // }
-          // const lastAt = lastMsg?.createdAt ?? match.lastMessageAt;
-          // const unread = getUnreadCount(match.id);
-
           return (
             <div
               key={match.id}
@@ -230,26 +188,32 @@ const ChatList: React.FC<ChatListProps> = ({ currentUserId }) => {
               )}
 
               {match.isBlockedByMe && (
-                <div className="ml-2">
-                  <BlockSmallIcon />
+                <div className="flex items-center ml-2">
+                  {/* Icono de bloqueado */}
+                  <BlockSmallIcon /> 
+
+                  {/* Botón de Eliminar: Solo se renderiza si isBlockedByMe === true */}
+                  <div
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      if (confirm('¿Estás seguro de que quieres eliminar el Chat permanentemente? Esto también eliminará el Match.')) {
+                        const success = await deleteConversationAndMatch(match.id, currentUserId);
+                        
+                        if (!success) {
+                          alert('Error al borrar conversación. Intentalo de nuevo.');
+                        }
+                      } else {
+                        alert('Se ha cancelado la eliminación del Chat y Match.');
+                      }
+                    }}
+                    className="ml-2 px-2 py-1 text-gray-500 hover:text-red-500 rounded cursor-pointer transition-colors"
+                    title="Borrar Chat y Match"
+                  >
+                    🗑️
+                  </div>
                 </div>
               )}
-
-              <div
-                onClick={async (e) => {
-                  e.stopPropagation();
-                  if (confirm('¿Estás seguro de que quieres eliminar toda la conversación? Esto no se puede deshacer.')) {
-                    const success = await deleteConversationAndMatch(match.id, currentUserId);
-                    
-                  }else {
-                      alert('Error al borrar conversación. Intentalo de nuevo.');
-                    }
-                }}
-                className="ml-2 px-2 py-1 text-gray-500 hover:text-red-500 rounded cursor-pointer"
-                title="Borrar conversación"
-              >
-                🗑️
-              </div>
+              
             </div>
           );
         })}
