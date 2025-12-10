@@ -22,42 +22,39 @@ interface ConversationWindowProps {
   matchName: string | null;
 }
 
-// Icono de Bloqueo (Círculo con línea)
-const BlockIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    {...props}
-    xmlns="http://www.w3.org/2000/svg"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <circle cx="12" cy="12" r="10"></circle>
-    <line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line>
-  </svg>
-);
-// Icono de Desbloqueo (Candado abierto)
-const UnblockIcon = (props: React.SVGProps<SVGSVGElement>) => (
-  <svg
-    {...props}
-    xmlns="http://www.w3.org/2000/svg"
-    width="20"
-    height="20"
-    viewBox="0 0 24 24"
-    fill="none"
-    stroke="currentColor"
-    strokeWidth="2"
-    strokeLinecap="round"
-    strokeLinejoin="round"
-  >
-    <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
-    <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
-  </svg>
-);
+//Formatea una fecha para mostrar el indicador de día (Hoy, Ayer, Lunes, o DD/MM/AAAA).
+// @param dateStr La cadena de fecha (ISO string) del mensaje.
+// @returns El string formateado.
+const formatDateSeparator = (dateStr: string): string => {
+  const date = new Date(dateStr);
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const messageDay = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  
+  // Calcular la diferencia en días
+  const diffTime = today.getTime() - messageDay.getTime();
+  const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+  
+  const options: Intl.DateTimeFormatOptions = { weekday: 'long' };
+
+  if (diffDays === 0) {
+    return "Hoy";
+  } else if (diffDays === 1) {
+    return "Ayer";
+  } else if (diffDays > 1 && diffDays <= 6) {
+    // Días de la semana (Lunes, Martes...)
+    const dayName = date.toLocaleDateString("es-ES", options);
+    // Capitalizar la primera letra (si es necesario)
+    return dayName.charAt(0).toUpperCase() + dayName.slice(1);
+  } else {
+    // Si es más de 6 días, usar formato de fecha corta (DD/MM/AAAA)
+    return date.toLocaleDateString("es-ES", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  }
+};
 
 const ConversationWindow: React.FC<ConversationWindowProps> = ({
   currentUserId,
@@ -700,6 +697,31 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
         {messages.map((msg, index) => {
           const isObserverTarget = index === 0 && hasMore;
           const isSender = msg.senderId === currentUserId;
+          // --- Lógica del Separador de Fecha ---
+          let dateSeparator = null;
+          const previousMsg = messages[index - 1];
+          
+          const currentCreatedDate = new Date(msg.createdAt);
+          const currentCreatedIsoString = currentCreatedDate.toISOString();
+
+          // Comprobar si es el primer mensaje o si la fecha es diferente al mensaje anterior
+          if (index === 0 || !previousMsg) {
+              // Primer mensaje siempre muestra separador
+              dateSeparator = formatDateSeparator(currentCreatedIsoString);
+          } else {
+            // Comparamos el día del mensaje actual con el día del mensaje anterior
+            // const currentDate = new Date(msg.createdAt);
+            const previousCreatedDate = new Date(previousMsg.createdAt);
+
+            // Normalizar a medianoche para comparar solo la fecha (día/mes/año)
+            const currentDay = new Date(currentCreatedDate.getFullYear(), currentCreatedDate.getMonth(), currentCreatedDate.getDate()).getTime();
+            const previousDay = new Date(previousCreatedDate.getFullYear(), previousCreatedDate.getMonth(), previousCreatedDate.getDate()).getTime();
+
+            if (currentDay !== previousDay) {
+              // Si el día es diferente, generamos el separador
+              dateSeparator = formatDateSeparator(currentCreatedIsoString);
+            }
+          }
 
           const messageClasses = `
           max-w-[75%] 
@@ -722,110 +744,120 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
           // const deletedByOther = wasDeleted && !deletedForMe;
 
           return (
-            <div
-              key={msg.id || msg.localId}
-              className={`flex ${
-                isSender ? "justify-end" : "justify-start"
-              } w-full relative`}
-            >
-              {wasDeleted ? (
-                <div
-                  className={`${messageClasses} flex items-center justify-center text-gray-400 italic`}
-                >
-                  <div className="text-sm text-center px-2">
-                    {deletedForMe
-                    ? "Eliminaste este mensaje"
-                    : "Este mensaje fue eliminado"}
-                    <span className="block text-xs text-gray-300 mt-1">
-                      {new Date(msg.createdAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span> 
+            <React.Fragment key={msg.id || msg.localId}>
+              {/* Renderiza el Separador de Fecha si existe */}
+              {dateSeparator && (
+                <div className="flex justify-center my-4 sticky top-4 z-40 pointer-events-none">
+                  <div className="bg-green-100/70 backdrop-blur-sm rounded-lg px-3 py-1 text-xs text-gray-500 font-semibold shadow-md pointer-events-auto w-28 text-center">
+                    {dateSeparator}
                   </div>
                 </div>
-              ) : (
-                <div
-                  className={messageClasses}
-                  ref={isObserverTarget ? observerTargetRef : null}
-                >
-                  {/* Imagen */}
-                  {msg.imageUrl && (
-                    <img
-                      src={msg.imageUrl}
-                      alt="Imagen enviada"
-                      className="max-w-full h-auto rounded-lg mb-2"
-                    />
-                  )}
+              )}
+              {/* Renderizado del Mensaje */}
+              <div
+                className={`flex ${
+                  isSender ? "justify-end" : "justify-start"
+                } w-full relative`}
+              >
+                {wasDeleted ? (
+                  <div
+                    className={`${messageClasses} flex items-center justify-center text-gray-400 italic`}
+                  >
+                    <div className="text-sm text-center px-2">
+                      {deletedForMe
+                        ? "Eliminaste este mensaje"
+                        : "Este mensaje fue eliminado"}
+                      <span className="block text-xs text-gray-300 mt-1">
+                        {new Date(msg.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
+                      </span> 
+                    </div>
+                  </div>
+                ) : (
+                  <div
+                    className={messageClasses}
+                    ref={isObserverTarget ? observerTargetRef : null}
+                  >
+                    {/* Imagen */}
+                    {msg.imageUrl && (
+                      <img
+                        src={msg.imageUrl}
+                        alt="Imagen enviada"
+                        className="max-w-full h-auto rounded-lg mb-2"
+                      />
+                    )}
 
-                  {/* Texto + botón */}
-                  {msg.content && (
-                    <div className="flex items-start w-full relative">
-                      <p className="flex-1">{msg.content}</p>
+                    {/* Texto + botón */}
+                    {(msg.content || msg.imageUrl) && (
+                      <div className="flex items-start w-full relative">
+                        <p className="flex-1">{msg.content}</p>
 
-                      {isSender && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            setOpenMessageMenuId(
-                              openMessageMenuId === msg.id ? null : msg.id
-                            );
-                          }}
-                          className="p-1 rounded-full hover:bg-white/20 ml-2 flex-shrink-0"
-                          title="Opciones del mensaje"
-                        >
-                          <svg
-                            width="16"
-                            height="16"
-                            viewBox="0 0 24 24"
-                            fill="none"
-                            stroke="currentColor"
-                            strokeWidth="2"
+                        {isSender && (
+                          <button
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setOpenMessageMenuId(
+                                openMessageMenuId === msg.id ? null : msg.id
+                              );
+                            }}
+                            className="p-1 rounded-full hover:bg-white/20 ml-2 flex-shrink-0"
+                            title="Opciones del mensaje"
                           >
-                            <circle cx="12" cy="6" r="1" />
-                            <circle cx="12" cy="12" r="1" />
-                            <circle cx="12" cy="18" r="1" />
-                          </svg>
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                            >
+                              <circle cx="12" cy="6" r="1" />
+                              <circle cx="12" cy="12" r="1" />
+                              <circle cx="12" cy="18" r="1" />
+                            </svg>
+                          </button>
+                        )}
+                      </div>
+                    )}
+
+                    {/* Menú de eliminar mensaje */}
+                    {openMessageMenuId === msg.id && (
+                      <div className="absolute right-1 bottom-16 mt-1 bg-white rounded-md shadow z-50 w-36">
+                        <button
+                          onClick={() => handleDeleteMessage(msg.id)}
+                          className="font-montserrat w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          Eliminar mensaje
                         </button>
-                      )}
-                    </div>
-                  )}
+                      </div>
+                    )}
 
-                  {/* Menú de eliminar mensaje */}
-                  {openMessageMenuId === msg.id && (
-                    <div className="absolute right-1 bottom-16 mt-1 bg-white rounded-md shadow z-50 w-36">
-                      <button
-                        onClick={() => handleDeleteMessage(msg.id)}
-                        className="font-montserrat w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
-                      >
-                        Eliminar mensaje
-                      </button>
-                    </div>
-                  )}
-
-                  {/* Horario */}
-                  <div className="text-xs mt-1 text-right flex items-center justify-end space-x-1">
-                    {isSender && (
-                      <span className="text-blue-200">
-                        {msg.status === "pending"
+                    {/* Horario */}
+                    <div className="text-xs mt-1 text-right flex items-center justify-end space-x-1">
+                        {isSender && (
+                        <span className="text-blue-200">
+                          {msg.status === "pending"
                           ? "..."
                           : msg.readAt
                           ? "✔✔"
                           : "✔"}
+                        </span>
+                      )}
+                      <span
+                        className={isSender ? "text-blue-200" : "text-gray-500"}
+                      >
+                        {new Date(msg.createdAt).toLocaleTimeString([], {
+                          hour: "2-digit",
+                          minute: "2-digit",
+                        })}
                       </span>
-                    )}
-                    <span
-                      className={isSender ? "text-blue-200" : "text-gray-500"}
-                    >
-                      {new Date(msg.createdAt).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </span>
+                    </div>
                   </div>
-                </div>
-              )}
-            </div>
+                )}
+              </div>
+            </React.Fragment>
           );
         })}
 
