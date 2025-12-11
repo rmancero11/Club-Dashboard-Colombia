@@ -25,14 +25,16 @@ function calculateExpiresAt({
   } else if (days && days > 0) {
     expires.setDate(expires.getDate() + days);
   } else {
-    // fallback de seguridad: 6 meses
     expires.setMonth(expires.getMonth() + 6);
   }
 
   return expires;
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(
+  req: Request,
+  { params }: { params: { id: string } }
+) {
   const auth = await getAuth();
   if (!auth || auth.role !== "ADMIN") {
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
@@ -53,10 +55,12 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   const notes = (formData.get("notes") as string | null) || null;
   const verifiedField = formData.get("verified");
 
-  // ====== Travel Points ======
+  // ================= Travel Points =================
   const addTravelPointsRaw = formData.get("addTravelPoints");
   const addTravelPoints =
-    typeof addTravelPointsRaw === "string" ? parseInt(addTravelPointsRaw, 10) : 0;
+    typeof addTravelPointsRaw === "string"
+      ? parseInt(addTravelPointsRaw, 10)
+      : 0;
 
   const resetTravelPoints = formData.get("resetTravelPoints") === "true";
 
@@ -67,7 +71,7 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     );
   }
 
-  // ============== Duración ============
+  // ================= Duración (legacy) =================
   const durationDaysRaw = formData.get("travelPointsDurationDays");
   const durationMonthsRaw = formData.get("travelPointsDurationMonths");
 
@@ -83,30 +87,68 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   if (durationDays !== null && durationMonths !== null) {
     return NextResponse.json(
-      { error: "Solo se puede definir duración en días o en meses, no ambos" },
+      { error: "Solo se puede definir duración en días o meses" },
       { status: 400 }
     );
   }
+
+  // ✅ NUEVO — fechas explícitas
+  const validFromRaw = formData.get("travelPointsValidFrom");
+  const expiresAtRaw = formData.get("travelPointsExpiresAt");
+
+  const validFrom =
+    typeof validFromRaw === "string" && validFromRaw.trim() !== ""
+      ? new Date(validFromRaw)
+      : null;
+
+  const expiresAtExplicit =
+    typeof expiresAtRaw === "string" && expiresAtRaw.trim() !== ""
+      ? new Date(expiresAtRaw)
+      : null;
 
   if (addTravelPoints > 0) {
-  if (
-    (durationDays !== null && (isNaN(durationDays) || durationDays <= 0)) ||
-    (durationMonths !== null && (isNaN(durationMonths) || durationMonths <= 0))
-  ) {
+    if (!expiresAtExplicit && !durationDays && !durationMonths) {
+      return NextResponse.json(
+        { error: "Debe definir una fecha de expiración o duración" },
+        { status: 400 }
+      );
+    }
+
+    if (
+      validFrom &&
+      expiresAtExplicit &&
+      validFrom >= expiresAtExplicit
+    ) {
+      return NextResponse.json(
+        { error: "`validFrom` debe ser anterior a `expiresAt`" },
+        { status: 400 }
+      );
+    }
+  }
+
+  // ✅ NUEVO — destinos
+  const destinationsRaw = formData.get("travelPointsDestinations");
+  let destinationIds: string[] = [];
+
+  if (typeof destinationsRaw === "string" && destinationsRaw.trim() !== "") {
+    try {
+      destinationIds = JSON.parse(destinationsRaw);
+    } catch {
+      return NextResponse.json(
+        { error: "Destinos inválidos" },
+        { status: 400 }
+      );
+    }
+  }
+
+  if (addTravelPoints > 0 && destinationIds.length === 0) {
     return NextResponse.json(
-      { error: "La duración debe ser un número mayor a 0" },
+      { error: "Debe seleccionar al menos un destino" },
       { status: 400 }
     );
   }
-}
 
-  // ================= Subscription Plan =================
-  const subscriptionPlanRaw =
-    (formData.get("subscriptionPlan") as string | null)?.toUpperCase() ?? "";
-  const subscriptionPlan = SUBS_VALUES.has(subscriptionPlanRaw as any)
-    ? (subscriptionPlanRaw as "STANDARD" | "PREMIUM" | "VIP")
-    : undefined;
-
+  // ================= Client =================
   const existingClient = await prisma.client.findUnique({
     where: { id: params.id },
     select: {
@@ -121,44 +163,10 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ error: "Cliente no encontrado" }, { status: 404 });
   }
 
-  if (sellerId) {
-    const seller = await prisma.user.findUnique({
-      where: { id: sellerId },
-      select: { id: true, role: true, status: true },
-    });
-
-    if (!seller || seller.role !== "SELLER" || seller.status !== "ACTIVE") {
-      return NextResponse.json({ error: "Vendedor inválido" }, { status: 400 });
-    }
-  }
-
   // ================= Client Data =================
-  const clientData: any = {
-    isArchived,
-    notes,
-  };
-
+  const clientData: any = { isArchived, notes };
   if (sellerId) clientData.sellerId = sellerId;
 
-  if (subscriptionPlan) {
-    clientData.subscriptionPlan = subscriptionPlan;
-
-    const NOW = new Date();
-
-    if (subscriptionPlan === "STANDARD") {
-      clientData.subscriptionCreatedAt = null;
-      clientData.subscriptionExpiresAt = null;
-    } else {
-      clientData.subscriptionCreatedAt =
-        existingClient.subscriptionCreatedAt ?? NOW;
-
-      clientData.subscriptionExpiresAt =
-        existingClient.subscriptionExpiresAt ??
-        new Date(new Date().setFullYear(NOW.getFullYear() + 1));
-    }
-  }
-
-  // ======= Lógica de travelPoints =======
   if (resetTravelPoints) {
     clientData.travelPoints = addTravelPoints > 0 ? addTravelPoints : 0;
   } else if (addTravelPoints > 0) {
@@ -167,63 +175,17 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
   // ================= User Data =================
   const userData: Record<string, any> = {};
-
   if (verifiedField !== null) {
     userData.verified = verifiedField === "true";
   }
 
-  const fileFields = [
-    "purchaseOrder",
-    "flightTickets",
-    "serviceVoucher",
-    "medicalAssistanceCard",
-    "travelTips",
-  ] as const;
-
-  async function handleUpload(key: (typeof fileFields)[number]) {
-    const file = formData.get(key) as File | null;
-    if (!file || typeof file !== "object" || (file as any).size <= 0) return;
-
-    const result: any = await uploadToCloudinary(file, {
-      access: "public",
-      folder: "docs",
-      filename: (file as File).name,
-    });
-
-    userData[key] = result.secure_url;
-  }
-
-  try {
-    for (const key of fileFields) {
-      await handleUpload(key);
-    }
-  } catch (err) {
-    console.error(err);
-    return NextResponse.json(
-      { error: "Error subiendo archivos" },
-      { status: 500 }
-    );
-  }
-
-  // ================= Update Client + User + Logs =================
+  // ================= Persistencia =================
   try {
     const [updatedClient, updatedUser] = await Promise.all([
       prisma.client.update({
         where: { id: params.id },
         data: clientData,
-        select: {
-          id: true,
-          name: true,
-          isArchived: true,
-          notes: true,
-          sellerId: true,
-          subscriptionPlan: true,
-          subscriptionCreatedAt: true,
-          subscriptionExpiresAt: true,
-          travelPoints: true,
-        },
       }),
-
       Object.keys(userData).length
         ? prisma.user.update({
             where: { id: existingClient.userId },
@@ -234,38 +196,39 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
 
     const logs: Promise<any>[] = [];
 
-    // ✅ RESET TOTAL → se guarda como ADJUSTMENT
     if (resetTravelPoints && existingClient.travelPoints > 0) {
       logs.push(
         prisma.travelPointsTransaction.create({
           data: {
             type: "ADJUSTMENT",
             amount: -existingClient.travelPoints,
-            fromClientId: null,
             toClientId: params.id,
             expiresAt: new Date(),
-            note: `RESET TOTAL por admin (${existingClient.travelPoints} puntos)`,
+            note: `RESET TOTAL por admin`,
           },
         })
       );
     }
 
-    // ✅ GRANT con expiración
     if (addTravelPoints > 0) {
-      const expiresAt = calculateExpiresAt({
-        days: durationDays,
-        months: durationMonths,
-      });
+      const expiresAt =
+        expiresAtExplicit ??
+        calculateExpiresAt({ days: durationDays, months: durationMonths });
 
       logs.push(
         prisma.travelPointsTransaction.create({
           data: {
             type: "ADMIN_GRANT",
             amount: addTravelPoints,
-            fromClientId: null,
             toClientId: params.id,
+            validFrom: validFrom ?? new Date(),
             expiresAt,
             note: `Admin otorgó ${addTravelPoints} puntos`,
+            destinations: {
+              create: destinationIds.map((destinationId) => ({
+                destinationId,
+              })),
+            },
           },
         })
       );
@@ -276,6 +239,9 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ client: updatedClient, user: updatedUser });
   } catch (err) {
     console.error(err);
-    return NextResponse.json({ error: "No se pudo actualizar" }, { status: 400 });
+    return NextResponse.json(
+      { error: "No se pudo actualizar" },
+      { status: 400 }
+    );
   }
 }

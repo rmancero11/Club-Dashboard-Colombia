@@ -134,29 +134,68 @@ export async function DELETE(
     return NextResponse.json({ error: "No autorizado" }, { status: 401 });
   }
 
+  const userId = params.id;
+
+  const user = await prisma.user.findUnique({
+    where: { id: userId },
+    select: { id: true },
+  });
+
+  if (!user) {
+    return NextResponse.json(
+      { error: "Usuario no encontrado" },
+      { status: 404 }
+    );
+  }
+
   try {
-    const user = await prisma.user.findUnique({
-      where: { id: params.id },
-      select: { id: true },
-    });
+    await prisma.$transaction(async (tx) => {
+      // ✅ MATCHES (AMBOS LADOS)
+      await tx.match.deleteMany({
+        where: {
+          OR: [{ userAId: userId }, { userBId: userId }],
+        },
+      });
 
-    if (!user) {
-      return NextResponse.json(
-        { error: "Usuario no encontrado" },
-        { status: 404 }
-      );
-    }
+      // ✅ MENSAJES
+      await tx.message.deleteMany({
+        where: {
+          OR: [{ senderId: userId }, { receiverId: userId }],
+        },
+      });
 
-    await prisma.user.delete({
-      where: { id: params.id },
+      // ✅ BLOQUEOS
+      await tx.blockedUser.deleteMany({
+        where: {
+          OR: [
+            { blockerUserId: userId },
+            { blockedUserId: userId },
+          ],
+        },
+      });
+
+      // ✅ ACTIVIDAD
+      await tx.activityLog.deleteMany({
+        where: { userId },
+      });
+
+      // ✅ TOKENS
+      await tx.passwordResetToken.deleteMany({
+        where: { userId },
+      });
+
+      // ✅ FINALMENTE EL USUARIO
+      await tx.user.delete({
+        where: { id: userId },
+      });
     });
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    console.error(error);
     return NextResponse.json(
       { error: "No se pudo eliminar el usuario" },
       { status: 400 }
     );
   }
 }
-
