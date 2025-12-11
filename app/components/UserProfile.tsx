@@ -524,35 +524,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
       />
       {user.clientProfile.travelPoints}
     </span>
-
-    {/* Tooltip (sigue funcionando igual) */}
-    <div
-      className="
-        absolute top-full mt-2 w-max px-3 py-2 text-xs rounded-md shadow-md bg-gray-800 text-white 
-        opacity-0 pointer-events-none transition-opacity duration-200
-        group-hover:opacity-100
-      "
-    >
-      {!user.clientProfile?.travelPointsActive ||
-      user.clientProfile.travelPointsActive.length === 0 ? (
-        "No hay puntos activos"
-      ) : (
-        <div className="flex flex-col gap-1">
-          {user.clientProfile.travelPointsActive.map((tp) => {
-            const daysLeft = getDaysLeft(tp.expiresAt);
-
-            return (
-              <div key={tp.id}>
-                +{tp.amount} pts —{" "}
-                {daysLeft > 0
-                  ? `${daysLeft} día${daysLeft === 1 ? "" : "s"} restantes`
-                  : "Vencidos"}
-              </div>
-            );
-          })}
-        </div>
-      )}
-    </div>
+    
   </div>
 )}
 <TravelPointsModal
