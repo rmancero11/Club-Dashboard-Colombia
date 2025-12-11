@@ -673,7 +673,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
       {/* Contenedor de Mensajes */}
       <div
         ref={scrollContainerRef}
-        className="flex-grow p-4 flex flex-col space-y-3 overflow-y-auto"
+        className="flex-grow p-4 flex flex-col space-y-3 overflow-y-auto overflow-x-hidden"
       >
         
         {isHistoryLoading && (
@@ -730,7 +730,7 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
           shadow-md 
           transition-all 
           duration-300 
-          break-words 
+          break-all
           whitespace-pre-line
           ${
             isSender
@@ -824,27 +824,85 @@ const ConversationWindow: React.FC<ConversationWindowProps> = ({
 
                     {/* Menú de eliminar mensaje */}
                     {openMessageMenuId === msg.id && (
-                      <div className="absolute right-1 bottom-16 mt-1 bg-white rounded-md shadow z-50 w-36">
+                      <div className="absolute right-9 top-0 mt-1 bg-white rounded-md shadow z-50 w-36">
                         <button
                           onClick={() => handleDeleteMessage(msg.id)}
-                          className="font-montserrat w-full text-left px-2 py-1 text-sm text-red-600 hover:bg-red-50"
+                          className="font-montserrat w-full text-center px-2 py-1 text-sm text-red-600 hover:bg-red-100 hover:text-red-900"
                         >
                           Eliminar mensaje
                         </button>
                       </div>
                     )}
 
-                    {/* Horario */}
+                    {/* Check de leído de mensaje y Horario de envío */}
                     <div className="text-xs mt-1 text-right flex items-center justify-end space-x-1">
-                        {isSender && (
-                        <span className="text-blue-200">
-                          {msg.status === "pending"
-                          ? "..."
-                          : msg.readAt
-                          ? "✔✔"
-                          : "✔"}
-                        </span>
-                      )}
+                    {isSender && (
+                      <span
+                        className={`flex items-center justify-center ${
+                          msg.readAt ? "text-blue-300" : "text-purple-200"
+                        }`}
+                        title={
+                          msg.status === "pending"
+                            ? "Enviando..."
+                            : msg.readAt
+                            ? "Leído"
+                            : "Enviado"
+                        }
+                      >
+                        {/* 1. ÍCONO PENDIENTE (Reloj) */}
+                        {msg.status === "pending" && (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="14"
+                            height="14"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <circle cx="12" cy="12" r="10" />
+                            <polyline points="12 6 12 12 16 14" />
+                          </svg>
+                        )}
+
+                        {/* 2. ÍCONO ENVIADO (Un check) - Solo si NO está leído aún */}
+                        {msg.status !== "pending" && !msg.readAt && (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        )}
+
+                        {/* 3. ÍCONO LEÍDO (Doble check) */}
+                        {msg.readAt && (
+                          <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
+                            <path d="M18 6 7 17l-5-5" />
+                            <path d="m22 10-7.5 7.5L13 16" />
+                          </svg>
+                        )}
+                      </span>
+                    )}
                       <span
                         className={isSender ? "text-blue-200" : "text-gray-500"}
                       >

@@ -105,6 +105,8 @@ export const useSocket = (
 
       if (store.isExpanded && isCurrentChat) {
         markMessagesAsRead(message.senderId);
+        // Actualizamos localmente para quitar el contador de no leídos al instante
+        store.markMessagesAsRead(message.senderId);
       }
     };
  
@@ -152,7 +154,8 @@ export const useSocket = (
       // Si soy el sender original, marcá como leídos los mensajes que enviaste al readerId
       if (data.senderId === userId) {
         // markMessagesReadAction(data.readerId);
-        useChatStore.getState().markMessageAsRead(data.readerId);
+        // useChatStore.getState().markMessageAsRead(data.readerId);
+        store.markOutgoingMessagesAsRead(data.readerId);
       }
     };
 
