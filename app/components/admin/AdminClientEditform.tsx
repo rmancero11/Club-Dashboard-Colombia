@@ -2,9 +2,9 @@
 
 import { useState } from "react";
 
-
 type Seller = { id: string; name: string | null; email: string };
 type SubscriptionPlan = "STANDARD" | "PREMIUM" | "VIP";
+type Destination = { id: string; name: string };
 
 export default function AdminClientEditForm({
   clientId,
@@ -14,7 +14,7 @@ export default function AdminClientEditForm({
   currentSubscriptionPlan,
   currentTravelPoints,
   sellers,
-  
+  destinations,
 }: {
   clientId: string;
   currentSellerId: string;
@@ -23,44 +23,88 @@ export default function AdminClientEditForm({
   currentSubscriptionPlan: SubscriptionPlan;
   currentTravelPoints: number;
   sellers: Seller[];
- 
+  destinations: Destination[];
 }) {
   const [sellerId, setSellerId] = useState(currentSellerId);
   const [subscriptionPlan, setSubscriptionPlan] =
     useState<SubscriptionPlan>(currentSubscriptionPlan);
   const [archived, setArchived] = useState(currentArchived);
   const [notes, setNotes] = useState(currentNotes);
+
+  const [addTravelPoints, setAddTravelPoints] = useState(0);
+const [resetTravelPoints, setResetTravelPoints] = useState(false);
+
+const [validFrom, setValidFrom] = useState<string>("");
+const [expiresAt, setExpiresAt] = useState<string>("");
+
+const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
+
+
   const [loading, setLoading] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
   const [err, setErr] = useState<string | null>(null);
-  const [addTravelPoints, setAddTravelPoints] = useState(0);
-const [resetTravelPoints, setResetTravelPoints] = useState(false);
-const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
-  
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);
     setMsg(null);
     setErr(null);
-    if (addTravelPoints > 0 && travelPointsDurationDays <= 0) {
-  setErr("Debés indicar cuántos días durarán los Travel Points.");
-  setLoading(false);
-  return;
+
+    // ================= Validaciones =================
+    if (addTravelPoints > 0) {
+  if (!expiresAt) {
+    setErr("Debés indicar hasta qué fecha son válidos los Travel Points.");
+    setLoading(false);
+    return;
+  }
+
+  if (
+    validFrom &&
+    new Date(validFrom).getTime() > new Date(expiresAt).getTime()
+  ) {
+    setErr("La fecha desde no puede ser posterior a la fecha hasta.");
+    setLoading(false);
+    return;
+  }
+
+  if (selectedDestinations.length === 0) {
+    setErr("Debés seleccionar al menos un destino.");
+    setLoading(false);
+    return;
+  }
 }
+
 
     try {
       const formData = new FormData();
-      formData.append("sellerId", sellerId || "");
+
+      formData.append("sellerId", sellerId);
       formData.append("isArchived", String(archived));
       formData.append("notes", notes ?? "");
       formData.append("subscriptionPlan", subscriptionPlan);
+
       formData.append("addTravelPoints", String(addTravelPoints));
-      formData.append("resetTravelPoints", String(resetTravelPoints));
-      formData.append(
-  "travelPointsDurationDays",
-  String(travelPointsDurationDays)
-);
+formData.append("resetTravelPoints", String(resetTravelPoints));
+
+if (addTravelPoints > 0) {
+  if (validFrom) {
+    formData.append("travelPointsValidFrom", validFrom);
+  }
+
+  formData.append("travelPointsExpiresAt", expiresAt);
+
+  formData.append(
+    "travelPointsDestinations",
+    JSON.stringify(selectedDestinations)
+  );
+}
+
+      if (addTravelPoints > 0) {
+        formData.append(
+          "travelPointsDestinations",
+          JSON.stringify(selectedDestinations)
+        );
+      }
 
       const res = await fetch(`/api/admin/clients/${clientId}`, {
         method: "PATCH",
@@ -73,18 +117,29 @@ const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
         setErr(data?.error || `No se pudo actualizar (HTTP ${res.status})`);
       } else {
         setMsg("Cliente actualizado correctamente.");
+        setAddTravelPoints(0);
+        setSelectedDestinations([]);
+        setResetTravelPoints(false);
       }
-    } catch (e) {
+    } catch {
       setErr("Error de red");
     } finally {
       setLoading(false);
     }
   }
 
+  function toggleDestination(id: string) {
+    setSelectedDestinations((prev) =>
+      prev.includes(id)
+        ? prev.filter((d) => d !== id)
+        : [...prev, id]
+    );
+  }
+
   return (
     <form
       onSubmit={onSubmit}
-      className="grid gap-3 max-w-md"
+      className="grid gap-4 max-w-md"
       encType="multipart/form-data"
     >
       {err && (
@@ -92,6 +147,7 @@ const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
           {err}
         </div>
       )}
+
       {msg && (
         <div className="rounded border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-700">
           {msg}
@@ -105,7 +161,6 @@ const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
           value={sellerId}
           onChange={(e) => setSellerId(e.target.value)}
           className="rounded-md border px-3 py-2"
-          required
         >
           {sellers.map((s) => (
             <option key={s.id} value={s.id}>
@@ -115,7 +170,7 @@ const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
         </select>
       </label>
 
-      {/* Plan de suscripción */}
+      {/* Plan */}
       <label className="grid gap-1 text-sm">
         <span className="font-medium">Plan de suscripción</span>
         <select
@@ -133,58 +188,82 @@ const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
         </select>
       </label>
 
-      {/* SUMAR PUNTOS */}
-<div className="flex flex-col gap-1">
-  <label className="text-sm font-medium">Sumar TravelPoints al cliente</label>
-  <input
-    type="number"
-    min={0}
-    value={addTravelPoints}
-    onChange={(e) => setAddTravelPoints(Number(e.target.value))}
-    className="rounded-md border px-2 py-1"
-  />
-  <p className="text-xs text-gray-500">
-    Estos puntos se sumarán a los {currentTravelPoints} actuales.
-  </p>
-</div>
-{/* DURACIÓN DE LOS PUNTOS */}
-<div className="flex flex-col gap-1">
-  <label className="text-sm font-medium">
-    Duración de los Travel Points (días)
-  </label>
-  <input
-    type="number"
-    min={1}
-    value={travelPointsDurationDays}
-    onChange={(e) => setTravelPointsDurationDays(Number(e.target.value))}
-    className="rounded-md border px-2 py-1"
-    disabled={addTravelPoints === 0}
-  />
-  <p className="text-xs text-gray-500">
-    Define cuántos días serán válidos los puntos que estás agregando.
-  </p>
-</div>
+      {/* Travel Points */}
+      <div className="grid gap-2">
+        <label className="text-sm font-medium">
+          Sumar Travel Points ({currentTravelPoints} actuales)
+        </label>
+        <input
+          type="number"
+          min={0}
+          value={addTravelPoints}
+          onChange={(e) => setAddTravelPoints(Number(e.target.value))}
+          className="rounded-md border px-2 py-1"
+        />
 
+        {addTravelPoints > 0 && (
+  <div className="grid gap-2">
+    <label className="text-sm font-medium">
+      Válidos desde (opcional)
+    </label>
+    <input
+      type="date"
+      value={validFrom}
+      onChange={(e) => setValidFrom(e.target.value)}
+      className="rounded-md border px-2 py-1"
+    />
 
-{/* RESETEAR TODOS LOS PUNTOS */}
-<div className="flex items-center gap-2">
-  <input
-    type="checkbox"
-    checked={resetTravelPoints}
-    onChange={(e) => setResetTravelPoints(e.target.checked)}
-  />
-  <span className="text-sm font-medium">
-    Eliminar todos los TravelPoints del cliente
-  </span>
-</div>
+    <label className="text-sm font-medium">
+      Válidos hasta
+    </label>
+    <input
+      type="date"
+      required
+      value={expiresAt}
+      onChange={(e) => setExpiresAt(e.target.value)}
+      className="rounded-md border px-2 py-1"
+    />
+  </div>
+)}
 
-{resetTravelPoints && (
-  <p className="text-xs text-red-600">
-    Esta acción eliminará TODOS los puntos actuales ({currentTravelPoints}).
-  </p>
+      </div>
+
+      {/* Destinos */}
+      {addTravelPoints > 0 && destinations?.length > 0 && (
+  <div className="grid gap-1">
+    <span className="text-sm font-medium">
+      Destinos válidos
+    </span>
+
+    {destinations.map((d) => (
+      <label key={d.id} className="flex gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={selectedDestinations.includes(d.id)}
+          onChange={() => toggleDestination(d.id)}
+        />
+        {d.name}
+      </label>
+    ))}
+  </div>
 )}
 
 
+      {/* Reset */}
+      <label className="flex items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          checked={resetTravelPoints}
+          onChange={(e) => setResetTravelPoints(e.target.checked)}
+        />
+        Eliminar todos los Travel Points
+      </label>
+
+      {resetTravelPoints && (
+        <p className="text-xs text-red-600">
+          Se eliminarán {currentTravelPoints} puntos actuales.
+        </p>
+      )}
 
       {/* Archivar */}
       <label className="flex items-center gap-2 text-sm">
@@ -193,10 +272,8 @@ const [travelPointsDurationDays, setTravelPointsDurationDays] = useState(0);
           checked={archived}
           onChange={(e) => setArchived(e.target.checked)}
         />
-        <span>Archivar cliente</span>
+        Archivar cliente
       </label>
-
-
 
       <div className="flex gap-2 pt-2">
         <button

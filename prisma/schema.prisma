@@ -223,6 +223,8 @@ model Destination {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
+  travelPoints TravelPointsDestination[]
+
   @@unique([name, country, city])
   @@index([isActive, popularityScore])
   @@index([country, city])
@@ -480,9 +482,26 @@ model TravelPointsTransaction {
   toClient   Client? @relation("ClientPointsReceived", fields: [toClientId], references: [id], onDelete: SetNull)
 
   createdAt DateTime @default(now())
+  validFrom DateTime?
   expiresAt DateTime
+
+  destinations TravelPointsDestination[]
 
   @@index([fromClientId])
   @@index([toClientId])
   @@index([type, createdAt])
 }
+
+model TravelPointsDestination {
+  id              String @id @default(uuid())
+
+  travelPointsId  String
+  destinationId   String
+
+  travelPoints    TravelPointsTransaction @relation(fields: [travelPointsId], references: [id], onDelete: Cascade)
+  destination     Destination              @relation(fields: [destinationId], references: [id], onDelete: Cascade)
+
+  @@unique([travelPointsId, destinationId])
+  @@index([destinationId])
+}
+

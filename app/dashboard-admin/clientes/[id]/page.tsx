@@ -352,7 +352,8 @@ export default async function AdminClientDetailPage({
 
   if (!client) notFound();
 
-  const [reservations, sellers, travelPointsHistory] = await Promise.all([
+  const [reservations, sellers, travelPointsHistory, destinations] =
+  await Promise.all([
     prisma.reservation.findMany({
       where: { clientId: client.id },
       orderBy: { createdAt: "desc" },
@@ -375,11 +376,8 @@ export default async function AdminClientDetailPage({
       orderBy: { name: "asc" },
     }),
 
-    // ✅ NUEVO: historial de travel points con expiración
     prisma.travelPointsTransaction.findMany({
-      where: {
-        toClientId: client.id,
-      },
+      where: { toClientId: client.id },
       orderBy: { createdAt: "desc" },
       select: {
         id: true,
@@ -390,7 +388,15 @@ export default async function AdminClientDetailPage({
         expiresAt: true,
       },
     }),
+
+    // ✅ DESTINOS
+    prisma.destination.findMany({
+      where: { isActive: true }, // ajustá si usás otro flag
+      select: { id: true, name: true },
+      orderBy: { name: "asc" },
+    }),
   ]);
+
 
   return (
     <div className="space-y-6">
@@ -586,6 +592,7 @@ export default async function AdminClientDetailPage({
         <div className="rounded-xl border bg-white p-4">
           <h2 className="mb-3 text-lg font-semibold">Editar</h2>
           <AdminClientEditForm
+            destinations={destinations}
             clientId={client.id}
             currentSellerId={client.seller?.id || ""}
             currentArchived={client.isArchived}
