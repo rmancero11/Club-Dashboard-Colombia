@@ -196,19 +196,39 @@ export async function PATCH(
 
     const logs: Promise<any>[] = [];
 
-    if (resetTravelPoints && existingClient.travelPoints > 0) {
-      logs.push(
-        prisma.travelPointsTransaction.create({
-          data: {
-            type: "ADJUSTMENT",
-            amount: -existingClient.travelPoints,
-            toClientId: params.id,
-            expiresAt: new Date(),
-            note: `RESET TOTAL por admin`,
-          },
-        })
-      );
-    }
+    if (resetTravelPoints) {
+  // 1) Borrar TODAS las transacciones existentes del cliente
+  logs.push(
+    prisma.travelPointsDestination.deleteMany({
+      where: {
+        travelPoints: {
+          toClientId: params.id,
+        },
+      },
+    })
+  );
+
+  logs.push(
+    prisma.travelPointsTransaction.deleteMany({
+      where: { toClientId: params.id },
+    })
+  );
+
+  // 2) Registrar el reset total como un log (si querés seguir teniendo historial)
+  logs.push(
+    prisma.travelPointsTransaction.create({
+      data: {
+        type: "ADJUSTMENT",
+        amount: 0,
+        toClientId: params.id,
+        validFrom: null,
+        expiresAt: new Date(),
+        note: `RESET TOTAL por admin`,
+      },
+    })
+  );
+}
+
 
     if (addTravelPoints > 0) {
       const expiresAt =
