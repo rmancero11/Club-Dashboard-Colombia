@@ -19,16 +19,23 @@ export async function GET() {
     if (!token) {
       return NextResponse.json(
         { error: "No autenticado" },
-        { status: 401, headers: { "Cache-Control": "no-store" } }
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store" },
+        }
       );
     }
 
     const { payload } = await jwtVerify(token, enc.encode(JWT_SECRET));
     const userId = (payload?.sub as string | undefined) || (payload as any)?.id;
+
     if (!userId) {
       return NextResponse.json(
         { error: "Token inválido" },
-        { status: 401, headers: { "Cache-Control": "no-store" } }
+        {
+          status: 401,
+          headers: { "Cache-Control": "no-store" },
+        }
       );
     }
 
@@ -72,7 +79,7 @@ export async function GET() {
         whatsappNumber: true,
         currentlyLink: true,
 
-        // Perfil de cliente (si role = USER)
+        // Perfil del cliente
         clientProfile: {
           select: {
             id: true,
@@ -81,20 +88,40 @@ export async function GET() {
             subscriptionCreatedAt: true,
             subscriptionExpiresAt: true,
 
-           pointsReceived: {
-  where: {
-    amount: { gt: 0 },
-    expiresAt: { gt: new Date() }, // ✅ solo vigentes
-  },
-  select: {
-    id: true,
-    amount: true,
-    expiresAt: true,
-    createdAt: true,
-  },
-  orderBy: { expiresAt: "asc" }, // primero el que vence antes
-},
+            // TRAVEL POINTS RECIBIDOS (EXTENDIDOS)
+            pointsReceived: {
+              where: {
+                amount: { gt: 0 },
+                expiresAt: { gt: new Date() }, // solo vigentes
+              },
+              select: {
+                id: true,
+                amount: true,
+                note: true,
+                validFrom: true,
+                expiresAt: true,
+                createdAt: true,
 
+                // destinos asociados
+                destinations: {
+                  select: {
+                    destination: {
+                      select: {
+                        id: true,
+                        name: true,
+                        country: true,
+                        city: true,
+                        description: true,
+                        imageUrl: true,
+                      },
+                    },
+                  },
+                },
+              },
+              orderBy: { expiresAt: "asc" },
+            },
+
+            // Vendedor asignado
             seller: {
               select: {
                 id: true,
@@ -106,6 +133,7 @@ export async function GET() {
               },
             },
 
+            // Próxima reserva
             reservations: {
               where: { status: { not: "CANCELED" } },
               orderBy: { startDate: "asc" },
@@ -134,16 +162,34 @@ export async function GET() {
     if (!user) {
       return NextResponse.json(
         { error: "Usuario no encontrado" },
-        { status: 404, headers: { "Cache-Control": "no-store" } }
+        {
+          status: 404,
+          headers: { "Cache-Control": "no-store" },
+        }
       );
     }
 
     if (user.status !== "ACTIVE") {
       return NextResponse.json(
         { error: "Cuenta inactiva" },
-        { status: 403, headers: { "Cache-Control": "no-store" } }
+        {
+          status: 403,
+          headers: { "Cache-Control": "no-store" },
+        }
       );
     }
+
+    // Normalizamos destinos
+    const normalizedTravelPoints =
+      user.clientProfile?.pointsReceived?.map((p) => ({
+        id: p.id,
+        amount: p.amount,
+        note: p.note,
+        validFrom: p.validFrom,
+        expiresAt: p.expiresAt,
+        createdAt: p.createdAt,
+        destinations: p.destinations.map((d) => d.destination),
+      })) ?? [];
 
     const userShape = {
       id: user.id,
@@ -159,7 +205,6 @@ export async function GET() {
       verified: user.verified,
       avatar: user.avatar,
       galleryImages: user.galleryImages,
-      // businessId: user.businessId, // ❌ quitar
       dniFile: user.dniFile,
       passportFile: user.passport,
       visaFile: user.visa,
@@ -182,7 +227,8 @@ export async function GET() {
             subscriptionExpiresAt:
               user.clientProfile.subscriptionExpiresAt ?? null,
 
-           travelPointsActive: user.clientProfile.pointsReceived ?? [],
+            // datos completos
+            travelPointsActive: normalizedTravelPoints,
           }
         : null,
 
@@ -193,7 +239,7 @@ export async function GET() {
       medicalAssistanceCard: user.medicalAssistanceCard,
       travelTips: user.travelTips,
 
-      // Vendedor asignado
+      // Vendedor
       vendedor: user.clientProfile?.seller
         ? {
             nombre: user.clientProfile.seller.name,
@@ -204,20 +250,26 @@ export async function GET() {
           }
         : null,
 
-      // Próximo destino reservado
+      // Próximo destino
       nextDestination:
         user.clientProfile?.reservations?.[0]?.destination ?? null,
     };
 
     return NextResponse.json(
       { user: userShape },
-      { status: 200, headers: { "Cache-Control": "no-store" } }
+      {
+        status: 200,
+        headers: { "Cache-Control": "no-store" },
+      }
     );
   } catch (err) {
     console.error("Error en /api/auth/me:", err);
     return NextResponse.json(
       { error: "No autenticado" },
-      { status: 401, headers: { "Cache-Control": "no-store" } }
+      {
+        status: 401,
+        headers: { "Cache-Control": "no-store" },
+      }
     );
   }
 }
