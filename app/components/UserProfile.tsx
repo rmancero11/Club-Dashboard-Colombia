@@ -10,6 +10,7 @@ import { useSearchParams } from "next/navigation";
 import InstallAppButton from "./InstallAppButton";
 import { useChatStore } from "@/store/chatStore";
 import { closeSocket } from "../utils/socket";
+import TravelPointsModal from "@/app/components/TravelPointsModal";
 
 type Role = "ADMIN" | "SELLER" | "USER";
 
@@ -34,7 +35,15 @@ type UserShape = {
       id: string;
       amount: number;
       expiresAt: string;
-      createdAt: string;
+      validFrom: string;
+      destinations: {
+        id: string;
+        name: string;
+        country: string;
+        city?: string | null;
+        description?: string | null;
+        imageUrl?: string | null;
+      }[];
     }[];
   };
   vendedor?: {
@@ -57,6 +66,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
   const tabFromQuery = searchParams.get("tab");
   const [activeTab, setActiveTab] = React.useState(tabFromQuery ?? "destinos");
   const [isAvatarModalOpen, setIsAvatarModalOpen] = React.useState(false);
+  const [isTPModalOpen, setIsTPModalOpen] = React.useState(false);
   const [nextDestination, setNextDestination] = React.useState<null | {
     id: string;
     name: string;
@@ -491,61 +501,65 @@ export default function UserProfile({ user }: { user: UserShape }) {
             )}
 
             {typeof user.clientProfile?.travelPoints === "number" && (
-              <div className="relative flex flex-col items-center group">
-                {/* Badge */}
-                <span
-                  className="
-  flex items-center gap-1.5
-  h-9
-  text-base font-bold
-  bg-yellow-100 text-yellow-700
-  px-4
-  rounded-md
-  cursor-default
-"
-                >
-                  <Image
-                    src="/favicon/iconosclub-25.svg"
-                    alt="Travel Points"
-                    width={24}
-                    height={24}
-                    className="object-contain"
-                  />
-                  {user.clientProfile.travelPoints}
-                </span>
+  <div className="relative flex flex-col items-center group">
+    {/* Badge (abre el modal) */}
+    <span
+      onClick={() => setIsTPModalOpen(true)}
+      className="
+        flex items-center gap-1.5
+        h-9
+        text-base font-bold
+        bg-yellow-100 text-yellow-700
+        px-4
+        rounded-md
+        cursor-pointer
+      "
+    >
+      <Image
+        src="/favicon/iconosclub-25.svg"
+        alt="Travel Points"
+        width={24}
+        height={24}
+        className="object-contain"
+      />
+      {user.clientProfile.travelPoints}
+    </span>
 
-                {/* Tooltip */}
-                <div
-                  className="
+    {/* Tooltip (sigue funcionando igual) */}
+    <div
+      className="
         absolute top-full mt-2 w-max px-3 py-2 text-xs rounded-md shadow-md bg-gray-800 text-white 
         opacity-0 pointer-events-none transition-opacity duration-200
         group-hover:opacity-100
       "
-                >
-                  {!user.clientProfile?.travelPointsActive ||
-                  user.clientProfile.travelPointsActive.length === 0 ? (
-                    "No hay puntos activos"
-                  ) : (
-                    <div className="flex flex-col gap-1">
-                      {user.clientProfile.travelPointsActive.map((tp) => {
-                        const daysLeft = getDaysLeft(tp.expiresAt);
+    >
+      {!user.clientProfile?.travelPointsActive ||
+      user.clientProfile.travelPointsActive.length === 0 ? (
+        "No hay puntos activos"
+      ) : (
+        <div className="flex flex-col gap-1">
+          {user.clientProfile.travelPointsActive.map((tp) => {
+            const daysLeft = getDaysLeft(tp.expiresAt);
 
-                        return (
-                          <div key={tp.id}>
-                            +{tp.amount} pts —{" "}
-                            {daysLeft > 0
-                              ? `${daysLeft} día${
-                                  daysLeft === 1 ? "" : "s"
-                                } restantes`
-                              : "Vencidos"}
-                          </div>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
+            return (
+              <div key={tp.id}>
+                +{tp.amount} pts —{" "}
+                {daysLeft > 0
+                  ? `${daysLeft} día${daysLeft === 1 ? "" : "s"} restantes`
+                  : "Vencidos"}
               </div>
-            )}
+            );
+          })}
+        </div>
+      )}
+    </div>
+  </div>
+)}
+<TravelPointsModal
+  isOpen={isTPModalOpen}
+  onClose={() => setIsTPModalOpen(false)}
+  clientTP={user.clientProfile}
+/>
           </div>
 
           <UserPreferences
