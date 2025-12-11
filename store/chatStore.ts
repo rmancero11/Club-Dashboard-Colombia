@@ -56,6 +56,7 @@ export interface ChatStore {
   // Marcamos un mensaje como leído
   markMessageAsRead: (messageId: string) => void;
   markMessagesAsRead: (matchId: string) => void;
+  markOutgoingMessagesAsRead: (receiverId: string) => void;
 
   // Reacciones al realtime de borrado
   deleteMessageRealtime: (messageId: string, userId: string) => void;
@@ -233,6 +234,16 @@ export const useChatStore = create<ChatStore>()((set, get) => ({
           ? { ...msg, readAt: new Date().toISOString() }
           : msg
       )
+  })),
+
+  markOutgoingMessagesAsRead: (receiverId) => set((state) => ({
+    messages: state.messages.map((msg) =>
+      // Buscamos mensajes enviados al usuario que acaba de abrir el chat (receiverId)
+      // que aún no tengan fecha de lectura.
+      msg.receiverId === receiverId && !msg.readAt
+        ? { ...msg, readAt: new Date().toISOString() }
+        : msg
+    )
   })),
     
   deleteMessageRealtime: (messageId, userId) =>
