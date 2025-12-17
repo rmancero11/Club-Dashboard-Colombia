@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { getAuth } from "@/app/lib/auth";
 import { MatchStatus } from "@prisma/client";
-import prisma from "@/app/lib/prisma"; // usa la instancia central si la tenés
+import prisma from "@/app/lib/prisma";
 
 export const dynamic = 'force-dynamic';
 
@@ -14,6 +14,7 @@ export async function GET(request: Request) {
 
     const currentUserId = authResult.userId;
 
+    // Obtener listas de bloqueos
     const usersWhoBlockedMe = await prisma.blockedUser.findMany({
       where: { blockedUserId: currentUserId },
       select: { blockerUserId: true },
@@ -26,6 +27,7 @@ export async function GET(request: Request) {
     });
     const iBlockedThemIds = usersIBlocked.map(b => b.blockedUserId);
 
+    // Obtener matches
     const matches = await prisma.match.findMany({
       where: {
         OR: [{ userAId: currentUserId }, { userBId: currentUserId }],
@@ -66,11 +68,13 @@ export async function GET(request: Request) {
       },
     });
 
+    // Procesar cada match para obtener último mensaje y conteo de no leídos
     const matchesWithLastMessage = await Promise.all(matches.map(async (match) => {
       const matchedUser = match.userAId === currentUserId ? match.userB : match.userA;
 
       const isBlockedByMe = iBlockedThemIds.includes(matchedUser.id);
 
+      // Obtener último mensaje
       const lastMessage = await prisma.message.findFirst({
         where: {
           OR: [
@@ -80,6 +84,15 @@ export async function GET(request: Request) {
         },
         orderBy: { createdAt: 'desc' },
         select: { content: true, createdAt: true, senderId: true },
+      });
+
+      // Obtener conteo de no leídos
+      const unreadCount = await prisma.message.count({
+        where: {
+          senderId: matchedUser.id, // El remitente es el otro usuario
+          receiverId: currentUserId, // El receptor soy yo
+          readAt: null, // es null porque no ha sido leído
+        },
       });
 
       return {
@@ -92,6 +105,7 @@ export async function GET(request: Request) {
         birthday: matchedUser.birthday,
         gender: matchedUser.gender,
         isBlockedByMe,
+        unreadCount,
         lastMessageContent: lastMessage?.content
           ? (lastMessage.senderId === currentUserId ? `Tú: ${lastMessage.content}` : lastMessage.content)
           : null,
@@ -99,6 +113,7 @@ export async function GET(request: Request) {
       };
     }));
 
+    // Ordenar por fecha del último mensaje
     matchesWithLastMessage.sort((a, b) => {
       const dateA = a.lastMessageAt ? new Date(a.lastMessageAt).getTime() : 0;
       const dateB = b.lastMessageAt ? new Date(b.lastMessageAt).getTime() : 0;
