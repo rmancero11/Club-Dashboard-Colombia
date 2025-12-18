@@ -74,7 +74,11 @@ export default function AvatarModal({
     },
   };
 
-  const iconsMap: Record<string, { src: string; label: string }> = { playa: { src: "/favicon/playa-club-solteros.svg", label: "Playa" }, aventura: { src: "/favicon/aventura-club-solteros.svg", label: "Aventura" }, cultura: { src: "/favicon/cultura-club-solteros.svg", label: "Cultura" }, };
+  const iconsMap: Record<string, { src: string; label: string }> = {
+    playa: { src: "/favicon/playa-club-solteros.svg", label: "Playa" },
+    aventura: { src: "/favicon/aventura-club-solteros.svg", label: "Aventura" },
+    cultura: { src: "/favicon/cultura-club-solteros.svg", label: "Cultura" },
+  };
 
   React.useEffect(() => {
     mountedRef.current = true;
@@ -110,6 +114,7 @@ export default function AvatarModal({
     };
   }, [isOpen, userId]);
 
+  /* ---------------- LOADING STATE ---------------- */
   if (loading || !user) {
     return (
       <AnimatePresence>
@@ -120,9 +125,15 @@ export default function AvatarModal({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
           >
-            <motion.div className="bg-white rounded-xl p-6">
-              Cargando...
-            </motion.div>
+            <motion.div
+              className="w-16 h-16 rounded-full border-4 border-purple-200 border-t-purple-500"
+              animate={{ rotate: 360 }}
+              transition={{
+                repeat: Infinity,
+                ease: "linear",
+                duration: 1,
+              }}
+            />
           </motion.div>
         )}
       </AnimatePresence>
@@ -221,7 +232,7 @@ export default function AvatarModal({
                   </p>
                 )}
 
-                {gustos?.length > 0 && (
+                {gustos.length > 0 && (
                   <div className="flex gap-1 mt-1 flex-wrap">
                     {user.preference.map((p: string, i: number) => {
                       const key = p.toLowerCase();
@@ -233,18 +244,19 @@ export default function AvatarModal({
                           ? [icon]
                           : [];
                       return (
-                        <div key={i} className="flex items-center gap-1 font-montserrat">
+                        <div key={i} className="flex items-center gap-1">
                           {items.map((it, i2) => (
-                            <div key={i2} className="flex flex-col items-center gap-0.5 font-montserrat">
+                            <div
+                              key={i2}
+                              className="flex flex-col items-center gap-0.5"
+                            >
                               <Image
                                 src={it.src}
                                 alt={it.label}
                                 width={28}
                                 height={28}
                               />
-                              <span className="text-xs text-white font-montserrat">
-                                {it.label}
-                              </span>
+                              <span className="text-xs">{it.label}</span>
                             </div>
                           ))}
                         </div>
