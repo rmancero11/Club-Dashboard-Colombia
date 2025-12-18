@@ -15,7 +15,7 @@ const montserrat = Montserrat({
 
 export const metadata: Metadata = {
   title: { default: "ClubSolteros", template: "%s | ClubSolteros" },
-  description: "App Agencias de Viajes",
+  description: "Club de viajeros solteros por el mundo",
   manifest: "/manifest.json",
   icons: {
     icon: [
