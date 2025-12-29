@@ -160,6 +160,7 @@ model User {
   sellerReservations  Reservation[]        @relation("SellerReservations")
   sellerTasks         Task[]               @relation("SellerTasks")
   passwordResetTokens PasswordResetToken[]
+  deviceTokens        DeviceToken[]
 
   whatsappNumber  String?
   currentlyLink   String?
@@ -505,3 +506,12 @@ model TravelPointsDestination {
   @@index([destinationId])
 }
 
+model DeviceToken {
+  id        String   @id @default(uuid())
+  token     String   @unique // El token largo que nos da Firebase
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@index([userId])
+}

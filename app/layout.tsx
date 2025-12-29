@@ -5,6 +5,7 @@ import "./globals.css";
 import RegisterSW from "./components/RegisterSW";
 import Splash from "./components/Splash"; // Splash activado
 import { ChatProvider } from "./components/chat/ChatProvider";
+import { Toaster } from "sonner";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter" });
 const montserrat = Montserrat({
@@ -48,6 +49,7 @@ export default function RootLayout({
         <Splash /> {/* splash con animación */}
         <ChatProvider>
           {children}
+          <Toaster position="top-right" richColors closeButton />
         </ChatProvider>
       </body>
     </html>

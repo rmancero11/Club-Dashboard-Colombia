@@ -5,8 +5,9 @@ import { useAuth } from '@/app/hooks/useAuth';
 import { useSocket } from '@/app/hooks/useSocket';
 import { useChatStore, MatchContact } from '@/store/chatStore';
 import ChatModal from './ChatModal';
-import { usePathname } from 'next/navigation';
+import { usePathname, useSearchParams, useRouter } from 'next/navigation';
 import { MessageType } from '@/app/types/chat';
+import useFcmToken from '@/app/hooks/useFcmToken';
 
 const normalizeMessage = (msg: any): MessageType => ({
   id: msg.id ?? crypto.randomUUID(),
@@ -23,17 +24,43 @@ const normalizeMessage = (msg: any): MessageType => ({
 
 export const ChatProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   
+  const searchParams = useSearchParams();
+  const router = useRouter();
   const pathname = usePathname();
 
   const { user, isLoading } = useAuth();
   const currentUserId = user?.id;
 
-  // Nuevo: traemos el estado del modal
+  // Ejecutamos el registro de tokens
+  useFcmToken(currentUserId);
+
+  // traemos el estado del modal
   const isModalOpen = useChatStore(state => state.isModalOpen);
+
+  const openModal = useChatStore(state => state.openModal);
+  const setActiveChat = useChatStore(state => state.setActiveChat);
 
   const isExpanded = useChatStore(state => state.isExpanded);
   const setMatches = useChatStore(state => state.setMatches);
   const upsertMessages = useChatStore(state => state.upsertMessages);
+
+  // --- LÓGICA PARA ABRIR CHAT DESDE NOTIFICACIÓN ---
+  useEffect(() => {
+    const chatIdFromUrl = searchParams.get('chatId');
+
+    if (chatIdFromUrl && currentUserId) {
+      // 1. Establecemos el chat activo
+      setActiveChat(chatIdFromUrl);
+      // 2. Abrimos el modal
+      openModal();
+      
+      // 3. Limpiamos la URL para que no se reabra al refrescar la página manualmente
+      const params = new URLSearchParams(searchParams.toString());
+      params.delete('chatId');
+      const newPath = params.toString() ? `?${params.toString()}` : '';
+      window.history.replaceState({}, '', window.location.pathname + newPath);
+    }
+  }, [searchParams, currentUserId, setActiveChat, openModal]);
 
   // Función para cargar la data inicial (lista de Matches)
   const loadInitialChatData = useCallback(async () => {

@@ -1,10 +1,27 @@
 import { Server, ServerOptions } from 'socket.io';
 import { createServer } from 'http';
 import { PrismaClient } from '@prisma/client';
+import admin from 'firebase-admin';
 
 const PORT = process.env.PORT || 4000;
 const prisma = new PrismaClient(); 
 const httpServer = createServer();
+
+// Inicializamos Firebase Admin en el servidor de sockets
+if (!admin.apps.length) {
+    try {
+        admin.initializeApp({
+            credential: admin.credential.cert({
+                projectId: process.env.FIREBASE_PROJECT_ID,
+                clientEmail: process.env.FIREBASE_CLIENT_EMAIL,
+                privateKey: process.env.FIREBASE_PRIVATE_KEY?.replace(/\\n/g, '\n'),
+            }),
+        });
+        console.log("✅ Firebase Admin Initialized on Socket Server");
+    } catch (error) {
+        console.error("❌ Firebase admin initialization error:", error);
+    }
+}
 
 // Endpoint de Health Check para evitar Dormancia en Render
 httpServer.on('request', (req, res) => {
@@ -278,6 +295,7 @@ io.on('connection', (socket) => {
     socket.on('send-message', async (data: { senderId: string, receiverId: string, content: string, imageUrl?: string, localId:string }) => {
         const senderId = data.senderId;
         const receiverId = data.receiverId;
+        const imagenContent = data.imageUrl;
         // Extraemos el localId (es solo para el cliente)
         const { localId, ...messageToSave } = data;
 
@@ -327,6 +345,76 @@ io.on('connection', (socket) => {
             // Confirmación: Confirmar el envío al remitente
             socket.emit('message-sent-success', { ...newMessage, localId: localId });
             
+            // LÓGICA DE NOTIFICACIÓN PUSH (FCM) 
+            // Solo intentamos enviar si el mensaje se guardó correctamente
+            try {
+                // Buscamos los tokens del receptor en la tabla que creamos
+                const receiverTokens = await prisma.deviceToken.findMany({
+                    where: { userId: receiverId },
+                    select: { token: true }
+                });
+
+                if (receiverTokens.length > 0) {
+                    const tokens = receiverTokens.map(t => t.token);
+                    
+                    // Obtenemos el nombre del remitente para la notificación
+                    const sender = await prisma.user.findUnique({
+                        where: { id: senderId },
+                        select: { name: true }
+                    });
+
+                    const payload = {
+                        notification: {
+                            title: sender?.name || "Nuevo mensaje",
+                            body: imagenContent ? `📷 ${imagenContent}` : messageToSave.content || "Te han enviado una imagen",
+                        },
+                        // Datos para que el frontend sepa a qué chat ir
+                        data: {
+                            url: `/dashboard-user?chatId=${senderId}`,
+                            type: "CHAT_MESSAGE"
+                        },
+                        tokens: tokens, // Enviamos a todos los dispositivos del usuario
+                    };
+
+                    // Enviar vía Firebase
+                    // const response = await admin.messaging().sendEachForMulticast(payload);
+
+                    // Enviar y obtener respuesta detallada
+                    const response = await admin.messaging().sendEachForMulticast(payload);
+                    
+                    // 🧹 LÓGICA DE LIMPIEZA DE TOKENS INVÁLIDOS
+                    if (response.failureCount > 0) {
+                        const tokensToDelete: string[] = [];
+                        
+                        response.responses.forEach((resp, idx) => {
+                            if (!resp.success) {
+                                const error = resp.error;
+                                // Estos códigos indican que el token ya no sirve
+                                if (error?.code === 'messaging/invalid-registration-token' ||
+                                    error?.code === 'messaging/registration-token-not-registered') {
+                                    tokensToDelete.push(tokens[idx]);
+                                }
+                            }
+                        });
+
+                        if (tokensToDelete.length > 0) {
+                            await prisma.deviceToken.deleteMany({
+                                where: {
+                                    token: { in: tokensToDelete }
+                                }
+                            });
+                            console.log(`🧹 Se eliminaron ${tokensToDelete.length} tokens inválidos de la DB.`);
+                        }
+                    }
+
+                    console.log(`✅ Push enviado: ${response.successCount} exitosos, ${response.failureCount} fallidos.`);
+                    
+                }
+            } catch (pushError) {
+                console.error('Error enviando notificación Push:', pushError);
+                // No lanzamos el error para no romper el flujo del socket
+            }
+
         } catch (error) {
             console.error('Error al guardar mensaje:', error);
             // En caso de error, siempre devolver el localId para que el cliente sepa qué mensaje falló.

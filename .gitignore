@@ -61,3 +61,6 @@ next-env.d.ts
 !.vscode/extensions.json
 !.vscode/settings.json
 .idea
+
+# .gitignore
+service_key.json
