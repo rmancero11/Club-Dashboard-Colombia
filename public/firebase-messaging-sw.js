@@ -16,17 +16,21 @@ const messaging = firebase.messaging();
 messaging.onBackgroundMessage((payload) => {
   console.log('Notificación recibida en segundo plano:', payload);
 
-  const notificationTitle = payload.notification.title || "Nuevo mensaje";
+  const notificationTitle = payload.notification?.title || "Nuevo mensaje";
   const notificationOptions = {
-    body: payload.notification.body || "Tienes contenido nuevo.",
-    icon: '/icons/icon-512.png', 
+    body: payload.notification?.body || "Tienes un mensaje nuevo.",
+    icon: '/icons/icon-192.png', 
     badge: '/icons/icon-192.png',
+    image: payload.notification?.image || payload.data?.image || null, // mostramos la foto si existe
+    vibrate: [200, 100, 200], // Vibración
+    tag: 'chat-notification', // Evitamos que se amontonen si son del mismo tipo
+    renotify: true, // Reavisa si ya hay una notificación con la misma tag
     data: {
-      url: payload.data?.url || '/' // Pasamos la URL que viene desde el backend
+      url: payload.data?.url || '/dashboard-user',
     }
   };
 
-  self.registration.showNotification(notificationTitle, notificationOptions);
+  return self.registration.showNotification(notificationTitle, notificationOptions);
 });
 
 // MANEJADOR DE CLICK: Esto abre la web al tocar la notificación
@@ -34,18 +38,29 @@ self.addEventListener('notificationclick', (event) => {
   event.notification.close(); // Cierra la notificación
 
   // Obtener la URL de los datos que enviamos desde el backend
-  const urlToOpen = event.notification.data.url;
+  const urlToOpen = new URL(event.notification.data.url, self.location.origin).href;
 
   event.waitUntil(
     clients.matchAll({ type: 'window', includeUncontrolled: true }).then((windowClients) => {
-      // Si ya hay una pestaña abierta, enfocarla
-      for (var i = 0; i < windowClients.length; i++) {
-        var client = windowClients[i];
+      // Verificar si ya hay una pestaña abierta con esa URL o con el dominio
+      for (let i = 0; i < windowClients.length; i++) {
+        let client = windowClients[i];
+        // Si el cliente está en la URL exacta, darle foco
         if (client.url === urlToOpen && 'focus' in client) {
           return client.focus();
         }
       }
-      // Si no hay pestaña abierta, abrir una nueva
+      
+      // Si no hay pestaña abierta en esa URL pero sí en el sitio, 
+      // podemos navegar la pestaña existente en lugar de abrir una nueva
+      if (windowClients.length > 0) {
+        let client = windowClients[0];
+        if ('navigate' in client) {
+          client.navigate(urlToOpen);
+          return client.focus();
+        }
+      }
+      // Si no hay pestaña abierta, abrir nueva ventana
       if (clients.openWindow) {
         return clients.openWindow(urlToOpen);
       }
