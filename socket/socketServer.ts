@@ -354,6 +354,7 @@ io.on('connection', (socket) => {
                     select: { token: true }
                 });
 
+
                 if (receiverTokens.length > 0) {
                     const tokens = receiverTokens.map(t => t.token);
                     
@@ -362,15 +363,31 @@ io.on('connection', (socket) => {
                         where: { id: senderId },
                         select: { name: true }
                     });
+                    
+                    let notificationBody= "";
+
+                    if (imagenContent) {
+                        // Si hay img, ponemos un emoji y un texto
+                        // Y si no hay texto en el mensaje, lo concatenamos
+                        notificationBody = messageToSave.content
+                        ? `📷 Foto: ${messageToSave.content}`
+                        : `📷 Nueva foto`;
+                    } else {
+                        // Si no hay img, mostramos el contenido de texto normal
+                        notificationBody = messageToSave.content || "Te han enviado un mensaje";
+                    }
 
                     const payload = {
                         notification: {
+                            // icon: '/icons/icon-512.png',
                             title: sender?.name || "Nuevo mensaje",
-                            body: imagenContent ? `📷 ${imagenContent}` : messageToSave.content || "Te han enviado una imagen",
+                            body: notificationBody,
+                            image: imagenContent || "",
                         },
                         // Datos para que el frontend sepa a qué chat ir
                         data: {
                             url: `/dashboard-user?chatId=${senderId}`,
+                            senderId: senderId,
                             type: "CHAT_MESSAGE"
                         },
                         tokens: tokens, // Enviamos a todos los dispositivos del usuario
