@@ -27,6 +27,9 @@ const useFcmToken = (userId: string | undefined) => {
     const messaging = getMessaging(app);
 
     const requestPermission = async () => {
+      // Evitamos registrar tokens si estamos en localhost
+      if (window.location.hostname === 'localhost') return;
+
       try {
         const permission = await Notification.requestPermission();
         
@@ -55,10 +58,12 @@ const useFcmToken = (userId: string | undefined) => {
     // Escuchamos mensajes en primer plano
     const unsubscribe = onMessage(messaging, (payload) => {
 
+      const data = payload.data;
+
       // OBTENEMOS EL ID DEL CHAT DESDE LA URL ACTUAL
       const params = new URLSearchParams(window.location.search);
       const activeChatId = params.get('chatId');
-      const incomingSenderId = payload.data?.senderId; // Asegúrate de enviar esto desde el server
+      const incomingSenderId = data?.senderId; 
 
       // 2. LOGICA INTELIGENTE: 
       // Si el usuario ya está en el chat con esa persona, no mostramos el Sonner.
@@ -70,41 +75,26 @@ const useFcmToken = (userId: string | undefined) => {
       // --- ESTILO MODERNO PARA VIAJES ---
       toast.custom((t) => (
         <div 
-          onClick={() => {
-            toast.dismiss(t);
-            router.push(payload.data?.url || '/dashboard-user');
-          }}
-          className="flex items-center w-full max-w-md p-4 bg-white border border-blue-100 rounded-2xl shadow-2xl cursor-pointer hover:bg-blue-50 transition-colors duration-300"
-          style={{ borderLeft: '6px solid #3b82f6' }} // Color azul "Travel"
-        >
-          {/* Icono o Avatar del remitente */}
-          <div className="flex-shrink-0 w-12 h-12 rounded-full overflow-hidden bg-blue-100 flex items-center justify-center border-2 border-white shadow-sm">
-            {payload.notification?.image ? (
-              <img src={payload.notification.image} alt="preview" className="w-full h-full object-cover" />
-            ) : (
-              <span className="text-xl">
-                <img src="/icons/icon-192.png" alt="preview" className="w-full h-full object-cover" />
-              </span> 
-            )}
-          </div>
-
-          <div className="ml-4 flex-1">
-            <p className="text-sm font-bold text-gray-900 leading-none">
-              {payload.notification?.title || "Nuevo mensaje"}
-            </p>
-            <p className="mt-1 text-xs text-gray-600 line-clamp-2">
-              {payload.notification?.body || "Tienes un nuevo mensaje"}
-            </p>
-          </div>
-
-          <div className="ml-4 text-blue-500 font-semibold text-xs uppercase tracking-wider">
-            Ver
-          </div>
-        </div>
-      ), {
-        duration: 6000,
-        position: 'top-right',
-      });
+      onClick={() => {
+        toast.dismiss(t);
+        router.push(data?.url || '/dashboard-user');
+      }}
+      className="flex items-center w-full max-w-md p-4 bg-white border border-blue-100 rounded-2xl shadow-2xl cursor-pointer"
+    >
+      <div className="flex-shrink-0 w-12 h-12 rounded-full overflow-hidden border-2 border-blue-50">
+        <img 
+          src={data?.senderImage || '/icons/icon-192.png'} 
+          alt="profile" 
+          className="w-full h-full object-cover" 
+          onError={(e) => { e.currentTarget.src = '/icons/icon-192.png' }} // Fallback si la URL falla
+        />
+      </div>
+      <div className="ml-4 flex-1">
+        <p className="text-sm font-bold text-gray-900">{data?.title}</p>
+        <p className="text-xs text-gray-600 line-clamp-1">{data?.body}</p>
+      </div>
+    </div>
+  ), { duration: 6000, position: 'top-right' });
     });
 
     return () => unsubscribe();
