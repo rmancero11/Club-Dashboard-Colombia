@@ -14,24 +14,63 @@ const messaging = firebase.messaging();
 
 // Escuchar mensajes en segundo plano
 messaging.onBackgroundMessage((payload) => {
-  console.log('Notificación recibida en segundo plano:', payload);
+  console.log('🔔 Notificación recibida en segundo plano:', payload);
 
-  const notificationTitle = payload.notification?.title || "Nuevo mensaje";
-  const notificationOptions = {
-    body: payload.notification?.body || "Tienes un mensaje nuevo.",
-    icon: '/icons/icon-192.png', 
-    badge: '/icons/icon-192.png',
-    image: payload.notification?.image || payload.data?.image || null, // mostramos la foto si existe
-    vibrate: [200, 100, 200], // Vibración
-    tag: 'chat-notification', // Evitamos que se amontonen si son del mismo tipo
-    renotify: true, // Reavisa si ya hay una notificación con la misma tag
-    data: {
-      url: payload.data?.url || '/dashboard-user',
+  const data = payload.data;
+
+  // Mostramos la notificación si NO hay ninguna pestaña de la app abierta y visible
+  const promiseChain = clients.matchAll({
+    type: 'window',
+    includeUncontrolled: true
+  }).then((windowClients) => {
+    const isAppVisible = windowClients.some(client => client.visibilityState === 'visible');
+
+    if (isAppVisible) {
+      console.log("App en primer plano, el SW no mostrará notificación (se encarga el Hook/Sonner).");
+      return null;
     }
-  };
+    
+    // Si la app está cerrada o en segundo plano, mostramos la notificación
+    const notificationTitle = data?.title || "Nuevo mensaje";
+    const notificationOptions = {
+      body: data?.body || "Tienes un mensaje nuevo.",
+      icon: (data.senderImage && !data.senderImage.includes('default-avatar')) 
+        ? data.senderImage 
+        : '/icons/icon-192.png',
+      badge: '/icons/icon-192.png',
+      image: data?.image || null,
+      vibrate: [200, 100, 200],
+      tag: 'chat-notification', // Evita duplicados de la misma conversación
+      renotify: true,
+      data: {
+        url: data?.url || '/dashboard-user',
+      }
+    };
 
-  return self.registration.showNotification(notificationTitle, notificationOptions);
+    return self.registration.showNotification(notificationTitle, notificationOptions);
+  });
+
+  return promiseChain;
 });
+
+// const notificationTitle = data?.title || "Nuevo mensaje";
+  // const notificationOptions = {
+  //   body: data?.body || "Tienes un mensaje nuevo.",
+  //   icon: data.senderImage && data.senderImage !== "/images/default-avatar.png"
+  //     ? data.senderImage
+  //     : '/icons/icon-192.png',
+  //   badge: '/icons/icon-192.png',
+  //   image: data?.image || payload.data?.image || null, // mostramos la foto si existe
+  //   vibrate: [200, 100, 200], // Vibración
+  //   tag: 'chat-notification', // Evitamos que se amontonen si son del mismo tipo
+  //   renotify: true, // Reavisa si ya hay una notificación con la misma tag
+  //   data: {
+  //     url: data?.url || '/dashboard-user',
+  //   }
+  // };
+
+  // return self.registration.showNotification(notificationTitle, notificationOptions);
+// });
 
 // MANEJADOR DE CLICK: Esto abre la web al tocar la notificación
 self.addEventListener('notificationclick', (event) => {

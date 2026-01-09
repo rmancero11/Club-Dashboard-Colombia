@@ -361,7 +361,7 @@ io.on('connection', (socket) => {
                     // Obtenemos el nombre del remitente para la notificación
                     const sender = await prisma.user.findUnique({
                         where: { id: senderId },
-                        select: { name: true }
+                        select: { name: true, avatar: true }
                     });
                     
                     let notificationBody= "";
@@ -377,24 +377,26 @@ io.on('connection', (socket) => {
                         notificationBody = messageToSave.content || "Te han enviado un mensaje";
                     }
 
+                    // let avatarUrl = "";
+                    // if (sender?.avatar && sender?.avatar === "/images/default-avatar.png") {
+                    //     avatarUrl = '/icons/icon-192.png';
+                    // } else if (sender?.avatar && sender?.avatar !== "/images/default-avatar.png") {
+                    //     avatarUrl = sender?.avatar;
+                    // }
+
                     const payload = {
-                        notification: {
+                        data: {
                             // icon: '/icons/icon-512.png',
                             title: sender?.name || "Nuevo mensaje",
                             body: notificationBody,
                             image: imagenContent || "",
-                        },
-                        // Datos para que el frontend sepa a qué chat ir
-                        data: {
+                            senderImage: sender?.avatar || "/images/default-avatar.png",
                             url: `/dashboard-user?chatId=${senderId}`,
                             senderId: senderId,
                             type: "CHAT_MESSAGE"
                         },
                         tokens: tokens, // Enviamos a todos los dispositivos del usuario
                     };
-
-                    // Enviar vía Firebase
-                    // const response = await admin.messaging().sendEachForMulticast(payload);
 
                     // Enviar y obtener respuesta detallada
                     const response = await admin.messaging().sendEachForMulticast(payload);
