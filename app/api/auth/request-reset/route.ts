@@ -19,7 +19,7 @@ export async function POST(req: Request) {
   const ip =
     (req.headers.get("x-forwarded-for") ?? "").split(",")[0].trim() ||
     (req as any).ip;
-
+console.log("USER ID:", user.id);
   const { plain } = await issuePasswordResetToken(user.id, ip, ua);
   const base = process.env.APP_URL!;
   const resetUrl = `${base}/reset-password?token=${plain}`;
