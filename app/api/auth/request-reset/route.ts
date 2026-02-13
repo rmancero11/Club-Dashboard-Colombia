@@ -6,6 +6,8 @@ import { sendPasswordResetEmail } from "@/app/lib/mail";
 export const runtime = "nodejs";
 
 export async function POST(req: Request) {
+  console.log("REQUEST RESET HIT");
+
   const { email } = await req.json();
 
   if (!email) return NextResponse.json({ ok: true });
@@ -22,7 +24,13 @@ export async function POST(req: Request) {
   const base = process.env.APP_URL!;
   const resetUrl = `${base}/reset-password?token=${plain}`;
 
+  try {
   await sendPasswordResetEmail(email, resetUrl);
+  console.log("MAIL ENVIADO A:", email);
+} catch (err) {
+  console.error("ERROR ENVIANDO MAIL:", err);
+}
+
 
   return NextResponse.json({ ok: true });
 }
