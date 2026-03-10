@@ -25,7 +25,10 @@ console.log("USER ID:", user.id);
   const resetUrl = `${base}/reset-password?token=${plain}`;
 
   try {
-  await sendPasswordResetEmail(email, resetUrl);
+  await sendPasswordResetEmail(
+  "tuemail@gmail.com",
+  "https://google.com"
+);
   console.log("MAIL ENVIADO A:", email);
 } catch (err) {
   console.error("ERROR ENVIANDO MAIL:", err);
