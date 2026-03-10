@@ -3,24 +3,13 @@ import { Resend } from "resend";
 const resend = new Resend(process.env.RESEND_API_KEY!);
 
 export async function sendPasswordResetEmail(to: string, resetUrl: string) {
-  console.log("RESEND_API_KEY:", process.env.RESEND_API_KEY);
-  await resend.emails.send({
-    from: process.env.EMAIL_FROM!, 
+  const { data, error } = await resend.emails.send({
+    from: process.env.EMAIL_FROM!,
     to,
     subject: "Recupera tu contraseña",
-    html: `
-      <div style="font-family:Arial, sans-serif; line-height:1.5">
-        <p>Solicitaste recuperar tu contraseña.</p>
-        <p><a href="${resetUrl}" target="_blank" rel="noopener">Haz clic aquí para crear una nueva contraseña</a></p>
-        <p>Este enlace expira en ${Number(
-          process.env.RESET_TOKEN_TTL_MINUTES ?? 30
-        )} minutos.</p>
-        <hr />
-        <p style="font-size:12px;color:#666">
-          Si no fuiste tú, ignora este correo.
-        </p>
-      </div>
-    `,
-    text: `Solicitaste recuperar tu contraseña. Abre este enlace: ${resetUrl}`,
+    html: `<a href="${resetUrl}">Reset password</a>`
   });
+
+  console.log("DATA:", data);
+  console.log("ERROR:", error);
 }
