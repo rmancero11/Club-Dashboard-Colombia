@@ -45,8 +45,6 @@ export async function POST(req: Request) {
 
     await sendPasswordResetEmail(email, resetUrl);
 
-    console.log("MAIL ENVIADO A:", email);
-
     return NextResponse.json({ ok: true });
 
   } catch (error) {
