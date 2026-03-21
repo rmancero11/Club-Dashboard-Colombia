@@ -30,7 +30,16 @@ function calculateExpiresAt({
 
   return expires;
 }
-
+function getSubscriptionDuration(plan: string) {
+  switch (plan) {
+    case "PREMIUM":
+      return 90;
+    case "VIP":
+      return 120;
+    default:
+      return null; // STANDARD
+  }
+}
 export async function PATCH(
   req: Request,
   { params }: { params: { id: string } }
@@ -53,6 +62,7 @@ export async function PATCH(
   const sellerId = (formData.get("sellerId") as string | null) || null;
   const isArchived = formData.get("isArchived") === "true";
   const notes = (formData.get("notes") as string | null) || null;
+  const subscriptionPlan = formData.get("subscriptionPlan");
   const verifiedField = formData.get("verified");
 
   // ================= Travel Points =================
@@ -70,7 +80,12 @@ export async function PATCH(
       { status: 400 }
     );
   }
-
+  if (subscriptionPlan && !SUBS_VALUES.has(subscriptionPlan as any)) {
+  return NextResponse.json(
+    { error: "Plan inválido" },
+    { status: 400 }
+  );
+}
   // ================= Duración (legacy) =================
   const durationDaysRaw = formData.get("travelPointsDurationDays");
   const durationMonthsRaw = formData.get("travelPointsDurationMonths");
@@ -165,8 +180,33 @@ export async function PATCH(
 
   // ================= Client Data =================
   const clientData: any = { isArchived, notes };
-  if (sellerId) clientData.sellerId = sellerId;
 
+if (sellerId) clientData.sellerId = sellerId;
+
+if (subscriptionPlan) {
+  clientData.subscriptionPlan = subscriptionPlan;
+
+  const durationDays = getSubscriptionDuration(subscriptionPlan as string);
+
+  if (durationDays) {
+    const now = new Date();
+
+    const baseDate =
+      existingClient.subscriptionExpiresAt &&
+      existingClient.subscriptionExpiresAt > now
+        ? existingClient.subscriptionExpiresAt
+        : now;
+
+    const expires = new Date(baseDate);
+    expires.setDate(baseDate.getDate() + durationDays);
+
+    clientData.subscriptionCreatedAt = now;
+    clientData.subscriptionExpiresAt = expires;
+  } else {
+    clientData.subscriptionCreatedAt = null;
+    clientData.subscriptionExpiresAt = null;
+  }
+}
   if (resetTravelPoints) {
     clientData.travelPoints = addTravelPoints > 0 ? addTravelPoints : 0;
   } else if (addTravelPoints > 0) {

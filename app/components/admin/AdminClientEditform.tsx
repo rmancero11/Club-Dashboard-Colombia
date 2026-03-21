@@ -30,6 +30,7 @@ export default function AdminClientEditForm({
     useState<SubscriptionPlan>(currentSubscriptionPlan);
   const [archived, setArchived] = useState(currentArchived);
   const [notes, setNotes] = useState(currentNotes);
+  
 
   const [addTravelPoints, setAddTravelPoints] = useState(0);
 const [resetTravelPoints, setResetTravelPoints] = useState(false);
