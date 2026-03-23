@@ -11,7 +11,7 @@ export async function sendPasswordResetEmail(to: string, resetUrl: string) {
   const fromEmail =
     process.env.EMAIL_FROM || "no-reply@clubdeviajerossolteros.com";
 
-  const subject = Solicitud para restablecer tu contraseña | ${brandName};
+  const subject = `Solicitud para restablecer tu contraseña | ${brandName}`;
 
   const html = `
   <div style="margin:0;padding:0;background:#f4f6f8;font-family:Arial,Helvetica,sans-serif;">
@@ -85,12 +85,11 @@ ${supportEmail}
   `.trim();
 
   const { data, error } = await resend.emails.send({
-    from: Club de Viajeros Solteros <${fromEmail}>,
-    to,
-    subject,
-    html,
-    text,
-  });
+  from: `Club de Viajeros Solteros <${fromEmail}>`,
+  to,
+  subject,
+  html,
+});
 
   if (error) {
     console.error("ERROR:", error);
