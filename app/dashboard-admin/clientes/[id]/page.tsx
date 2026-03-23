@@ -26,7 +26,7 @@ function money(n: number, currency = "USD") {
 
 /** Tasa USD↔COP desde env (fallback 4000) */
 const USD_COP_RATE = Number(
-  process.env.NEXT_PUBLIC_USD_COP_RATE || process.env.USD_COP_RATE || 4000
+  process.env.NEXT_PUBLIC_USD_COP_RATE || process.env.USD_COP_RATE || 4000,
 );
 
 /** Normaliza a USD sin tocar el valor original en base de datos */
@@ -45,7 +45,7 @@ const FILE_LABELS: Record<string, string> = {
   visa: "Visa",
 };
 const ALLOWED_DOC_FIELDS = Object.keys(
-  FILE_LABELS
+  FILE_LABELS,
 ) as (keyof typeof FILE_LABELS)[];
 
 /** Detección de extensión (tolerante con URLs sin .ext) */
@@ -118,17 +118,13 @@ function getRemainingTime(expiresAt?: Date | string | null) {
   const now = new Date();
   const exp = typeof expiresAt === "string" ? new Date(expiresAt) : expiresAt;
 
-  if (exp < now) return "Expirada";
-
   const diffMs = exp.getTime() - now.getTime();
-  const diffDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-  const diffHours = Math.floor((diffMs / (1000 * 60 * 60)) % 24);
 
-  if (diffDays > 0) {
-    return `${diffDays} días y ${diffHours} horas restantes`;
-  }
+  if (diffMs <= 0) return "Expirada";
 
-  return `${diffHours} horas restantes`;
+  const days = Math.ceil(diffMs / (1000 * 60 * 60 * 24));
+
+  return `${days} día${days === 1 ? "" : "s"} restantes`;
 }
 
 /** Previsualizador */
@@ -174,7 +170,7 @@ function FilePreview({
     const src = url.includes("/api/file-proxy")
       ? url
       : `/api/file-proxy?url=${encodeURIComponent(
-          url
+          url,
         )}&filename=${encodeURIComponent(filename)}${
           clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""
         }`;
@@ -260,7 +256,7 @@ function DocumentList({
         const ext = getExt(url);
         const openUrl = isPdf(ext)
           ? `/api/file-proxy?url=${encodeURIComponent(
-              url
+              url,
             )}&filename=${encodeURIComponent(filename)}${
               clientId ? `&clientId=${encodeURIComponent(clientId)}` : ""
             }`
@@ -353,50 +349,49 @@ export default async function AdminClientDetailPage({
   if (!client) notFound();
 
   const [reservations, sellers, travelPointsHistory, destinations] =
-  await Promise.all([
-    prisma.reservation.findMany({
-      where: { clientId: client.id },
-      orderBy: { createdAt: "desc" },
-      take: 10,
-      select: {
-        id: true,
-        code: true,
-        status: true,
-        startDate: true,
-        endDate: true,
-        currency: true,
-        totalAmount: true,
-        destination: { select: { name: true } },
-      },
-    }),
+    await Promise.all([
+      prisma.reservation.findMany({
+        where: { clientId: client.id },
+        orderBy: { createdAt: "desc" },
+        take: 10,
+        select: {
+          id: true,
+          code: true,
+          status: true,
+          startDate: true,
+          endDate: true,
+          currency: true,
+          totalAmount: true,
+          destination: { select: { name: true } },
+        },
+      }),
 
-    prisma.user.findMany({
-      where: { role: "SELLER", status: "ACTIVE" },
-      select: { id: true, name: true, email: true },
-      orderBy: { name: "asc" },
-    }),
+      prisma.user.findMany({
+        where: { role: "SELLER", status: "ACTIVE" },
+        select: { id: true, name: true, email: true },
+        orderBy: { name: "asc" },
+      }),
 
-    prisma.travelPointsTransaction.findMany({
-      where: { toClientId: client.id },
-      orderBy: { createdAt: "desc" },
-      select: {
-        id: true,
-        type: true,
-        amount: true,
-        note: true,
-        createdAt: true,
-        expiresAt: true,
-      },
-    }),
+      prisma.travelPointsTransaction.findMany({
+        where: { toClientId: client.id },
+        orderBy: { createdAt: "desc" },
+        select: {
+          id: true,
+          type: true,
+          amount: true,
+          note: true,
+          createdAt: true,
+          expiresAt: true,
+        },
+      }),
 
-    // ✅ DESTINOS
-    prisma.destination.findMany({
-      where: { isActive: true }, // ajustá si usás otro flag
-      select: { id: true, name: true },
-      orderBy: { name: "asc" },
-    }),
-  ]);
-
+      // ✅ DESTINOS
+      prisma.destination.findMany({
+        where: { isActive: true }, // ajustá si usás otro flag
+        select: { id: true, name: true },
+        orderBy: { name: "asc" },
+      }),
+    ]);
 
   return (
     <div className="space-y-6">
@@ -448,7 +443,7 @@ export default async function AdminClientDetailPage({
               <span className="text-gray-500">Suscripción: </span>
               <span
                 className={`inline-flex items-center rounded-md border px-2 py-0.5 text-[11px] ${planBadgeClass(
-                  client.subscriptionPlan as unknown as string
+                  client.subscriptionPlan as unknown as string,
                 )}`}
               >
                 {SUBSCRIPTION_LABEL[
@@ -460,14 +455,23 @@ export default async function AdminClientDetailPage({
             <div className="text-sm text-gray-500 mt-1">
               {client.subscriptionPlan !== "STANDARD" ? (
                 <>
-                  <span className="font-medium">Expira:</span>{" "}
-                  {client.subscriptionExpiresAt
-                    ? fmtDate(client.subscriptionExpiresAt)
-                    : "—"}{" "}
-                  ·{" "}
-                  <span className="italic">
+                  <div>
+                    <span className="font-medium">Desde:</span>{" "}
+                    {client.subscriptionCreatedAt
+                      ? fmtDate(client.subscriptionCreatedAt)
+                      : "—"}
+                  </div>
+
+                  <div>
+                    <span className="font-medium">Expira:</span>{" "}
+                    {client.subscriptionExpiresAt
+                      ? fmtDate(client.subscriptionExpiresAt)
+                      : "—"}
+                  </div>
+
+                  <div className="italic">
                     {getRemainingTime(client.subscriptionExpiresAt)}
-                  </span>
+                  </div>
                 </>
               ) : (
                 "Sin suscripción activa"
@@ -629,7 +633,7 @@ export default async function AdminClientDetailPage({
                   <div className="text-sm">
                     {money(
                       toUSD(Number(r.totalAmount || 0), r.currency),
-                      "USD"
+                      "USD",
                     )}
                   </div>
                 </div>

@@ -30,7 +30,8 @@ export default function AdminClientEditForm({
     useState<SubscriptionPlan>(currentSubscriptionPlan);
   const [archived, setArchived] = useState(currentArchived);
   const [notes, setNotes] = useState(currentNotes);
-  
+  const [subValidFrom, setSubValidFrom] = useState<string>("");
+const [subExpiresAt, setSubExpiresAt] = useState<string>("");
 
   const [addTravelPoints, setAddTravelPoints] = useState(0);
 const [resetTravelPoints, setResetTravelPoints] = useState(false);
@@ -67,6 +68,13 @@ const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
     setLoading(false);
     return;
   }
+  if (subValidFrom && subExpiresAt) {
+  if (new Date(subValidFrom) >= new Date(subExpiresAt)) {
+    setErr("La fecha de inicio de suscripción debe ser menor a la de expiración.");
+    setLoading(false);
+    return;
+  }
+}
 
   if (selectedDestinations.length === 0) {
     setErr("Debés seleccionar al menos un destino.");
@@ -83,6 +91,13 @@ const [selectedDestinations, setSelectedDestinations] = useState<string[]>([]);
       formData.append("isArchived", String(archived));
       formData.append("notes", notes ?? "");
       formData.append("subscriptionPlan", subscriptionPlan);
+      if (subValidFrom) {
+  formData.append("subscriptionValidFrom", subValidFrom);
+}
+
+if (subExpiresAt) {
+  formData.append("subscriptionExpiresAt", subExpiresAt);
+}
 
       formData.append("addTravelPoints", String(addTravelPoints));
 formData.append("resetTravelPoints", String(resetTravelPoints));
@@ -99,14 +114,6 @@ if (addTravelPoints > 0) {
     JSON.stringify(selectedDestinations)
   );
 }
-
-      if (addTravelPoints > 0) {
-        formData.append(
-          "travelPointsDestinations",
-          JSON.stringify(selectedDestinations)
-        );
-      }
-
       const res = await fetch(`/api/admin/clients/${clientId}`, {
         method: "PATCH",
         body: formData,
@@ -188,6 +195,28 @@ if (addTravelPoints > 0) {
           ))}
         </select>
       </label>
+
+      <div className="grid gap-2">
+  <label className="text-sm font-medium">
+    Suscripción válida desde
+  </label>
+  <input
+    type="date"
+    value={subValidFrom}
+    onChange={(e) => setSubValidFrom(e.target.value)}
+    className="rounded-md border px-2 py-1"
+  />
+
+  <label className="text-sm font-medium">
+    Suscripción válida hasta
+  </label>
+  <input
+    type="date"
+    value={subExpiresAt}
+    onChange={(e) => setSubExpiresAt(e.target.value)}
+    className="rounded-md border px-2 py-1"
+  />
+</div>
 
       {/* Travel Points */}
       <div className="grid gap-2">
