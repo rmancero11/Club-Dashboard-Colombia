@@ -3,7 +3,7 @@ export const revalidate = 0;
 import prisma from "@/app/lib/prisma";
 import { getAuth } from "@/app/lib/auth";
 import { redirect, notFound } from "next/navigation";
-import AdminClientEditForm from "@/app/components/admin/AdminClientEditform";
+import AdminClientEditForm from "@/app/components/admin/AdminClientEditForm";
 import ClientDocuments from "@/app/components/admin/ClientDocuments";
 import ReservationDocuments from "@/app/components/admin/reservations/ReservationDocuments";
 
