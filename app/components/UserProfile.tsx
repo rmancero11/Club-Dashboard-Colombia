@@ -152,7 +152,7 @@ export default function UserProfile({ user }: { user: UserShape }) {
       });
       if (!res.ok) throw new Error("Error al subir avatar");
       const data = await res.json();
-      setAvatarPreview(data.user.avatar);
+setAvatarPreview(`${data.user.avatar}?t=${Date.now()}`);
     } catch (err) {
       console.error(err);
     } finally {
@@ -430,13 +430,6 @@ export default function UserProfile({ user }: { user: UserShape }) {
                       />
                     )}
                   </label>
-                  <input
-                    id="avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    onChange={handleAvatarChange}
-                    className="hidden"
-                  />
                 </div>
 
                 {/* Botón cerrar */}
