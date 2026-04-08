@@ -44,6 +44,8 @@ export default function SellerNewReservationForm({
     [currencyOptions, currency]
   );
 
+  
+
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
     setLoading(true);

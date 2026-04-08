@@ -18,7 +18,6 @@ export default async function NewReservationPage() {
       where: { isArchived: false },
       select: { id: true, name: true },
       orderBy: { name: "asc" },
-      take: 200,
     }),
     prisma.destination.findMany({
       where: { isActive: true },
